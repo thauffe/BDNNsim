@@ -41,22 +41,26 @@ class bd_simulator():
         if seed:
             np.random.seed(seed)
 
-    def simulate(self, L, M, timesL, timesM, root):
+
+    def simulate(self, L, M, root):
         ts = list()
         te = list()
-        L, M, root = L / self.scale, M / self.scale, int(root * self.scale)
+        #L, M, root = L / self.scale, M / self.scale, int(self.root * self.scale)
+        root = int(root * self.scale)
 
         for i in range(self.s_species):
             ts.append(root)
             te.append(0)
 
-        for t in range(root, 0):  # time
-            for j in range(len(timesL) - 1):
-                if -t / self.scale <= timesL[j] and -t / self.scale > timesL[j + 1]:
-                    l = L[j]
-            for j in range(len(timesM) - 1):
-                if -t / self.scale <= timesM[j] and -t / self.scale > timesM[j + 1]:
-                    m = M[j]
+        for t in range(root, 0):  # time i.e. integers self.root * self.scale
+            #for j in range(len(timesL) - 1):
+            #    if -t / self.scale <= timesL[j] and -t / self.scale > timesL[j + 1]:
+            #        l = L[j]
+            #for j in range(len(timesM) - 1):
+            #    if -t / self.scale <= timesM[j] and -t / self.scale > timesM[j + 1]:
+            #        m = M[j]
+            l = L[t]
+            m = M[t]
 
             # if t % 100 ==0: print t/scale, -times[j], -times[j+1], l, m
             TE = len(te)
@@ -95,45 +99,54 @@ class bd_simulator():
 
     def get_random_settings(self, root):
         root = np.abs(root)
-        timesL_temp = [root, 0.]
-        timesM_temp = [root, 0.]
+        root_scaled = int(root * self.scale)
+        timesL_temp = [root_scaled, 0.]
+        timesM_temp = [root_scaled, 0.]
 
-        Lbase = np.random.uniform(np.min(self.range_base_L), np.max(self.range_base_L), 1)
-        Mbase = np.random.uniform(np.min(self.range_base_M), np.max(self.range_base_M), 1)
+        Lbase = np.random.uniform(np.min(self.range_base_L), np.max(self.range_base_L), 1) / self.scale
+        Mbase = np.random.uniform(np.min(self.range_base_M), np.max(self.range_base_M), 1) / self.scale
 
         # Number of rate shifts expected according to a Poisson distribution
         nL = np.random.poisson(self.poiL)
         nM = np.random.poisson(self.poiM)
 
-        shift_time_L = np.random.uniform(0, root, nL)
-        shift_time_M = np.random.uniform(0, root, nM)
+        shift_time_L = np.random.uniform(0, root_scaled, nL)
+        shift_time_M = np.random.uniform(0, root_scaled, nM)
 
         timesL = np.sort(np.concatenate((timesL_temp, shift_time_L), axis=0))[::-1]
         timesM = np.sort(np.concatenate((timesM_temp, shift_time_M), axis=0))[::-1]
 
-        L = np.zeros(nL + 1, dtype = 'float')
-        for i in range(nL + 1):
-            m = get_rate_shift_magnitude(self.magL)
-            L[i] = Lbase * m
-        M = np.zeros(nM + 1, dtype='float')
-        for i in range(nM + 1):
-            m = get_rate_shift_magnitude(self.magM)
-            M[i] = Mbase * m
+        # Rates through (scaled) time
+        L_shifts = np.zeros(root_scaled, dtype = 'float')
+        M_shifts = np.zeros(root_scaled, dtype='float')
+        idx_time_vec = np.arange(root_scaled)[::-1]
+        Lmag = np.zeros(nL + 1, dtype = 'float')
+        Mmag = np.zeros(nM + 1, dtype='float')
 
-        return timesL, timesM, L, M
+        for i in range(nL + 1):
+            Lmag[i] = get_rate_shift_magnitude(self.magL)
+            Lidx = np.logical_and(idx_time_vec <= timesL[i], idx_time_vec > timesL[i + 1])
+            L_shifts[Lidx] = Lbase * Lmag[i]
+        for i in range(nM + 1):
+            Mmag[i] = get_rate_shift_magnitude(self.magM)
+            Midx = np.logical_and(idx_time_vec <= timesM[i], idx_time_vec > timesM[i + 1])
+            M_shifts[Midx] = Mbase * Mmag[i]
+
+        return L_shifts, M_shifts, Lbase, Mbase, timesL, timesM, Lmag, Mmag
+
 
     def run_simulation(self, print_res=False):
         LOtrue = [0]
         n_extinct = -0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            timesL, timesM, L, M = self.get_random_settings(root)
-            FAtrue, LOtrue = self.simulate(L, M, timesL, timesM, root)
+            L, M, Lbase, Mbase, timesL, timesM, Lmag, Mmag = self.get_random_settings(root)
+            FAtrue, LOtrue = self.simulate(L, M, root)
             n_extinct = len(LOtrue[LOtrue > 0])
 
         ts_te = np.array([FAtrue, LOtrue])
         if print_res:
-            print("L", L, "M", M, "tL", timesL, "tM", timesM)
+            print("L", Lbase * self.scale * Lmag, "M", Mbase * self.scale * Mmag, "tL", timesL / self.scale, "tM", timesM / self.scale)
             print("N. species", len(LOtrue))
             ltt = ""
             for i in range(int(max(FAtrue))):
