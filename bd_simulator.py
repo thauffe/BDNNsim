@@ -12,15 +12,13 @@ class bd_simulator():
                  rangeSP=[100, 1000],  # min/max size data set
                  minEX_SP=0,  # minimum number of extinct lineages allowed
                  root_r=[30., 100],  # range root ages
-                 range_base_L=[0.2, 0.5],
-                 range_base_M=[0.2, 0.5],
+                 rangeL=[0.2, 0.5],
+                 rangeM=[0.2, 0.5],
                  scale=100.,
                  p_mass_extinction=0.00924,
                  magnitude_mass_ext=[0.8, 0.95],
                  poiL=3, # Number of rate shifts expected according to a Poisson distribution
                  poiM=3, # Number of rate shifts expected according to a Poisson distribution
-                 magL = 10., # Magnitude of shift in speciation rate
-                 magM = 10., # Magnitude of shift in extinction rate
                  seed=0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -28,15 +26,13 @@ class bd_simulator():
         self.maxSP = np.max(rangeSP)
         self.minEX_SP = minEX_SP
         self.root_r = root_r
-        self.range_base_L = range_base_L
-        self.range_base_M = range_base_M
+        self.rangeL = range_base_L
+        self.rangeM = range_base_M
         self.scale = scale
         self.p_mass_extinction = p_mass_extinction
         self.magnitude_mass_ext = np.sort(magnitude_mass_ext)
         self.poiL = poiL
         self.poiM = poiM
-        self.magL = magL
-        self.magM = magM,
         self.s_species = s_species
         if seed:
             np.random.seed(seed)
@@ -89,12 +85,12 @@ class bd_simulator():
         return -np.array(ts) / self.scale, -np.array(te) / self.scale
 
 
-    def get_rate_shift_magnitude(mag):
-        m = np.random.uniform(1, mag, 1)
-        incr = np.random.choice(np.arange(2), 1)
-        if incr == 1:
-            m = 1./m
-        return m
+    #def get_rate_shift_magnitude(mag):
+    #    m = np.random.uniform(1, mag, 1)
+    #    incr = np.random.choice(np.arange(2), 1)
+    #    if incr == 1:
+    #        m = 1./m
+    #    return m
 
 
     def get_random_settings(self, root):
@@ -103,12 +99,15 @@ class bd_simulator():
         timesL_temp = [root_scaled, 0.]
         timesM_temp = [root_scaled, 0.]
 
-        Lbase = np.random.uniform(np.min(self.range_base_L), np.max(self.range_base_L), 1) / self.scale
-        Mbase = np.random.uniform(np.min(self.range_base_M), np.max(self.range_base_M), 1) / self.scale
+        #Lbase = np.random.uniform(np.min(self.range_base_L), np.max(self.range_base_L), 1) / self.scale
+        #Mbase = np.random.uniform(np.min(self.range_base_M), np.max(self.range_base_M), 1) / self.scale
 
         # Number of rate shifts expected according to a Poisson distribution
         nL = np.random.poisson(self.poiL)
         nM = np.random.poisson(self.poiM)
+
+        L = np.random.uniform(np.min(self.rangeL), np.max(self.rangeL), nL + 1) / self.scale
+        M = np.random.uniform(np.min(self.rangeM), np.max(self.rangeM), nM + 1) / self.scale
 
         shift_time_L = np.random.uniform(0, root_scaled, nL)
         shift_time_M = np.random.uniform(0, root_scaled, nM)
@@ -120,19 +119,15 @@ class bd_simulator():
         L_shifts = np.zeros(root_scaled, dtype = 'float')
         M_shifts = np.zeros(root_scaled, dtype='float')
         idx_time_vec = np.arange(root_scaled)[::-1]
-        Lmag = np.zeros(nL + 1, dtype = 'float')
-        Mmag = np.zeros(nM + 1, dtype='float')
 
         for i in range(nL + 1):
-            Lmag[i] = get_rate_shift_magnitude(self.magL)
             Lidx = np.logical_and(idx_time_vec <= timesL[i], idx_time_vec > timesL[i + 1])
-            L_shifts[Lidx] = Lbase * Lmag[i]
+            L_shifts[Lidx] = L[i]
         for i in range(nM + 1):
-            Mmag[i] = get_rate_shift_magnitude(self.magM)
             Midx = np.logical_and(idx_time_vec <= timesM[i], idx_time_vec > timesM[i + 1])
-            M_shifts[Midx] = Mbase * Mmag[i]
+            M_shifts[Midx] = M[i]
 
-        return L_shifts, M_shifts, Lbase, Mbase, timesL, timesM, Lmag, Mmag
+        return L_shifts, M_shifts, L, M, timesL, timesM
 
 
     def run_simulation(self, print_res=False):
@@ -140,13 +135,13 @@ class bd_simulator():
         n_extinct = -0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            L, M, Lbase, Mbase, timesL, timesM, Lmag, Mmag = self.get_random_settings(root)
-            FAtrue, LOtrue = self.simulate(L, M, root)
+            L_shifts, M_shifts, L, M, timesL, timesM = self.get_random_settings(root)
+            FAtrue, LOtrue = self.simulate(L_shifts, M_shifts, root)
             n_extinct = len(LOtrue[LOtrue > 0])
 
         ts_te = np.array([FAtrue, LOtrue])
         if print_res:
-            print("L", Lbase * self.scale * Lmag, "M", Mbase * self.scale * Mmag, "tL", timesL / self.scale, "tM", timesM / self.scale)
+            print("L", L * self.scale, "M", M * self.scale, "tL", timesL / self.scale, "tM", timesM / self.scale)
             print("N. species", len(LOtrue))
             ltt = ""
             for i in range(int(max(FAtrue))):
