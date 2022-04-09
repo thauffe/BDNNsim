@@ -141,7 +141,7 @@ class bd_simulator():
         return L_tt, M_tt, linL, linM
 
 
-    def run_simulation(self, print_res=False):
+    def run_simulation(self, print_res = False):
         LOtrue = [0]
         n_extinct = -0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP:
@@ -166,3 +166,59 @@ class bd_simulator():
                 ltt += "\n%s\t%s\t%s" % (i, n, "*" * n)
             print(ltt)
         return ts_te.T
+
+
+
+class fossil_simulator():
+    def __init__(self,
+                 q = 5.,
+                 alpha = 100.,
+                 seed = 0):
+        self.q = q
+        self.alpha = alpha
+        if seed:
+            np.random.seed(seed)
+
+
+    def get_duration(self, sp_x):
+        return np.abs(np.diff(sp_x))
+
+
+    def get_is_alive(self, sp_x):
+        return sp_x[:,1] == 0.0
+
+
+    def get_fossil_occurrences(self, sp_x, is_alive):
+        dur = get_duration(sp_x)
+        poi_rate_occ = q * dur
+        exp_occ = np.round(np.random.poisson(poi_rate_occ)).flatten()
+        lineages_sampled = np.arange(sp_x.shape[0])[exp_occ > 0]
+
+        occ = []
+        for i in lineages_sampled:
+            occ_i = np.random.uniform(sp_x[i, 1], sp_x[i, 0], exp_occ[i])
+            if is_alive[i]:
+                occ_i = np.concatenate((occ_i, np.zeros(1, dtype = 'float')))
+            occ.append(occ_i)
+
+        return occ, lineages_sampled
+
+
+    def get_taxon_names(self, lineages_sampled):
+        num_taxa = len(lineages_sampled)
+        taxon_names = []
+        for i in range(num_taxa):
+            taxon_names.append('T%s' % lineages_sampled[i])
+
+        return taxon_names
+
+
+    def run_simulation(self, sp_x):
+        is_alive = self.get_is_alive(sp_x)
+        fossil_occ, lineages_sampled = self.get_fossil_occurrences(sp_x, is_alive)
+        taxon_names = self.get_taxon_names(lineages_sampled)
+
+        d = {'fossil_occurrences': fossil_occ,
+             'taxon_names': taxon_names}
+
+        return d

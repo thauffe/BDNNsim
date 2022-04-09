@@ -12,12 +12,19 @@ bd_sim = bd_simulator(s_species=1,  # number of starting species
                       poiM=0,  # expected number of death rate shift
                       range_linL = [0.0, 0.0],
                       range_linM = [0.0, 0.0],
-                      seed=rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
+                      seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
+
+
+fossil_sim = fossil_simulator(q = 5.,
+                              alpha = 100,
+                              seed = rnd_seed)
 
 # Birth-death simulation
-sp_x_i = bd_sim.run_simulation(print_res=True)
+sp_x = bd_sim.run_simulation(print_res=True)
 
-sp_x_i[:,0]
+sp_x[:,0]
+
+sim_i = fossil_sim.run_simulation(sp_x)
 
 
 ##################################################################
