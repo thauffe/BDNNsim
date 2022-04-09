@@ -8,31 +8,35 @@ SMALL_NUMBER = 1e-10
 
 class bd_simulator():
     def __init__(self,
-                 s_species=1,  # number of starting species
-                 rangeSP=[100, 1000],  # min/max size data set
-                 minEX_SP=0,  # minimum number of extinct lineages allowed
-                 root_r=[30., 100],  # range root ages
-                 rangeL=[0.2, 0.5],
-                 rangeM=[0.2, 0.5],
-                 scale=100.,
-                 p_mass_extinction=0.00924,
-                 magnitude_mass_ext=[0.8, 0.95],
-                 poiL=3, # Number of rate shifts expected according to a Poisson distribution
-                 poiM=3, # Number of rate shifts expected according to a Poisson distribution
-                 seed=0):
+                 s_species = 1,  # number of starting species
+                 rangeSP = [100, 1000],  # min/max size data set
+                 minEX_SP = 0,  # minimum number of extinct lineages allowed
+                 root_r = [30., 100],  # range root ages
+                 rangeL = [0.2, 0.5],
+                 rangeM = [0.2, 0.5],
+                 scale = 100., # root * scale = steps for the simulation
+                 p_mass_extinction = 0.00924,
+                 magnitude_mass_ext = [0.8, 0.95],
+                 poiL = 3, # Number of rate shifts expected according to a Poisson distribution
+                 poiM = 3, # Number of rate shifts expected according to a Poisson distribution
+                 range_linL = [-0.2, 0.2],
+                 range_linM = [-0.2, 0.2],
+                 seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
         self.minSP = np.min(rangeSP)
         self.maxSP = np.max(rangeSP)
         self.minEX_SP = minEX_SP
         self.root_r = root_r
-        self.rangeL = range_base_L
-        self.rangeM = range_base_M
+        self.rangeL = rangeL
+        self.rangeM = rangeM
         self.scale = scale
         self.p_mass_extinction = p_mass_extinction
         self.magnitude_mass_ext = np.sort(magnitude_mass_ext)
         self.poiL = poiL
         self.poiM = poiM
+        self.range_linL = range_linL
+        self.range_linM = range_linM
         self.s_species = s_species
         if seed:
             np.random.seed(seed)
@@ -85,14 +89,6 @@ class bd_simulator():
         return -np.array(ts) / self.scale, -np.array(te) / self.scale
 
 
-    #def get_rate_shift_magnitude(mag):
-    #    m = np.random.uniform(1, mag, 1)
-    #    incr = np.random.choice(np.arange(2), 1)
-    #    if incr == 1:
-    #        m = 1./m
-    #    return m
-
-
     def get_random_settings(self, root):
         root = np.abs(root)
         root_scaled = int(root * self.scale)
@@ -130,18 +126,39 @@ class bd_simulator():
         return L_shifts, M_shifts, L, M, timesL, timesM
 
 
+    def add_linear_time_effect(self, L_shifts, M_shifts):
+        linL = np.random.uniform(np.min(self.range_linL), np.max(self.range_linL), 1)
+        linM = np.random.uniform(np.min(self.range_linM), np.max(self.range_linM), 1)
+
+        t_vec = np.linspace(0.0, 1.0, len(L_shifts))
+
+        L_tt = L_shifts + linL * t_vec
+        M_tt = M_shifts + linM * t_vec
+
+        L_tt[L_tt < 0.0] = 1e-10
+        M_tt[M_tt < 0.0] = 1e-10
+
+        return L_tt, M_tt, linL, linM
+
+
     def run_simulation(self, print_res=False):
         LOtrue = [0]
         n_extinct = -0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             L_shifts, M_shifts, L, M, timesL, timesM = self.get_random_settings(root)
-            FAtrue, LOtrue = self.simulate(L_shifts, M_shifts, root)
+            L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
+            FAtrue, LOtrue = self.simulate(L_tt, M_tt, root)
             n_extinct = len(LOtrue[LOtrue > 0])
 
         ts_te = np.array([FAtrue, LOtrue])
         if print_res:
-            print("L", L * self.scale, "M", M * self.scale, "tL", timesL / self.scale, "tM", timesM / self.scale)
+            print("L", L * self.scale)
+            print("tL", timesL / self.scale)
+            print("M", M * self.scale)
+            print("tM", timesM / self.scale)
+            print("linL", linL)
+            print("linM", linM)
             print("N. species", len(LOtrue))
             ltt = ""
             for i in range(int(max(FAtrue))):

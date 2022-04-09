@@ -3,13 +3,15 @@ rnd_seed = 23
 bd_sim = bd_simulator(s_species=1,  # number of starting species
                       rangeSP=[20, 5000],  # min/max size data set
                       minEX_SP=0,  # minimum number of extinct lineages allowed
-                      root_r=[40., 50],  # range root ages
+                      root_r=[20., 25],  # range root ages
                       rangeL=[0.1, 0.2],  # range of birth rates
-                      rangeM=[0.0, 0.0],  # range of death rates
+                      rangeM=[0.05, 0.1],  # range of death rates
                       p_mass_extinction=0.0,
                       magnitude_mass_ext=[0.001, 0.002],
-                      poiL=3,  # expected number of birth rate shifts
-                      poiM=3,  # expected number of death rate shifts
+                      poiL=0,  # expected number of birth rate shifts
+                      poiM=0,  # expected number of death rate shift
+                      range_linL = [0.0, 0.0],
+                      range_linM = [0.0, 0.0],
                       seed=rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 # Birth-death simulation
