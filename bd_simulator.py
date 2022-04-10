@@ -53,16 +53,9 @@ class bd_simulator():
             te.append(0)
 
         for t in range(root, 0):  # time i.e. integers self.root * self.scale
-            #for j in range(len(timesL) - 1):
-            #    if -t / self.scale <= timesL[j] and -t / self.scale > timesL[j + 1]:
-            #        l = L[j]
-            #for j in range(len(timesM) - 1):
-            #    if -t / self.scale <= timesM[j] and -t / self.scale > timesM[j + 1]:
-            #        m = M[j]
             l = L[t]
             m = M[t]
 
-            # if t % 100 ==0: print t/scale, -times[j], -times[j+1], l, m
             TE = len(te)
             if TE > self.maxSP:
                 break
@@ -78,7 +71,6 @@ class bd_simulator():
                 m = np.random.uniform(self.magnitude_mass_ext[0], self.magnitude_mass_ext[1])
 
             for j in te_extant:  # extant lineages
-                # if te[j] == 0:
                 ran = ran_vec[j]
                 if ran < l:
                     te.append(0)  # add species
@@ -94,9 +86,6 @@ class bd_simulator():
         root_scaled = int(root * self.scale)
         timesL_temp = [root_scaled, 0.]
         timesM_temp = [root_scaled, 0.]
-
-        #Lbase = np.random.uniform(np.min(self.range_base_L), np.max(self.range_base_L), 1) / self.scale
-        #Mbase = np.random.uniform(np.min(self.range_base_M), np.max(self.range_base_M), 1) / self.scale
 
         # Number of rate shifts expected according to a Poisson distribution
         nL = np.random.poisson(self.poiL)
@@ -127,6 +116,7 @@ class bd_simulator():
 
 
     def add_linear_time_effect(self, L_shifts, M_shifts):
+        # Effect sizes
         linL = np.random.uniform(np.min(self.range_linL), np.max(self.range_linL), 1)
         linM = np.random.uniform(np.min(self.range_linM), np.max(self.range_linM), 1)
 
@@ -189,8 +179,8 @@ class fossil_simulator():
 
 
     def get_fossil_occurrences(self, sp_x, is_alive):
-        dur = get_duration(sp_x)
-        poi_rate_occ = q * dur
+        dur = self.get_duration(sp_x)
+        poi_rate_occ = self.q * dur
         exp_occ = np.round(np.random.poisson(poi_rate_occ)).flatten()
         lineages_sampled = np.arange(sp_x.shape[0])[exp_occ > 0]
 
@@ -222,3 +212,36 @@ class fossil_simulator():
              'taxon_names': taxon_names}
 
         return d
+
+
+def write_PyRate_file(fossil_occ, taxon_names, output_wd, name_file):
+    py = "%s/%s.py" % (output_wd, name_file)
+    pyfile = open(py, "w")
+    pyfile.write('#!/usr/bin/env python')
+    pyfile.write('\n')
+    pyfile.write('from numpy import *')
+    pyfile.write('\n')
+    pyfile.write('data_1 = [') # Open block with fossil occurrences
+    pyfile.write('\n')
+    for i in range(len(fossil_occ)):
+        pyfile.write('array(')
+        pyfile.write(str(fossil_occ[i].tolist()))
+        pyfile.write(')')
+        if i != (len(fossil_occ)-1):
+            pyfile.write(',')
+        pyfile.write('\n')
+    pyfile.write(']') # End block with fossil occurrences
+    pyfile.write('\n')
+    pyfile.write('d = [data_1]')
+    pyfile.write('\n')
+    pyfile.write('names = ["Caminalcules"]')
+    pyfile.write('\n')
+    pyfile.write('def get_data(i): return d[i]')
+    pyfile.write('\n')
+    pyfile.write('def get_out_name(i): return names[i]')
+    pyfile.write('\n')
+    pyfile.write('taxa_names = ')
+    pyfile.write(str(taxon_names))
+    pyfile.write('\n')
+    pyfile.write('def get_taxa_names(): return taxa_names')
+    pyfile.flush()
