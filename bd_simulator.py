@@ -141,7 +141,15 @@ class bd_simulator():
             FAtrue, LOtrue = self.simulate(L_tt, M_tt, root)
             n_extinct = len(LOtrue[LOtrue > 0])
 
-        ts_te = np.array([FAtrue, LOtrue])
+        ts_te = np.array([FAtrue, LOtrue]).T
+        res_bd = {'lambda': L,
+                  'tshift_lambda': timesL / self.scale,
+                  'mu': M,
+                  'tshift_mu': timesM / self.scale,
+                  'linear_time_lambda': linL,
+                  'linear_time_mu': linM,
+                  'N_species': len(LOtrue),
+                  'ts_te': ts_te}
         if print_res:
             print("L", L * self.scale)
             print("tL", timesL / self.scale)
@@ -155,7 +163,7 @@ class bd_simulator():
                 n = len(FAtrue[FAtrue > i]) - len(LOtrue[LOtrue > i])
                 ltt += "\n%s\t%s\t%s" % (i, n, "*" * n)
             print(ltt)
-        return ts_te.T
+        return res_bd
 
 
 
@@ -214,7 +222,9 @@ class fossil_simulator():
         return d
 
 
-def write_PyRate_file(fossil_occ, taxon_names, output_wd, name_file):
+def write_PyRate_file(sim_fossil, output_wd, name_file):
+    fossil_occ = sim_fossil['fossil_occurrences']
+    taxon_names = sim_fossil['taxon_names']
     py = "%s/%s.py" % (output_wd, name_file)
     pyfile = open(py, "w")
     pyfile.write('#!/usr/bin/env python')

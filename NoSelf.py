@@ -22,16 +22,14 @@ fossil_sim = fossil_simulator(q = 3.,
                               seed = rnd_seed)
 
 # Birth-death simulation
-sp_x = bd_sim.run_simulation(print_res=True)
+res_bd = bd_sim.run_simulation(print_res=True)
 
 #sp_x[:,0]
 
-sim_fossil = fossil_sim.run_simulation(sp_x)
+sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 
-fossil_occ = sim_fossil['fossil_occurrences']
-taxon_names = sim_fossil['taxon_names']
 
-write_PyRate_file(fossil_occ, taxon_names, '/home/torsten/Work/BDNN', 'Test')
+write_PyRate_file(sim_fossil, '/home/torsten/Work/BDNN', 'Test')
 
 
 PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '/home/torsten/Work/BDNN/Test.py', '-A 4', '-mHPP', '-n 1000001', '-s 5000', '-p 100000'])
