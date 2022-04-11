@@ -2,6 +2,8 @@ import subprocess
 
 rnd_seed = 2
 
+cont_traits_cov = np.array([[0.1, 0.5],[0.5, 0.1]])
+
 bd_sim = bd_simulator(s_species=1,  # number of starting species
                       rangeSP=[200, 300],  # min/max size data set
                       minEX_SP=0,  # minimum number of extinct lineages allowed
@@ -12,8 +14,9 @@ bd_sim = bd_simulator(s_species=1,  # number of starting species
                       magnitude_mass_ext=[0.001, 0.002],
                       poiL=2,  # expected number of birth rate shifts
                       poiM=2,  # expected number of death rate shift
-                      range_linL = [0.0, 0.0],
-                      range_linM = [0.0, 0.0],
+                      range_linL = None,
+                      range_linM = [-0.05, 0.05],
+                      cont_traits_cov = [0.1], # a list of length 1, 2D nd.array, or None
                       seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 

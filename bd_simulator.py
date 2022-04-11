@@ -6,6 +6,7 @@ from collections.abc import Iterable
 #from .extract_properties import *
 SMALL_NUMBER = 1e-10
 
+
 class bd_simulator():
     def __init__(self,
                  s_species = 1,  # number of starting species
@@ -19,8 +20,9 @@ class bd_simulator():
                  magnitude_mass_ext = [0.8, 0.95],
                  poiL = 3, # Number of rate shifts expected according to a Poisson distribution
                  poiM = 3, # Number of rate shifts expected according to a Poisson distribution
-                 range_linL = [-0.2, 0.2],
-                 range_linM = [-0.2, 0.2],
+                 range_linL = None, # Or a range (e.g. [-0.2, 0.2])
+                 range_linM = None, # Or a range (e.g. [-0.2, 0.2])
+                 cont_traits_cov = None, # variance-covariance matrix for evolving continuous traits
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -37,6 +39,7 @@ class bd_simulator():
         self.poiM = poiM
         self.range_linL = range_linL
         self.range_linM = range_linM
+        self.cont_traits_cov = cont_traits_cov
         self.s_species = s_species
         if seed:
             np.random.seed(seed)
@@ -45,14 +48,37 @@ class bd_simulator():
     def simulate(self, L, M, root):
         ts = list()
         te = list()
-        #L, M, root = L / self.scale, M / self.scale, int(self.root * self.scale)
+
         root = int(root * self.scale)
+        dT = 1.0 / self.scale
+
+        # Trace ancestor descendent relationship
+        anc_desc = []
 
         for i in range(self.s_species):
             ts.append(root)
             te.append(0)
+            anc_desc.append(np.array([i]))
 
-        for t in range(root, 0):  # time i.e. integers self.root * self.scale
+        # init continuous traits (if there are any to simulate)
+        n_cont_traits = 0
+        if self.cont_traits_cov is not None:
+            n_cont_traits = len(self.cont_traits_cov)
+            self.cont_traits_cov = dT * np.array(self.cont_traits_cov)
+        root_plus_1 = np.abs(root) + 2
+        cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
+        cont_traits[:] = np.nan
+        if n_cont_traits > 0:
+            for i in range(self.s_species):
+                init_mean = np.zeros(n_cont_traits)
+                cont_traits[-1,:,i] = self.evolve_cont_traits(init_mean, n_cont_traits) # from past to present
+
+
+        for t in range(root, 0):
+            # time i.e. integers self.root * self.scale
+            # t = 0 not simulated!
+            t_abs = abs(t)
+            #print('t_abs', t_abs)
             l = L[t]
             m = M[t]
 
@@ -71,14 +97,32 @@ class bd_simulator():
                 m = np.random.uniform(self.magnitude_mass_ext[0], self.magnitude_mass_ext[1])
 
             for j in te_extant:  # extant lineages
+                # trait evolution
+                if n_cont_traits > 0:
+                    #print('cont_traits[t_abs + 1,:,:]', cont_traits[t_abs + 1, :, :])
+                    #print('cont_traits[t_abs,:,:]', cont_traits[t_abs, :, :])
+                    cont_traits[t_abs, :, j] = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits)
                 ran = ran_vec[j]
+                # speciation
                 if ran < l:
                     te.append(0)  # add species
                     ts.append(t)  # sp time
-                elif ran > l and ran < (l + m):  # extinction
+                    a = np.random.choice(te_extant, 1) # from which extant species the new species branches off
+                    a = int(a)
+                    desc = np.array([len(ts)])
+                    anc_desc[a] = np.concatenate((anc_desc[a], desc))
+                    anc = np.random.choice(anc_desc[a], 1)  # If a lineage already has multiple descendents
+                    anc_desc.append(anc)
+                    if n_cont_traits > 0:
+                        cont_traits_new_species = self.init_cont_traits(root_plus_1, n_cont_traits)
+                        cont_traits_new_species[t_abs,:] = cont_traits[t_abs,:,a] # inherit traits at time t from ancestor
+                        cont_traits = np.dstack((cont_traits, cont_traits_new_species))
+                # extinction
+                elif ran > l and ran < (l + m):
                     te[j] = t
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale
+
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits
 
 
     def get_random_settings(self, root):
@@ -117,8 +161,14 @@ class bd_simulator():
 
     def add_linear_time_effect(self, L_shifts, M_shifts):
         # Effect sizes
-        linL = np.random.uniform(np.min(self.range_linL), np.max(self.range_linL), 1)
-        linM = np.random.uniform(np.min(self.range_linM), np.max(self.range_linM), 1)
+        if self.range_linL:
+            linL = np.random.uniform(np.min(self.range_linL), np.max(self.range_linL), 1)
+        else:
+            linL = np.zeros(1)
+        if self.range_linM:
+            linM = np.random.uniform(np.min(self.range_linM), np.max(self.range_linM), 1)
+        else:
+            linM = np.zeros(1)
 
         t_vec = np.linspace(0.0, 1.0, len(L_shifts))
 
@@ -131,6 +181,23 @@ class bd_simulator():
         return L_tt, M_tt, linL, linM
 
 
+    def init_cont_traits(self, past, n_cont_traits):
+        tr = np.empty((past, n_cont_traits))
+        tr[:] = np.nan
+
+        return tr
+
+
+    def evolve_cont_traits(self, cont_traits, n_cont_traits):
+        if n_cont_traits == 1:
+            # Not possible to vectorize; sd needs to have the same size than mean
+            cont_traits = np.random.normal(cont_traits, self.cont_traits_cov, 1)
+        elif n_cont_traits > 1:
+            cont_traits = np.random.multivariate_normal(cont_traits, self.cont_traits_cov, 1)
+
+        return cont_traits
+
+
     def run_simulation(self, print_res = False):
         LOtrue = [0]
         n_extinct = -0
@@ -138,7 +205,7 @@ class bd_simulator():
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             L_shifts, M_shifts, L, M, timesL, timesM = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
-            FAtrue, LOtrue = self.simulate(L_tt, M_tt, root)
+            FAtrue, LOtrue, anc_desc, cont_traits = self.simulate(L_tt, M_tt, root)
             n_extinct = len(LOtrue[LOtrue > 0])
 
         ts_te = np.array([FAtrue, LOtrue]).T
@@ -149,14 +216,10 @@ class bd_simulator():
                   'linear_time_lambda': linL,
                   'linear_time_mu': linM,
                   'N_species': len(LOtrue),
+                  'anc_desc': anc_desc,
+                  'cont_traits': cont_traits,
                   'ts_te': ts_te}
         if print_res:
-            print("L", L * self.scale)
-            print("tL", timesL / self.scale)
-            print("M", M * self.scale)
-            print("tM", timesM / self.scale)
-            print("linL", linL)
-            print("linM", linM)
             print("N. species", len(LOtrue))
             ltt = ""
             for i in range(int(max(FAtrue))):
