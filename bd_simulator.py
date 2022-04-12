@@ -22,7 +22,9 @@ class bd_simulator():
                  poiM = 3, # Number of rate shifts expected according to a Poisson distribution
                  range_linL = None, # Or a range (e.g. [-0.2, 0.2])
                  range_linM = None, # Or a range (e.g. [-0.2, 0.2])
-                 cont_traits_cov = None, # variance-covariance matrix for evolving continuous traits
+                 cont_traits_varcov = None, # variance-covariance matrix for evolving continuous traits
+                 cont_traits_Theta1 = None, # morphological optima
+                 cont_traits_alpha = 0.0, # strength of attraction towards Theta1
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -39,7 +41,9 @@ class bd_simulator():
         self.poiM = poiM
         self.range_linL = range_linL
         self.range_linM = range_linM
-        self.cont_traits_cov = cont_traits_cov
+        self.cont_traits_varcov = cont_traits_varcov
+        self.cont_traits_Theta1 = cont_traits_Theta1
+        self.cont_traits_alpha = cont_traits_alpha
         self.s_species = s_species
         if seed:
             np.random.seed(seed)
@@ -52,7 +56,9 @@ class bd_simulator():
         root = int(root * self.scale)
         dT = 1.0 / self.scale
 
-        # Trace ancestor descendent relationship
+        # Trace ancestor descendant relationship
+        # First entry: ancestor (for the seeding specis, this is an index of themselfs)
+        # Following entries: descendants
         anc_desc = []
 
         for i in range(self.s_species):
@@ -62,16 +68,19 @@ class bd_simulator():
 
         # init continuous traits (if there are any to simulate)
         n_cont_traits = 0
-        if self.cont_traits_cov is not None:
-            n_cont_traits = len(self.cont_traits_cov)
-            self.cont_traits_cov = dT * np.array(self.cont_traits_cov)
+        if self.cont_traits_varcov is not None:
+            n_cont_traits = len(self.cont_traits_varcov)
+            self.cont_traits_varcov = dT * np.array(self.cont_traits_varcov) # Does this work for > 1 trait?
+            self.cont_traits_varcov = np.sqrt(self.cont_traits_varcov) # variance of traits = BM rate sigma2
+        if self.cont_traits_Theta1 is None: # same Theta1 as Theta0
+            self.cont_traits_Theta1 = np.repeat(0.0, n_cont_traits)
         root_plus_1 = np.abs(root) + 2
         cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
         cont_traits[:] = np.nan
         if n_cont_traits > 0:
             for i in range(self.s_species):
-                init_mean = np.zeros(n_cont_traits)
-                cont_traits[-1,:,i] = self.evolve_cont_traits(init_mean, n_cont_traits) # from past to present
+                Theta0 = np.zeros(n_cont_traits)
+                cont_traits[-1,:,i] = self.evolve_cont_traits(Theta0, n_cont_traits) # from past to present
 
 
         for t in range(root, 0):
@@ -99,23 +108,21 @@ class bd_simulator():
             for j in te_extant:  # extant lineages
                 # trait evolution
                 if n_cont_traits > 0:
-                    #print('cont_traits[t_abs + 1,:,:]', cont_traits[t_abs + 1, :, :])
-                    #print('cont_traits[t_abs,:,:]', cont_traits[t_abs, :, :])
                     cont_traits[t_abs, :, j] = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits)
                 ran = ran_vec[j]
                 # speciation
                 if ran < l:
                     te.append(0)  # add species
                     ts.append(t)  # sp time
-                    a = np.random.choice(te_extant, 1) # from which extant species the new species branches off
-                    a = int(a)
+                    #a = np.random.choice(te_extant, 1) # from which extant species the new species branches off
+                    #a = int(a)
                     desc = np.array([len(ts)])
-                    anc_desc[a] = np.concatenate((anc_desc[a], desc))
-                    anc = np.random.choice(anc_desc[a], 1)  # If a lineage already has multiple descendents
+                    anc_desc[j] = np.concatenate((anc_desc[j], desc))
+                    anc = np.random.choice(anc_desc[j], 1)  # If a lineage already has multiple descendents
                     anc_desc.append(anc)
                     if n_cont_traits > 0:
                         cont_traits_new_species = self.init_cont_traits(root_plus_1, n_cont_traits)
-                        cont_traits_new_species[t_abs,:] = cont_traits[t_abs,:,a] # inherit traits at time t from ancestor
+                        cont_traits_new_species[t_abs,:] = cont_traits[t_abs,:,j] # inherit traits at time t from ancestor
                         cont_traits = np.dstack((cont_traits, cont_traits_new_species))
                 # extinction
                 elif ran > l and ran < (l + m):
@@ -191,9 +198,9 @@ class bd_simulator():
     def evolve_cont_traits(self, cont_traits, n_cont_traits):
         if n_cont_traits == 1:
             # Not possible to vectorize; sd needs to have the same size than mean
-            cont_traits = np.random.normal(cont_traits, self.cont_traits_cov, 1)
+            cont_traits = self.cont_traits_alpha * (self.cont_traits_Theta1 - cont_traits) + np.random.normal(0.0, self.cont_traits_varcov, 1)
         elif n_cont_traits > 1:
-            cont_traits = np.random.multivariate_normal(cont_traits, self.cont_traits_cov, 1)
+            cont_traits = cont_traits + np.random.multivariate_normal(cont_traits, self.cont_traits_varcov, 1)
 
         return cont_traits
 
