@@ -2,10 +2,13 @@ import subprocess
 
 rnd_seed = 23
 
+cat_traits_Q = np.array([[0.0, 0.2, 0.2],
+                         [0.2, 0.0, 0.2],
+                         [0.2, 0.2, 0.0]])
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
 bd_sim = bd_simulator(s_species=1,  # number of starting species
-                      rangeSP=[200, 300],  # min/max size data set
+                      rangeSP=[10, 300],  # min/max size data set
                       minEX_SP=0,  # minimum number of extinct lineages allowed
                       root_r=[10., 15.],  # range root ages
                       rangeL=[0.05, 0.5],  # range of birth rates
@@ -18,6 +21,8 @@ bd_sim = bd_simulator(s_species=1,  # number of starting species
                       range_linL = None,
                       range_linM = [-0.05, 0.05],
                       cont_traits_varcov = cont_traits_cov, # a list of length 1, 2D nd.array, or None
+                      #cont_traits_alpha = np.ones(2),
+                      cat_traits_Q = cat_traits_Q,
                       seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
