@@ -1,11 +1,11 @@
 import subprocess
 
-rnd_seed = 2
+rnd_seed = 23
 
-cont_traits_cov = np.array([[0.1, 0.5],[0.5, 0.1]])
+cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
 bd_sim = bd_simulator(s_species=1,  # number of starting species
-                      rangeSP=[2, 3000],  # min/max size data set
+                      rangeSP=[200, 300],  # min/max size data set
                       minEX_SP=0,  # minimum number of extinct lineages allowed
                       root_r=[10., 15.],  # range root ages
                       rangeL=[0.05, 0.5],  # range of birth rates
@@ -17,7 +17,7 @@ bd_sim = bd_simulator(s_species=1,  # number of starting species
                       poiM=2,  # expected number of death rate shift
                       range_linL = None,
                       range_linM = [-0.05, 0.05],
-                      cont_traits_varcov = [0.1], # a list of length 1, 2D nd.array, or None
+                      cont_traits_varcov = cont_traits_cov, # a list of length 1, 2D nd.array, or None
                       seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
@@ -42,3 +42,4 @@ PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyR
 
 
 np.savetxt('/home/torsten/Work/BDNN/Traits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
+np.var(res_bd['cont_traits'][1,0,:])
