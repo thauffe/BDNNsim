@@ -8,7 +8,7 @@ cat_traits_Q = np.array([[0.6, 0.2, 0.2],
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
 bd_sim = bd_simulator(s_species=1,  # number of starting species
-                      rangeSP=[10, 300],  # min/max size data set
+                      rangeSP=[100, 300],  # min/max size data set
                       minEX_SP=0,  # minimum number of extinct lineages allowed
                       root_r=[10., 15.],  # range root ages
                       rangeL=[0.05, 0.5],  # range of birth rates
@@ -27,7 +27,7 @@ bd_sim = bd_simulator(s_species=1,  # number of starting species
 
 
 fossil_sim = fossil_simulator(q = 3.,
-                              alpha = 100,
+                              alpha = 5,
                               seed = rnd_seed)
 
 # Birth-death simulation
@@ -40,7 +40,7 @@ sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 write_PyRate_file(sim_fossil, '/home/torsten/Work/BDNN', 'Test')
 
 
-PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '/home/torsten/Work/BDNN/Test.py', '-A 4', '-mHPP', '-n 1000001', '-s 5000', '-p 100000'])
+PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '/home/torsten/Work/BDNN/Test.py', '-A 4', '-mHPP', '-mG', '-n 1000001', '-s 5000', '-p 100000'])
 
 PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/pyrate_mcmc_logs', '-b 50'])
 

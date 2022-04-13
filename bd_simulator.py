@@ -26,7 +26,7 @@ class bd_simulator():
                  range_linM = None, # Or a range (e.g. [-0.2, 0.2])
                  cont_traits_varcov = None, # variance-covariance matrix for evolving continuous traits
                  cont_traits_Theta1 = None, # morphological optima
-                 cont_traits_alpha = 0.0, # strength of attraction towards Theta1
+                 cont_traits_alpha = None, # strength of attraction towards Theta1
                  cat_traits_Q = None,
                  seed = 0):
         self.s_species = s_species
@@ -74,31 +74,33 @@ class bd_simulator():
         root_plus_1 = np.abs(root) + 2
         n_cont_traits = 0
         if self.cont_traits_varcov is not None:
-            n_cont_traits = len(self.cont_traits_varcov)
-            self.cont_traits_varcov = dT * np.array(self.cont_traits_varcov) # Does this work for > 1 trait?
+            cont_traits_varcov = np.array(self.cont_traits_varcov)
+            n_cont_traits = len(cont_traits_varcov)
+            cont_traits_varcov = dT * cont_traits_varcov # Does this work for > 1 trait?
             if n_cont_traits == 1: # only for random draws of a univariate normal distribution
-                self.cont_traits_varcov = np.sqrt(self.cont_traits_varcov) # variance of traits = BM rate sigma2
+                cont_traits_varcov = np.sqrt(cont_traits_varcov) # variance of traits = BM rate sigma2
             elif n_cont_traits > 1:
-                self.cont_traits_varcov = nearestPD(self.cont_traits_varcov)
-        if self.cont_traits_Theta1 is None: # same Theta1 as Theta0
-            self.cont_traits_Theta1 = np.repeat(0.0, n_cont_traits)
+                cont_traits_varcov = nearestPD(cont_traits_varcov)
+        cont_traits_Theta1 = self.get_cont_traits_Theta1(n_cont_traits)
+        cont_traits_alpha = self.get_cont_traits_alpha(n_cont_traits)
         cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
         cont_traits[:] = np.nan
         if n_cont_traits > 0:
             for i in range(self.s_species):
                 Theta0 = np.zeros(n_cont_traits)
-                cont_traits[-1,:,i] = self.evolve_cont_traits(Theta0, n_cont_traits) # from past to present
+                cont_traits[-1,:,i] = self.evolve_cont_traits(Theta0, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov) # from past to present
 
         # init single categorical trait
         n_cat_traits = 0
         if self.cat_traits_Q is not None:
             n_cat_traits = 1
-            pi = self.get_stationary_distribution()
-            self.cat_traits_Q = dT * self.cat_traits_Q
-            cat_states = np.arange(len(self.cat_traits_Q))
+            cat_traits_Q = self.cat_traits_Q
+            cat_traits_Q = dT * cat_traits_Q
+            cat_states = np.arange(len(cat_traits_Q))
         cat_traits = np.empty((root_plus_1, n_cat_traits, self.s_species))
         cat_traits[:] = np.nan
         if n_cat_traits > 0:
+            pi = self.get_stationary_distribution(cat_traits_Q)
             for i in range(self.s_species):
                 cat_traits[-1,:,i] = np.random.choice(cat_states, 1, p = pi)
 
@@ -129,11 +131,11 @@ class bd_simulator():
             for j in te_extant:  # extant lineages
                 # continuous trait evolution
                 if n_cont_traits > 0:
-                    cont_traits[t_abs, :, j] = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits)
+                    cont_traits[t_abs, :, j] = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov)
 
                 # categorical trait evolution
                 if n_cat_traits > 0:
-                    cat_traits[t_abs, :, j] = self.evolve_cat_traits(cat_traits[t_abs + 1, :, j], ran_vec_cat_trait[j], cat_states)
+                    cat_traits[t_abs, :, j] = self.evolve_cat_traits(cat_traits_Q, cat_traits[t_abs + 1, :, j], ran_vec_cat_trait[j], cat_states)
 
                 ran = ran_vec[j]
                 # speciation
@@ -226,33 +228,53 @@ class bd_simulator():
         return tr
 
 
-    def evolve_cont_traits(self, cont_traits, n_cont_traits):
+    def get_cont_traits_Theta1(self, n_cont_traits):
+        if self.cont_traits_Theta1 is None: # same Theta1 as Theta0
+            cont_traits_Theta1 = np.repeat(0.0, n_cont_traits)
+        else:
+            cont_traits_Theta1 = self.cont_traits_Theta1
+
+        return cont_traits_Theta1
+
+
+    def get_cont_traits_alpha(self, n_cont_traits):
+        if self.cont_traits_alpha is None: # BM
+            cont_traits_alpha = np.repeat(0.0, n_cont_traits)
+        else: # OU
+            if len(self.cont_traits_alpha) != n_cont_traits:
+                sys.exit(print('Number of alpha parameter unquel number of traits'))
+            cont_traits_alpha = self.cont_traits_alpha
+
+        return cont_traits_alpha
+
+
+    def evolve_cont_traits(self, cont_traits, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov):
         if n_cont_traits == 1:
             # Not possible to vectorize; sd needs to have the same size than mean
-            cont_traits = cont_traits + self.cont_traits_alpha * (self.cont_traits_Theta1 - cont_traits) + np.random.normal(0.0, self.cont_traits_varcov, 1)
+            cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.normal(0.0, cont_traits_varcov, 1)
         elif n_cont_traits > 1:
-            cont_traits = cont_traits + self.cont_traits_alpha * (self.cont_traits_Theta1 - cont_traits) + np.random.multivariate_normal(np.zeros(n_cont_traits), self.cont_traits_varcov, 1)
+            cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.multivariate_normal(np.zeros(n_cont_traits), cont_traits_varcov, 1)
 
         return cont_traits
 
 
-    def evolve_cat_traits(self, s, ran, cat_states):
+    def evolve_cat_traits(self, Q, s, ran, cat_states):
         s = int(s)
         state = s
-        if self.cat_traits_Q[s, s] < ran:
+        if Q[s, s] < ran:
             pos_states = cat_states != s
-            p = self.cat_traits_Q[s, pos_states]
+            p = Q[s, pos_states]
             p = p / np.sum(p)
             state = np.random.choice(cat_states[pos_states], 1, p = p)
 
         return state
 
 
-    def get_stationary_distribution(self):
-        Q = self.cat_traits_Q
+    def get_stationary_distribution(self, Q):
         # Why do we need some jitter to get positive values in the eigenvector?
         Q += np.random.uniform(-0.001, 0.001, np.size(Q)).reshape(Q.shape)
         Q = Q / np.sum(Q, axis = 1)
+        print('Q', Q) # Why is Q changing???
         _, left_eigenvec = scipy.linalg.eig(Q, right = False, left = True)
         pi = left_eigenvec[:,0].real
         pi_normalized = pi / np.sum(pi)
@@ -312,10 +334,16 @@ class fossil_simulator():
         return sp_x[:,1] == 0.0
 
 
+    def get_sampling_heterogeneity(self, sp_x):
+        return np.random.gamma(self.alpha, 1.0 / self.alpha, len(sp_x))
+
+
     def get_fossil_occurrences(self, sp_x, is_alive):
         dur = self.get_duration(sp_x)
-        poi_rate_occ = self.q * dur
-        exp_occ = np.round(np.random.poisson(poi_rate_occ)).flatten()
+        dur = dur.flatten()
+        sampl_hetero = self.get_sampling_heterogeneity(sp_x)
+        poi_rate_occ = self.q * sampl_hetero * dur
+        exp_occ = np.round(np.random.poisson(poi_rate_occ))
         lineages_sampled = np.arange(sp_x.shape[0])[exp_occ > 0]
 
         occ = []
