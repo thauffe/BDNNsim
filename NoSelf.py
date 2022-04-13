@@ -2,9 +2,9 @@ import subprocess
 
 rnd_seed = 23
 
-cat_traits_Q = np.array([[0.0, 0.2, 0.2],
-                         [0.2, 0.0, 0.2],
-                         [0.2, 0.2, 0.0]])
+cat_traits_Q = np.array([[0.6, 0.2, 0.2],
+                         [0.2, 0.6, 0.2],
+                         [0.2, 0.2, 0.6]])
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
 bd_sim = bd_simulator(s_species=1,  # number of starting species
@@ -33,7 +33,6 @@ fossil_sim = fossil_simulator(q = 3.,
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(print_res=True)
 
-#sp_x[:,0]
 
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 
@@ -48,3 +47,5 @@ PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyR
 
 np.savetxt('/home/torsten/Work/BDNN/Traits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
 np.var(res_bd['cont_traits'][1,0,:])
+
+np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')

@@ -2,6 +2,7 @@ import sys
 from numpy import linalg as la
 import numpy as np
 import pandas as pd
+import scipy.linalg
 np.set_printoptions(suppress=True, precision=3)
 from collections.abc import Iterable
 #from .extract_properties import *
@@ -92,15 +93,14 @@ class bd_simulator():
         n_cat_traits = 0
         if self.cat_traits_Q is not None:
             n_cat_traits = 1
+            pi = self.get_stationary_distribution()
             self.cat_traits_Q = dT * self.cat_traits_Q
-            d = np.sum(self.cat_traits_Q, axis=1)
-            np.fill_diagonal(self.cat_traits_Q, d)
             cat_states = np.arange(len(self.cat_traits_Q))
         cat_traits = np.empty((root_plus_1, n_cat_traits, self.s_species))
         cat_traits[:] = np.nan
         if n_cat_traits > 0:
             for i in range(self.s_species):
-                cat_traits[-1,:,i] = np.random.choice(cat_states, 1)
+                cat_traits[-1,:,i] = np.random.choice(cat_states, 1, p = pi)
 
         # evolution (from the past to the present)
         for t in range(root, 0):
@@ -246,6 +246,18 @@ class bd_simulator():
             state = np.random.choice(cat_states[pos_states], 1, p = p)
 
         return state
+
+
+    def get_stationary_distribution(self):
+        Q = self.cat_traits_Q
+        # Why do we need some jitter to get positive values in the eigenvector?
+        Q += np.random.uniform(-0.001, 0.001, np.size(Q)).reshape(Q.shape)
+        Q = Q / np.sum(Q, axis = 1)
+        _, left_eigenvec = scipy.linalg.eig(Q, right = False, left = True)
+        pi = left_eigenvec[:,0].real
+        pi_normalized = pi / np.sum(pi)
+
+        return pi_normalized
 
 
     def run_simulation(self, print_res = False):
