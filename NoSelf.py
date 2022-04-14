@@ -26,8 +26,9 @@ bd_sim = bd_simulator(s_species=1,  # number of starting species
                       seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
-fossil_sim = fossil_simulator(q = 3.,
-                              alpha = 5,
+fossil_sim = fossil_simulator(range_q = [0.5, 5.],
+                              range_alpha = [1.0, 5.0],
+                              poi_shifts = 0,
                               seed = rnd_seed)
 
 # Birth-death simulation
@@ -35,17 +36,25 @@ res_bd = bd_sim.run_simulation(print_res=True)
 
 
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
-
+print(sim_fossil['q'])
+print(sim_fossil['shift_time'])
+print(sim_fossil['alpha'])
 
 write_PyRate_file(sim_fossil, '/home/torsten/Work/BDNN', 'Test')
+np.savetxt('/home/torsten/Work/BDNN/q_epochs.txt', sim_fossil['shift_time'], delimiter = '\t')
 
 
-PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '/home/torsten/Work/BDNN/Test.py', '-A 4', '-mHPP', '-mG', '-n 1000001', '-s 5000', '-p 100000'])
+PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+                             '/home/torsten/Work/BDNN/Test.py',
+                             #'-qShift', '/home/torsten/Work/BDNN/q_epochs.txt',
+                             '-A 4',
+                             '-mHPP',
+                             '-mG', '-n 500001', '-s 5000', '-p 100000'])
 
 PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/pyrate_mcmc_logs', '-b 50'])
 
 
-np.savetxt('/home/torsten/Work/BDNN/Traits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
+np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
 np.var(res_bd['cont_traits'][1,0,:])
 
 np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')

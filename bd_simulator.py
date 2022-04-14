@@ -261,7 +261,7 @@ class bd_simulator():
     def evolve_cat_traits(self, Q, s, ran, cat_states):
         s = int(s)
         state = s
-        if Q[s, s] < ran:
+        if Q[s, s] > ran:
             pos_states = cat_states != s
             p = Q[s, pos_states]
             p = p / np.sum(p)
@@ -274,7 +274,6 @@ class bd_simulator():
         # Why do we need some jitter to get positive values in the eigenvector?
         Q += np.random.uniform(-0.001, 0.001, np.size(Q)).reshape(Q.shape)
         Q = Q / np.sum(Q, axis = 1)
-        print('Q', Q) # Why is Q changing???
         _, left_eigenvec = scipy.linalg.eig(Q, right = False, left = True)
         pi = left_eigenvec[:,0].real
         pi_normalized = pi / np.sum(pi)
@@ -317,17 +316,26 @@ class bd_simulator():
 
 class fossil_simulator():
     def __init__(self,
-                 q = 5.,
-                 alpha = 100.,
+                 range_q = [0.5, 5.],
+                 range_alpha = [1.0, 10.0],
+                 poi_shifts = 2,
                  seed = 0):
-        self.q = q
-        self.alpha = alpha
+        self.range_q = range_q
+        self.range_alpha = range_alpha
+        self.poi_shifts = poi_shifts
         if seed:
             np.random.seed(seed)
 
 
-    def get_duration(self, sp_x):
-        return np.abs(np.diff(sp_x))
+    def get_duration(self, sp_x, upper, lower):
+        ts = np.copy(sp_x[:,0])
+        te = np.copy(sp_x[:, 1])
+        ts[ts > upper] = upper
+        te[te < lower] = lower
+        d = ts - te
+        d[d < 0.0] = 0.0
+
+        return d
 
 
     def get_is_alive(self, sp_x):
@@ -335,25 +343,46 @@ class fossil_simulator():
 
 
     def get_sampling_heterogeneity(self, sp_x):
-        return np.random.gamma(self.alpha, 1.0 / self.alpha, len(sp_x))
+        alpha = np.random.uniform(np.min(self.range_alpha), np.max(self.range_alpha), 1)
+        h = np.random.gamma(alpha, 1.0 / alpha, len(sp_x))
+        return alpha, h
 
 
-    def get_fossil_occurrences(self, sp_x, is_alive):
-        dur = self.get_duration(sp_x)
-        dur = dur.flatten()
-        sampl_hetero = self.get_sampling_heterogeneity(sp_x)
-        poi_rate_occ = self.q * sampl_hetero * dur
-        exp_occ = np.round(np.random.poisson(poi_rate_occ))
-        lineages_sampled = np.arange(sp_x.shape[0])[exp_occ > 0]
+    def get_fossil_occurrences(self, sp_x, q, shift_time_q, is_alive):
+        alpha, sampl_hetero = self.get_sampling_heterogeneity(sp_x)
+        n_taxa = len(sp_x)
+        occ = [np.array([])] * n_taxa
+        len_q = len(q)
+        for i in range(len_q):
+            dur = self.get_duration(sp_x, shift_time_q[i], shift_time_q[i + 1])
+            dur = dur.flatten()
+            poi_rate_occ = q[i] * sampl_hetero * dur
+            #poi_rate_occ = np.array([2.0]) * dur
+            exp_occ = np.round(np.random.poisson(poi_rate_occ))
 
-        occ = []
-        for i in lineages_sampled:
-            occ_i = np.random.uniform(sp_x[i, 1], sp_x[i, 0], exp_occ[i])
-            if is_alive[i]:
-                occ_i = np.concatenate((occ_i, np.zeros(1, dtype = 'float')))
-            occ.append(occ_i)
+            for y in range(n_taxa):
+                # C H A N G E  T H I S ! ! !
+                occ_y = np.random.uniform(sp_x[y, 1], sp_x[y, 0], exp_occ[y])
+                #occ_y = np.random.uniform(shift_time_q[i], shift_time_q[i + 1], exp_occ[y])
+                present = np.array([])
+                if is_alive[y] and y == len_q:
+                    present = np.zeros(1, dtype='float')
+                occ[y] = np.concatenate((occ[y], occ_y, present))
 
-        return occ, lineages_sampled
+            lineages_sampled = []
+            occ2 = []
+            for i in range(n_taxa):
+                O = occ[i]
+                O = O[O != 0.0] # Do not count single occurrence at the present
+                if len(O) > 0:
+                    lineages_sampled.append(i)
+                    occ2.append(occ[i])
+            lineages_sampled = np.array(lineages_sampled)
+
+        lineages_sampled = lineages_sampled.astype(int)
+        #occ = occ[lineages_sampled] # Cannot slice list with an array
+
+        return occ2, lineages_sampled, alpha
 
 
     def get_taxon_names(self, lineages_sampled):
@@ -367,11 +396,24 @@ class fossil_simulator():
 
     def run_simulation(self, sp_x):
         is_alive = self.get_is_alive(sp_x)
-        fossil_occ, lineages_sampled = self.get_fossil_occurrences(sp_x, is_alive)
+
+        # Number of rate shifts expected according to a Poisson distribution
+        nS = np.random.poisson(self.poi_shifts)
+        q = np.random.uniform(np.min(self.range_q), np.max(self.range_q), nS + 1)
+        root = np.max(sp_x)
+        shift_time_q = np.random.uniform(0, root, nS)
+        shift_time_q = np.sort(shift_time_q)[::-1]
+        shift_time_q = np.concatenate((np.array([root]), shift_time_q, np.zeros(1)))
+
+        fossil_occ, lineages_sampled, alpha = self.get_fossil_occurrences(sp_x, q, shift_time_q, is_alive)
         taxon_names = self.get_taxon_names(lineages_sampled)
+        shift_time_q = shift_time_q[1:-1]
 
         d = {'fossil_occurrences': fossil_occ,
-             'taxon_names': taxon_names}
+             'taxon_names': taxon_names,
+             'q': q,
+             'shift_time': shift_time_q,
+             'alpha': alpha}
 
         return d
 
