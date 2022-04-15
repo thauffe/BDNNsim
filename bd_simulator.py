@@ -3,6 +3,8 @@ from numpy import linalg as la
 import numpy as np
 import pandas as pd
 import scipy.linalg
+import random
+import string
 np.set_printoptions(suppress=True, precision=3)
 from collections.abc import Iterable
 #from .extract_properties import *
@@ -335,7 +337,7 @@ class fossil_simulator():
         d = ts - te
         d[d < 0.0] = 0.0
 
-        return d
+        return d, ts, te
 
 
     def get_is_alive(self, sp_x):
@@ -354,16 +356,13 @@ class fossil_simulator():
         occ = [np.array([])] * n_taxa
         len_q = len(q)
         for i in range(len_q):
-            dur = self.get_duration(sp_x, shift_time_q[i], shift_time_q[i + 1])
+            dur, ts, te = self.get_duration(sp_x, shift_time_q[i], shift_time_q[i + 1])
             dur = dur.flatten()
             poi_rate_occ = q[i] * sampl_hetero * dur
-            #poi_rate_occ = np.array([2.0]) * dur
             exp_occ = np.round(np.random.poisson(poi_rate_occ))
 
             for y in range(n_taxa):
-                # C H A N G E  T H I S ! ! !
-                occ_y = np.random.uniform(sp_x[y, 1], sp_x[y, 0], exp_occ[y])
-                #occ_y = np.random.uniform(shift_time_q[i], shift_time_q[i + 1], exp_occ[y])
+                occ_y = np.random.uniform(ts[y], te[y], exp_occ[y])
                 present = np.array([])
                 if is_alive[y] and y == len_q:
                     present = np.zeros(1, dtype='float')
@@ -418,9 +417,10 @@ class fossil_simulator():
         return d
 
 
-def write_PyRate_file(sim_fossil, output_wd, name_file):
+def write_PyRate_files(sim_fossil, output_wd):
     fossil_occ = sim_fossil['fossil_occurrences']
     taxon_names = sim_fossil['taxon_names']
+    name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
     py = "%s/%s.py" % (output_wd, name_file)
     pyfile = open(py, "w")
     pyfile.write('#!/usr/bin/env python')
@@ -440,7 +440,8 @@ def write_PyRate_file(sim_fossil, output_wd, name_file):
     pyfile.write('\n')
     pyfile.write('d = [data_1]')
     pyfile.write('\n')
-    pyfile.write('names = ["Caminalcules"]')
+
+    pyfile.write('names = ["%s"]' % name_file)
     pyfile.write('\n')
     pyfile.write('def get_data(i): return d[i]')
     pyfile.write('\n')
@@ -451,6 +452,12 @@ def write_PyRate_file(sim_fossil, output_wd, name_file):
     pyfile.write('\n')
     pyfile.write('def get_taxa_names(): return taxa_names')
     pyfile.flush()
+
+    # Safe epochs of shifts in sampling rate
+    file_q_epochs = '%s/%s_q_epochs.txt' % (output_wd, name_file)
+    np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
+
+    return name_file
 
 
 def nearestPD(A):
