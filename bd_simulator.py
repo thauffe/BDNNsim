@@ -1,5 +1,6 @@
 import sys
 from numpy import linalg as la
+from scipy.stats import mode
 import numpy as np
 import pandas as pd
 import scipy.linalg
@@ -98,6 +99,7 @@ class bd_simulator():
             n_cat_traits = 1
             cat_traits_Q = self.cat_traits_Q
             cat_traits_Q = dT * cat_traits_Q
+            print('first cat_traits_Q', cat_traits_Q)
             cat_states = np.arange(len(cat_traits_Q))
         cat_traits = np.empty((root_plus_1, n_cat_traits, self.s_species))
         cat_traits[:] = np.nan
@@ -137,7 +139,8 @@ class bd_simulator():
 
                 # categorical trait evolution
                 if n_cat_traits > 0:
-                    cat_traits[t_abs, :, j] = self.evolve_cat_traits(cat_traits_Q, cat_traits[t_abs + 1, :, j], ran_vec_cat_trait[j], cat_states)
+                    #cat_traits[t_abs, :, j] = self.evolve_cat_traits_ana(cat_traits_Q, cat_traits[t_abs + 1, :, j], ran_vec_cat_trait[j], cat_states)
+                    cat_traits[t_abs, :, j] = cat_traits[t_abs + 1, :, j] # No change along branches
 
                 ran = ran_vec[j]
                 # speciation
@@ -157,7 +160,10 @@ class bd_simulator():
                         cont_traits = np.dstack((cont_traits, cont_traits_new_species))
                     if n_cat_traits > 0:
                         cat_traits_new_species = self.empty_traits(root_plus_1, n_cat_traits)
-                        cat_traits_new_species[t_abs,:] = cat_traits[t_abs,:,j]
+                        #cat_traits_new_species[t_abs,:] = cat_traits[t_abs,:,j]
+                        # Change of categorical trait at speciation
+                        print('cat_traits_Q', cat_traits_Q)
+                        cat_traits_new_species[t_abs, :] = self.evolve_cat_traits_clado(cat_traits_Q, cat_traits[t_abs,:,j], cat_states)
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
                 # extinction
                 elif ran > l and ran < (l + m):
@@ -260,7 +266,7 @@ class bd_simulator():
         return cont_traits
 
 
-    def evolve_cat_traits(self, Q, s, ran, cat_states):
+    def evolve_cat_traits_ana(self, Q, s, ran, cat_states):
         s = int(s)
         state = s
         if Q[s, s] > ran:
@@ -268,6 +274,15 @@ class bd_simulator():
             p = Q[s, pos_states]
             p = p / np.sum(p)
             state = np.random.choice(cat_states[pos_states], 1, p = p)
+
+        return state
+
+
+    def evolve_cat_traits_clado(self, Q, s, cat_states):
+        s = int(s)
+        p = Q[s,:]
+        p = p / np.sum(p)
+        state = np.random.choice(cat_states, 1, p = p)
 
         return state
 
@@ -404,12 +419,13 @@ class fossil_simulator():
         shift_time_q = np.sort(shift_time_q)[::-1]
         shift_time_q = np.concatenate((np.array([root]), shift_time_q, np.zeros(1)))
 
-        fossil_occ, lineages_sampled, alpha = self.get_fossil_occurrences(sp_x, q, shift_time_q, is_alive)
-        taxon_names = self.get_taxon_names(lineages_sampled)
+        fossil_occ, taxa_sampled, alpha = self.get_fossil_occurrences(sp_x, q, shift_time_q, is_alive)
+        taxon_names = self.get_taxon_names(taxa_sampled)
         shift_time_q = shift_time_q[1:-1]
 
         d = {'fossil_occurrences': fossil_occ,
              'taxon_names': taxon_names,
+             'taxa_sampled': taxa_sampled,
              'q': q,
              'shift_time': shift_time_q,
              'alpha': alpha}
@@ -417,7 +433,97 @@ class fossil_simulator():
         return d
 
 
-def write_PyRate_files(sim_fossil, output_wd):
+class write_PyRate_files():
+    def __init__(self,
+                 output_wd = ''):
+        self.output_wd = output_wd
+
+
+    def write_occurrences(self, sim_fossil, name_file):
+        fossil_occ = sim_fossil['fossil_occurrences']
+        taxon_names = sim_fossil['taxon_names']
+        py = "%s/%s.py" % (self.output_wd, name_file)
+        pyfile = open(py, "w")
+        pyfile.write('#!/usr/bin/env python')
+        pyfile.write('\n')
+        pyfile.write('from numpy import *')
+        pyfile.write('\n')
+        pyfile.write('data_1 = [')  # Open block with fossil occurrences
+        pyfile.write('\n')
+        for i in range(len(fossil_occ)):
+            pyfile.write('array(')
+            pyfile.write(str(fossil_occ[i].tolist()))
+            pyfile.write(')')
+            if i != (len(fossil_occ) - 1):
+                pyfile.write(',')
+            pyfile.write('\n')
+        pyfile.write(']')  # End block with fossil occurrences
+        pyfile.write('\n')
+        pyfile.write('d = [data_1]')
+        pyfile.write('\n')
+        pyfile.write('names = ["%s"]' % name_file)
+        pyfile.write('\n')
+        pyfile.write('def get_data(i): return d[i]')
+        pyfile.write('\n')
+        pyfile.write('def get_out_name(i): return names[i]')
+        pyfile.write('\n')
+        pyfile.write('taxa_names = ')
+        pyfile.write(str(taxon_names))
+        pyfile.write('\n')
+        pyfile.write('def get_taxa_names(): return taxa_names')
+        pyfile.flush()
+
+
+    def write_q_epochs(self, sim_fossil, name_file):
+        file_q_epochs = '%s/%s_q_epochs.txt' % (self.output_wd, name_file)
+        np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
+
+
+    def get_mean_cont_traits_per_taxon(self, sim_fossil, res_bd):
+        cont_traits = res_bd['cont_traits']
+        cont_traits = cont_traits[:,:,sim_fossil['taxa_sampled']]
+        means_cont_traits = np.nanmean(cont_traits, axis = 0)
+        means_cont_traits = means_cont_traits.transpose()
+
+        return means_cont_traits
+
+
+    def get_majority_cat_trait_per_taxon(self, sim_fossil, res_bd):
+        cat_traits = res_bd['cat_traits']
+        cat_traits = cat_traits[:, :, sim_fossil['taxa_sampled']]
+        maj_cat_traits = mode(cat_traits, nan_policy='omit')[0][0]
+        maj_cat_traits = maj_cat_traits.compressed()
+        maj_cat_traits = maj_cat_traits.astype(int)
+
+        return maj_cat_traits
+
+
+    def run_writter(self, sim_fossil, res_bd):
+        name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
+
+        self.write_occurrences(sim_fossil, name_file)
+        self.write_q_epochs(sim_fossil, name_file)
+
+        traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
+
+        if res_bd['cont_traits'] is not None:
+            mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
+            for i in range(mean_cont_traits_taxon.shape[1]):
+                traits['cont_trait_%s' % i] = mean_cont_traits_taxon[:,i]
+
+        if res_bd['cat_traits'] is not None:
+            maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
+            traits['cat_trait'] = maj_cat_traits_taxon
+
+        if traits.shape[1] > 1:
+            trait_file = "%s/%s_traits.csv" % (self.output_wd, name_file)
+            traits.to_csv(trait_file, header = True, sep = '\t', index = False)
+
+        return name_file
+
+
+
+def write_PyRate_files_old(sim_fossil, output_wd):
     fossil_occ = sim_fossil['fossil_occurrences']
     taxon_names = sim_fossil['taxon_names']
     name_file = ''.join(random.choices(string.ascii_lowercase, k=10))

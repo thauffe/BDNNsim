@@ -31,6 +31,9 @@ fossil_sim = fossil_simulator(range_q = [0.5, 5.],
                               poi_shifts = 2,
                               seed = rnd_seed)
 
+
+write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN')
+
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(print_res=True)
 
@@ -39,15 +42,25 @@ sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 print(sim_fossil['q'])
 print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
+print(sim_fossil['q'])
 
-name_file = write_PyRate_files(sim_fossil, '/home/torsten/Work/BDNN')
 
+name_file = write_PyRate.run_writter(sim_fossil, res_bd)
+
+#name_file = write_PyRate_files_old(sim_fossil, '/home/torsten/Work/BDNN')
+
+
+
+if len(sim_fossil['shift_time']) > 0:
+    sampl = '-qShift', '/home/torsten/Work/BDNN/%s_q_epochs.txt' % name_file
+else:
+    sampl = '-mHPP'
 
 PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                              '/home/torsten/Work/BDNN/%s.py' % name_file,
+                             #sampl,
                              '-qShift', '/home/torsten/Work/BDNN/%s_q_epochs.txt' % name_file,
                              '-A 4',
-                             #'-mHPP',
                              '-mG', '-n 200001', '-s 5000', '-p 100000'])
 
 PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/pyrate_mcmc_logs', '-b 50'])
