@@ -27,11 +27,13 @@ class bdnn_simulator():
                  poiM = 3, # Number of rate shifts expected according to a Poisson distribution
                  range_linL = None, # Or a range (e.g. [-0.2, 0.2])
                  range_linM = None, # Or a range (e.g. [-0.2, 0.2])
-                 cont_traits_varcov = None, # variance-covariance matrix for evolving continuous traits
-                 cont_traits_Theta1 = None, # morphological optima
-                 cont_traits_alpha = None, # strength of attraction towards Theta1
-                 cat_traits_Q = None,
-                 n_cat_traits_states = [2, 5], # range number of states for categorical trait
+                 #cont_traits_varcov = None, # variance-covariance matrix for evolving continuous traits
+                 n_cont_traits = [2,5], # number of continuous traits
+                 cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
+                 cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
+                 cont_traits_Theta1 = [0, 0],  # morphological optima; 0 is no directional change from the ancestral values
+                 cont_traits_alpha = [0, 0],  # strength of attraction towards Theta1; 0 is pure Brownian motion; [0.5, 2.0] is sensible
+                 n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = False, # is categorical trait ordinal or discrete?
                  cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
                  seed = 0):
@@ -50,10 +52,12 @@ class bdnn_simulator():
         self.poiM = poiM
         self.range_linL = range_linL
         self.range_linM = range_linM
-        self.cont_traits_varcov = cont_traits_varcov
+        #self.cont_traits_varcov = cont_traits_varcov
+        self.n_cont_traits = n_cont_traits
+        self.cont_traits_sigma = cont_traits_sigma
+        self.cont_traits_cor = cont_traits_cor
         self.cont_traits_Theta1 = cont_traits_Theta1
         self.cont_traits_alpha = cont_traits_alpha
-        self.cat_traits_Q = cat_traits_Q
         self.n_cat_traits_states = n_cat_traits_states
         self.cat_traits_ordinal = cat_traits_ordinal
         self.cat_traits_dir = cat_traits_dir
@@ -81,17 +85,24 @@ class bdnn_simulator():
 
         # init continuous traits (if there are any to simulate)
         root_plus_1 = np.abs(root) + 2
-        n_cont_traits = 0
-        if self.cont_traits_varcov is not None:
-            cont_traits_varcov = np.array(self.cont_traits_varcov)
-            n_cont_traits = len(cont_traits_varcov)
-            cont_traits_varcov = dT * cont_traits_varcov # Does this work for > 1 trait?
-            if n_cont_traits == 1: # only for random draws of a univariate normal distribution
-                cont_traits_varcov = np.sqrt(cont_traits_varcov) # variance of traits = BM rate sigma2
-            elif n_cont_traits > 1:
-                cont_traits_varcov = nearestPD(cont_traits_varcov)
-        cont_traits_Theta1 = self.get_cont_traits_Theta1(n_cont_traits)
-        cont_traits_alpha = self.get_cont_traits_alpha(n_cont_traits)
+        n_cont_traits = np.random.choice(np.arange(min(self.n_cont_traits), max(self.n_cont_traits) + 1), 1)
+        n_cont_traits = int(n_cont_traits)
+        if n_cont_traits > 0:
+            cont_traits_varcov = self.make_cont_traits_varcov(n_cont_traits)
+            cont_traits_Theta1 = self.make_cont_traits_Theta1(n_cont_traits)
+            cont_traits_alpha = self.make_cont_traits_alpha(n_cont_traits, root)
+            cont_traits_varcov = dT * cont_traits_varcov
+
+        #if self.cont_traits_varcov is not None:
+        #    cont_traits_varcov = np.array(self.cont_traits_varcov)
+        #    n_cont_traits = len(cont_traits_varcov)
+        #    cont_traits_varcov = dT * cont_traits_varcov # Does this work for > 1 trait?
+        #    if n_cont_traits == 1: # only for random draws of a univariate normal distribution
+        #        cont_traits_varcov = np.sqrt(cont_traits_varcov) # variance of traits = BM rate sigma2
+        #    elif n_cont_traits > 1:
+        #        cont_traits_varcov = nearestPD(cont_traits_varcov)
+        #cont_traits_Theta1 = self.get_cont_traits_Theta1(n_cont_traits)
+        #cont_traits_alpha = self.get_cont_traits_alpha(n_cont_traits)
         cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
         cont_traits[:] = np.nan
         if n_cont_traits > 0:
@@ -246,22 +257,27 @@ class bdnn_simulator():
         return tr
 
 
-    def get_cont_traits_Theta1(self, n_cont_traits):
-        if self.cont_traits_Theta1 is None: # same Theta1 as Theta0
-            cont_traits_Theta1 = np.repeat(0.0, n_cont_traits)
-        else:
-            cont_traits_Theta1 = self.cont_traits_Theta1
+    def make_cont_traits_varcov(self, n_cont_traits):
+        if n_cont_traits == 1:
+            varcov = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), 1)
+            varcov = np.sqrt(varcov)
+
+        return varcov
+
+
+    def make_cont_traits_Theta1(self, n_cont_traits):
+        cont_traits_Theta1 = np.random.uniform(np.min(self.cont_traits_Theta1), np.max(self.cont_traits_Theta1), n_cont_traits)
 
         return cont_traits_Theta1
 
 
-    def get_cont_traits_alpha(self, n_cont_traits):
-        if self.cont_traits_alpha is None: # BM
-            cont_traits_alpha = np.repeat(0.0, n_cont_traits)
-        else: # OU
-            if len(self.cont_traits_alpha) != n_cont_traits:
-                sys.exit(print('Number of alpha parameter unquel number of traits'))
-            cont_traits_alpha = self.cont_traits_alpha
+    def make_cont_traits_alpha(self, n_cont_traits, root):
+        if self.cont_traits_alpha[0] == 0.0 and self.cont_traits_alpha[1] == 0.0:
+            cont_traits_alpha = np.zeros(n_cont_traits)
+        else:
+            alpha = np.random.uniform(np.log(np.min(self.cont_traits_alpha)), np.log(np.max(self.cont_traits_alpha)), n_cont_traits) # half life
+            alpha = np.exp(alpha)
+            cont_traits_alpha = alpha * np.log(2.0) * (1 / np.abs(root))
 
         return cont_traits_alpha
 

@@ -2,9 +2,6 @@ import subprocess
 
 rnd_seed = 73
 
-cat_traits_Q = np.array([[0.6, 0.2, 0.2],
-                         [0.2, 0.6, 0.2],
-                         [0.2, 0.2, 0.6]])
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
 bd_sim = bdnn_simulator(s_species=1,  # number of starting species
@@ -20,8 +17,11 @@ bd_sim = bdnn_simulator(s_species=1,  # number of starting species
                         poiM=2,  # expected number of death rate shift
                         range_linL = None,
                         range_linM = [-0.05, 0.05],
-                        cont_traits_varcov = cont_traits_cov, # a list of length 1, 2D nd.array, or None
-                        #cont_traits_alpha = np.ones(2),
+                        n_cont_traits=[1, 1],  # number of continuous traits
+                        cont_traits_sigma=[0.1, 0.5],  # evolutionary rates for continuous traits
+                        cont_traits_cor=[-1, 1],  # evolutionary correlation between continuous traits
+                        cont_traits_Theta1=[0, 0], # morphological optima; 0 is no directional change from the ancestral values
+                        cont_traits_alpha = [99., 100.],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = False,
                         cat_traits_dir = 5,
@@ -38,7 +38,7 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0)
 
 # Birth-death simulation
-res_bd = bd_sim.run_simulation(print_res=True)
+res_bd = bd_sim.run_simulation(print_res = True)
 
 
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
