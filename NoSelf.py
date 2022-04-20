@@ -17,11 +17,11 @@ bd_sim = bdnn_simulator(s_species=1,  # number of starting species
                         poiM=2,  # expected number of death rate shift
                         range_linL = None,
                         range_linM = [-0.05, 0.05],
-                        n_cont_traits=[1, 1],  # number of continuous traits
+                        n_cont_traits=[2, 5],  # number of continuous traits
                         cont_traits_sigma=[0.1, 0.5],  # evolutionary rates for continuous traits
                         cont_traits_cor=[-1, 1],  # evolutionary correlation between continuous traits
-                        cont_traits_Theta1=[0, 0], # morphological optima; 0 is no directional change from the ancestral values
-                        cont_traits_alpha = [99., 100.],
+                        cont_traits_Theta1=[0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
+                        cont_traits_alpha = [0.0, 0.0],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = False,
                         cat_traits_dir = 5,
