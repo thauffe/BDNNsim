@@ -18,8 +18,8 @@ class bdnn_simulator():
                  rangeSP = [100, 1000],  # min/max size data set
                  minEX_SP = 0,  # minimum number of extinct lineages allowed
                  root_r = [30., 100],  # range root ages
-                 rangeL = [0.2, 0.5],
-                 rangeM = [0.2, 0.5],
+                 rangeL = [0.2, 0.5], # range speciation rate
+                 rangeM = [0.2, 0.5], # range extinction rate
                  scale = 100., # root * scale = steps for the simulation
                  p_mass_extinction = 0.00924,
                  magnitude_mass_ext = [0.8, 0.95],
@@ -31,6 +31,9 @@ class bdnn_simulator():
                  cont_traits_Theta1 = None, # morphological optima
                  cont_traits_alpha = None, # strength of attraction towards Theta1
                  cat_traits_Q = None,
+                 n_cat_traits_states = [2, 5], # range number of states for categorical trait
+                 cat_traits_ordinal = False, # is categorical trait ordinal or discrete?
+                 cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -51,6 +54,9 @@ class bdnn_simulator():
         self.cont_traits_Theta1 = cont_traits_Theta1
         self.cont_traits_alpha = cont_traits_alpha
         self.cat_traits_Q = cat_traits_Q
+        self.n_cat_traits_states = n_cat_traits_states
+        self.cat_traits_ordinal = cat_traits_ordinal
+        self.cat_traits_dir = cat_traits_dir
         self.s_species = s_species
         if seed:
             np.random.seed(seed)
@@ -94,12 +100,17 @@ class bdnn_simulator():
                 cont_traits[-1,:,i] = self.evolve_cont_traits(Theta0, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov) # from past to present
 
         # init single categorical trait
-        n_cat_traits = 0
-        if self.cat_traits_Q is not None:
+        #n_cat_traits = 0
+        #if self.cat_traits_Q is not None:
+        #    n_cat_traits = 1
+        #    cat_traits_Q = self.cat_traits_Q + 0.0
+        #    cat_traits_Q = dT * cat_traits_Q
+        #    cat_states = np.arange(len(cat_traits_Q))
+        n_cat_traits_states = np.random.choice(np.arange(min(self.n_cat_traits_states), max(self.n_cat_traits_states) + 1), 1)
+        if n_cat_traits_states > 0:
             n_cat_traits = 1
-            cat_traits_Q = self.cat_traits_Q
-            cat_traits_Q = dT * cat_traits_Q
-            print('first cat_traits_Q', cat_traits_Q)
+            cat_traits_Q = self.make_cat_traits_Q(n_cat_traits_states)
+            #cat_traits_Q = dT * cat_traits_Q # Only for anagenetic evolution of categorical traits
             cat_states = np.arange(len(cat_traits_Q))
         cat_traits = np.empty((root_plus_1, n_cat_traits, self.s_species))
         cat_traits[:] = np.nan
@@ -162,7 +173,6 @@ class bdnn_simulator():
                         cat_traits_new_species = self.empty_traits(root_plus_1, n_cat_traits)
                         #cat_traits_new_species[t_abs,:] = cat_traits[t_abs,:,j]
                         # Change of categorical trait at speciation
-                        print('cat_traits_Q', cat_traits_Q)
                         cat_traits_new_species[t_abs, :] = self.evolve_cat_traits_clado(cat_traits_Q, cat_traits[t_abs,:,j], cat_states)
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
                 # extinction
@@ -287,12 +297,36 @@ class bdnn_simulator():
         return state
 
 
+    def make_cat_traits_Q(self, n_states):
+        n_states = int(n_states)
+        Q = np.zeros([n_states**2]).reshape((n_states, n_states))
+        for i in range(n_states):
+            dir_alpha = np.ones(n_states)
+            dir_alpha[i] = self.cat_traits_dir
+            q_idx = np.arange(0, n_states)
+            if self.cat_traits_ordinal and n_states > 2:
+                if i == 0:
+                    dir_alpha = np.array([self.cat_traits_dir, 1])
+                    q_idx = [0,1]
+                elif i == (n_states - 1):
+                    dir_alpha = np.array([1, self.cat_traits_dir])
+                    q_idx = [n_states - 2, n_states - 1]
+                else:
+                    dir_alpha = np.ones(3)
+                    dir_alpha[1] = self.cat_traits_dir
+                    q_idx = np.arange(i - 1, i + 2)
+            Q[i, q_idx] = np.random.dirichlet(dir_alpha, 1).flatten()
+
+        return Q
+
+
     def get_stationary_distribution(self, Q):
         # Why do we need some jitter to get positive values in the eigenvector?
-        Q += np.random.uniform(-0.001, 0.001, np.size(Q)).reshape(Q.shape)
-        Q = Q / np.sum(Q, axis = 1)
-        _, left_eigenvec = scipy.linalg.eig(Q, right = False, left = True)
-        pi = left_eigenvec[:,0].real
+        Qtmp = Q + 0.0#+ np.random.uniform(0.0, 0.001, np.size(Q)).reshape(Q.shape)
+        Qtmp = Qtmp / np.sum(Qtmp, axis = 1)
+        eigenvals, left_eigenvec = scipy.linalg.eig(Qtmp, right = False, left = True)
+        left_eigenvec1 = left_eigenvec[:, np.isclose(eigenvals, 1)]
+        pi = left_eigenvec1[:, 0].real
         pi_normalized = pi / np.sum(pi)
 
         return pi_normalized
@@ -320,7 +354,7 @@ class bdnn_simulator():
                   'cont_traits': cont_traits,
                   'cat_traits': cat_traits,
                   'ts_te': ts_te,
-                  'cat_traits_Q': self.cat_traits_Q}
+                  'cat_traits_Q': cat_traits_Q}
         if print_res:
             print("N. species", len(LOtrue))
             ltt = ""

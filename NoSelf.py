@@ -22,7 +22,9 @@ bd_sim = bdnn_simulator(s_species=1,  # number of starting species
                         range_linM = [-0.05, 0.05],
                         cont_traits_varcov = cont_traits_cov, # a list of length 1, 2D nd.array, or None
                         #cont_traits_alpha = np.ones(2),
-                        cat_traits_Q = cat_traits_Q,
+                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
+                        cat_traits_ordinal = False,
+                        cat_traits_dir = 5,
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
@@ -33,7 +35,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 5.],
 
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
-                                  delta_time = 0.1)
+                                  delta_time = 1.0)
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(print_res=True)
