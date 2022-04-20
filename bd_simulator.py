@@ -319,7 +319,8 @@ class bd_simulator():
                   'anc_desc': anc_desc,
                   'cont_traits': cont_traits,
                   'cat_traits': cat_traits,
-                  'ts_te': ts_te}
+                  'ts_te': ts_te,
+                  'cat_traits_Q': self.cat_traits_Q}
         if print_res:
             print("N. species", len(LOtrue))
             ltt = ""
@@ -498,6 +499,22 @@ class write_PyRate_files():
         return maj_cat_traits
 
 
+    def is_ordinal_trait(self, Q):
+        is_ordinal = False
+        if np.all(Q[0,2:] == 0.0) and np.all(Q[-1,:2] == 0.0):
+            is_ordinal = True
+
+        return is_ordinal
+
+
+    def make_one_hot_encoding(self, a):
+        n_states = len(np.unique(a))
+        one_hot = np.eye(n_states)[a]
+        one_hot = one_hot.astype(int)
+
+        return one_hot
+
+
     def run_writter(self, sim_fossil, res_bd):
         name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
 
@@ -513,7 +530,14 @@ class write_PyRate_files():
 
         if res_bd['cat_traits'] is not None:
             maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
-            traits['cat_trait'] = maj_cat_traits_taxon
+            is_ordinal = self.is_ordinal_trait(res_bd['cat_traits_Q'])
+            if is_ordinal:
+                traits['cat_trait'] = maj_cat_traits_taxon
+            else:
+                cat_traits_taxon_one_hot = self.make_one_hot_encoding(maj_cat_traits_taxon)
+                for i in range(cat_traits_taxon_one_hot.shape[1]):
+                    traits['cat_trait_%s' % i] = cat_traits_taxon_one_hot[:, i]
+
 
         if traits.shape[1] > 1:
             trait_file = "%s/%s_traits.csv" % (self.output_wd, name_file)
@@ -521,49 +545,6 @@ class write_PyRate_files():
 
         return name_file
 
-
-
-def write_PyRate_files_old(sim_fossil, output_wd):
-    fossil_occ = sim_fossil['fossil_occurrences']
-    taxon_names = sim_fossil['taxon_names']
-    name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
-    py = "%s/%s.py" % (output_wd, name_file)
-    pyfile = open(py, "w")
-    pyfile.write('#!/usr/bin/env python')
-    pyfile.write('\n')
-    pyfile.write('from numpy import *')
-    pyfile.write('\n')
-    pyfile.write('data_1 = [') # Open block with fossil occurrences
-    pyfile.write('\n')
-    for i in range(len(fossil_occ)):
-        pyfile.write('array(')
-        pyfile.write(str(fossil_occ[i].tolist()))
-        pyfile.write(')')
-        if i != (len(fossil_occ)-1):
-            pyfile.write(',')
-        pyfile.write('\n')
-    pyfile.write(']') # End block with fossil occurrences
-    pyfile.write('\n')
-    pyfile.write('d = [data_1]')
-    pyfile.write('\n')
-
-    pyfile.write('names = ["%s"]' % name_file)
-    pyfile.write('\n')
-    pyfile.write('def get_data(i): return d[i]')
-    pyfile.write('\n')
-    pyfile.write('def get_out_name(i): return names[i]')
-    pyfile.write('\n')
-    pyfile.write('taxa_names = ')
-    pyfile.write(str(taxon_names))
-    pyfile.write('\n')
-    pyfile.write('def get_taxa_names(): return taxa_names')
-    pyfile.flush()
-
-    # Safe epochs of shifts in sampling rate
-    file_q_epochs = '%s/%s_q_epochs.txt' % (output_wd, name_file)
-    np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
-
-    return name_file
 
 
 def nearestPD(A):
