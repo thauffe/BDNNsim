@@ -7,23 +7,23 @@ cat_traits_Q = np.array([[0.6, 0.2, 0.2],
                          [0.2, 0.2, 0.6]])
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
-bd_sim = bd_simulator(s_species=1,  # number of starting species
-                      rangeSP=[100, 300],  # min/max size data set
-                      minEX_SP=0,  # minimum number of extinct lineages allowed
-                      root_r=[10., 15.],  # range root ages
-                      rangeL=[0.05, 0.5],  # range of birth rates
-                      rangeM=[0.05, 0.3],  # range of death rates
-                      scale = 100.,
-                      p_mass_extinction=0.0,
-                      magnitude_mass_ext=[0.001, 0.002],
-                      poiL=2,  # expected number of birth rate shifts
-                      poiM=2,  # expected number of death rate shift
-                      range_linL = None,
-                      range_linM = [-0.05, 0.05],
-                      cont_traits_varcov = cont_traits_cov, # a list of length 1, 2D nd.array, or None
-                      #cont_traits_alpha = np.ones(2),
-                      cat_traits_Q = cat_traits_Q,
-                      seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
+bd_sim = bdnn_simulator(s_species=1,  # number of starting species
+                        rangeSP=[100, 300],  # min/max size data set
+                        minEX_SP=0,  # minimum number of extinct lineages allowed
+                        root_r=[10., 15.],  # range root ages
+                        rangeL=[0.05, 0.5],  # range of birth rates
+                        rangeM=[0.05, 0.3],  # range of death rates
+                        scale = 100.,
+                        p_mass_extinction=0.0,
+                        magnitude_mass_ext=[0.001, 0.002],
+                        poiL=2,  # expected number of birth rate shifts
+                        poiM=2,  # expected number of death rate shift
+                        range_linL = None,
+                        range_linM = [-0.05, 0.05],
+                        cont_traits_varcov = cont_traits_cov, # a list of length 1, 2D nd.array, or None
+                        #cont_traits_alpha = np.ones(2),
+                        cat_traits_Q = cat_traits_Q,
+                        seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
 fossil_sim = fossil_simulator(range_q = [0.5, 5.],
@@ -32,7 +32,8 @@ fossil_sim = fossil_simulator(range_q = [0.5, 5.],
                               seed = rnd_seed)
 
 
-write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN')
+write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
+                                  delta_time = 0.1)
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(print_res=True)

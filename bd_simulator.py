@@ -12,7 +12,7 @@ from collections.abc import Iterable
 SMALL_NUMBER = 1e-10
 
 
-class bd_simulator():
+class bdnn_simulator():
     def __init__(self,
                  s_species = 1,  # number of starting species
                  rangeSP = [100, 1000],  # min/max size data set
@@ -436,8 +436,10 @@ class fossil_simulator():
 
 class write_PyRate_files():
     def __init__(self,
-                 output_wd = ''):
+                 output_wd = '',
+                 delta_time = 1.0):
         self.output_wd = output_wd
+        self.delta_time = delta_time
 
 
     def write_occurrences(self, sim_fossil, name_file):
@@ -515,6 +517,20 @@ class write_PyRate_files():
         return one_hot
 
 
+    def make_time_vector(self, res_bd):
+        root_age = np.max(res_bd['ts_te'])
+        root_age = root_age + 0.2 * root_age # Give a little extra time before the root?!
+        time_vector = np.arange(0.0, root_age, self.delta_time) # Should time include 0 ?
+
+        return time_vector
+
+
+    def write_time_vector(self, res_bd, name_file):
+        time_vector = self.make_time_vector(res_bd)
+        file_time = '%s/%s_time.txt' % (self.output_wd, name_file)
+        np.savetxt(file_time, time_vector, delimiter='\t')
+
+
     def run_writter(self, sim_fossil, res_bd):
         name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
 
@@ -538,10 +554,11 @@ class write_PyRate_files():
                 for i in range(cat_traits_taxon_one_hot.shape[1]):
                     traits['cat_trait_%s' % i] = cat_traits_taxon_one_hot[:, i]
 
-
         if traits.shape[1] > 1:
             trait_file = "%s/%s_traits.csv" % (self.output_wd, name_file)
             traits.to_csv(trait_file, header = True, sep = '\t', index = False)
+
+        self.write_time_vector(res_bd, name_file)
 
         return name_file
 
