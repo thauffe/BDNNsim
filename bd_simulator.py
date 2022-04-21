@@ -88,6 +88,8 @@ class bdnn_simulator():
         root_plus_1 = np.abs(root) + 2
 
         if n_cont_traits > 0:
+            if n_cont_traits == 0:
+                cont_traits_varcov = np.sqrt(cont_traits_varcov + 0.0) # standard deviation to variance
             cont_traits_varcov = dT * (cont_traits_varcov + 0.0)
 
         cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
@@ -236,7 +238,7 @@ class bdnn_simulator():
         else:
             linM = np.zeros(1)
 
-        t_vec = np.linspace(0.0, 1.0, len(L_shifts))
+        t_vec = np.linspace(-0.5, 0.5, len(L_shifts))
 
         L_tt = L_shifts + linL * t_vec
         M_tt = M_shifts + linM * t_vec
@@ -297,7 +299,6 @@ class bdnn_simulator():
     def make_cont_traits_varcov(self, n_cont_traits):
         if n_cont_traits == 1:
             varcov = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), 1)
-            varcov = np.sqrt(varcov)
         else:
             sigma2 = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), n_cont_traits)
             sigma2 = np.diag(sigma2)
@@ -396,7 +397,7 @@ class bdnn_simulator():
         return pi_normalized
 
 
-    def run_simulation(self, print_res = False):
+    def run_simulation(self, verbose = False):
         LOtrue = [0]
         n_extinct = -0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP:
@@ -407,6 +408,11 @@ class bdnn_simulator():
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q)
 
             n_extinct = len(LOtrue[LOtrue > 0])
+
+            if verbose:
+                print('N. species', len(LOtrue))
+                print('Range speciation rate', np.round(np.min(L_tt), 3), np.round(np.max(L_tt), 3))
+                print('Range extinction rate', np.round(np.min(M_tt), 3), np.round(np.max(M_tt), 3))
 
         ts_te = np.array([FAtrue, LOtrue]).T
 
@@ -422,7 +428,7 @@ class bdnn_simulator():
                   'cat_traits': cat_traits,
                   'ts_te': ts_te,
                   'cat_traits_Q': cat_traits_Q}
-        if print_res:
+        if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
             for i in range(int(max(FAtrue))):
@@ -592,6 +598,13 @@ class write_PyRate_files():
         return means_cont_traits
 
 
+    def center_and_scale_unitvar(self, cont_traits):
+        cont_traits -= np.mean(cont_traits, axis = 0)
+        cont_traits /= np.std(cont_traits, axis = 0)
+
+        return cont_traits
+
+
     def get_majority_cat_trait_per_taxon(self, sim_fossil, res_bd):
         cat_traits = res_bd['cat_traits']
         n_cat_traits = cat_traits.shape[1]
@@ -615,12 +628,13 @@ class write_PyRate_files():
 
 
     def make_one_hot_encoding(self, a):
-        n_states = len(np.unique(a))
-        a = a - np.min(a)
-        one_hot = np.eye(n_states)[a]
+        b = np.unique(a)
+        n_states = len(b)
+        c = a - np.min(a)
+        one_hot = np.eye(n_states)[c]
         one_hot = one_hot.astype(int)
 
-        return one_hot
+        return one_hot, b
 
 
     def make_time_vector(self, res_bd):
@@ -647,6 +661,7 @@ class write_PyRate_files():
 
         if res_bd['cont_traits'] is not None:
             mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
+            mean_cont_traits_taxon = self.center_and_scale_unitvar(mean_cont_traits_taxon)
             for i in range(mean_cont_traits_taxon.shape[1]):
                 traits['cont_trait_%s' % i] = mean_cont_traits_taxon[:,i]
 
@@ -657,9 +672,9 @@ class write_PyRate_files():
                 if is_ordinal:
                     traits['cat_trait_%s' % y] = maj_cat_traits_taxon[:,y]
                 else:
-                    cat_traits_taxon_one_hot = self.make_one_hot_encoding(maj_cat_traits_taxon[:,y])
+                    cat_traits_taxon_one_hot, names_one_hot = self.make_one_hot_encoding(maj_cat_traits_taxon[:,y])
                     for i in range(cat_traits_taxon_one_hot.shape[1]):
-                        traits['cat_trait_%s_%s' % (y, i)] = cat_traits_taxon_one_hot[:, i]
+                        traits['cat_trait_%s_%s' % (y, names_one_hot[i])] = cat_traits_taxon_one_hot[:, i]
 
         if traits.shape[1] > 1:
             trait_file = "%s/%s_traits.csv" % (self.output_wd, name_file)

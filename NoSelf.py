@@ -4,27 +4,27 @@ rnd_seed = 73
 
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
-bd_sim = bdnn_simulator(s_species=1,  # number of starting species
-                        rangeSP=[100, 300],  # min/max size data set
-                        minEX_SP=0,  # minimum number of extinct lineages allowed
-                        root_r=[10., 15.],  # range root ages
-                        rangeL=[0.05, 0.5],  # range of birth rates
-                        rangeM=[0.05, 0.3],  # range of death rates
+bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
+                        rangeSP = [100, 300],  # min/max size data set
+                        minEX_SP = 0,  # minimum number of extinct lineages allowed
+                        root_r = [15., 30.],  # range root ages
+                        rangeL = [0.05, 0.5],  # range of birth rates
+                        rangeM = [0.05, 0.3],  # range of death rates
                         scale = 100.,
-                        p_mass_extinction=0.0,
-                        magnitude_mass_ext=[0.001, 0.002],
-                        poiL=2,  # expected number of birth rate shifts
-                        poiM=2,  # expected number of death rate shift
-                        range_linL = None,
-                        range_linM = [-0.05, 0.05],
-                        n_cont_traits = [2, 5],  # number of continuous traits
-                        cont_traits_sigma = [0.1, 0.5],  # evolutionary rates for continuous traits
+                        p_mass_extinction = 0.0,
+                        magnitude_mass_ext = [0.001, 0.002],
+                        poiL = 0,  # expected number of birth rate shifts
+                        poiM = 0,  # expected number of death rate shift
+                        range_linL = [-0.02, -0.01],
+                        range_linM = [0.001, 0.002],
+                        n_cont_traits = [1, 1],  # number of continuous traits
+                        cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        n_cat_traits = [2,4],
-                        n_cat_traits_states = [2, 4], # range number of states for categorical trait
-                        cat_traits_ordinal = [True, False],
+                        n_cat_traits = [1,1],
+                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
+                        cat_traits_ordinal = [False, False],
                         cat_traits_dir = 5,
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
@@ -39,7 +39,7 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0)
 
 # Birth-death simulation
-res_bd = bd_sim.run_simulation(print_res = True)
+res_bd = bd_sim.run_simulation(verbose = True)
 
 
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
@@ -71,6 +71,6 @@ PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyR
 
 
 np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
-np.var(res_bd['cont_traits'][1,0,:])
+np.nanvar(res_bd['cont_traits'][1,0,:])
 
 np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')
