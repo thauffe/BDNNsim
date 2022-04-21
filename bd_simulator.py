@@ -668,10 +668,27 @@ class write_PyRate_files():
         np.savetxt(file_time, time_vector, delimiter='\t')
 
 
-    def write_true_rates_through_time(self, res_bd, name_file):
-        div_rate_file = "%s/%s_true_rates_through_time.csv" % (self.output_wd, name_file)
-        div_rates = res_bd['true_rates_through_time']
-        div_rates.to_csv(div_rate_file, header = True, sep = '\t', index = False)
+    def write_true_rates_through_time(self, rates, name_file):
+        rate_file = "%s/%s_true_rates_through_time.csv" % (self.output_wd, name_file)
+        rates.to_csv(rate_file, header = True, sep = '\t', index = False)
+
+
+    def get_sampling_rates_through_time(self, sim_fossil, res_bd):
+        q = sim_fossil['q']
+        time_sampling = res_bd['true_rates_through_time']['time'].to_numpy()
+        time_sampling = time_sampling[::-1]
+        shift_time = np.concatenate(( np.array([time_sampling[0] + 0.01]), sim_fossil['shift_time'], np.zeros(1)))
+        #shift_time = sim_fossil['shift_time']
+        n_shifts = len(sim_fossil['shift_time'])
+
+        #len_time_sampling = len(time_sampling)
+        q_tt = np.zeros(len(time_sampling), dtype = 'float')
+
+        for i in range(n_shifts + 1):
+            qidx = np.logical_and(time_sampling < shift_time[i], time_sampling >= shift_time[i + 1])
+            q_tt[qidx] = q[i]
+
+        return q_tt[::-1]
 
 
 
@@ -706,7 +723,11 @@ class write_PyRate_files():
 
         self.write_time_vector(res_bd, name_file)
 
-        self.write_true_rates_through_time(res_bd, name_file)
+        qtt = self.get_sampling_rates_through_time(sim_fossil, res_bd)
+        rates = res_bd['true_rates_through_time']
+        rates['sampling'] = qtt
+
+        self.write_true_rates_through_time(rates, name_file)
 
         return name_file
 

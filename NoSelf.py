@@ -2,7 +2,8 @@ import subprocess
 
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
-rnd_seed = 123
+
+rnd_seed = 576
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
@@ -14,10 +15,10 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.001, 0.002],
-                        poiL = 0,  # expected number of birth rate shifts
-                        poiM = 0,  # expected number of death rate shift
-                        range_linL = [-0.02, -0.01],
-                        range_linM = [0.005, 0.01],
+                        poiL = 1,  # expected number of birth rate shifts
+                        poiM = 1,  # expected number of death rate shift
+                        range_linL = [0.0, 0.0],
+                        range_linM = [0.0, 0.0],
                         n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
@@ -30,8 +31,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
-fossil_sim = fossil_simulator(range_q = [2.0, 3.0],
-                              range_alpha = [2.0, 3.0],
+fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
+                              range_alpha = [1.0, 3.0],
                               poi_shifts = 2,
                               seed = rnd_seed)
 
@@ -41,6 +42,10 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
+print(res_bd['lambda'])
+print(res_bd['tshift_lambda'])
+print(res_bd['mu'])
+print(res_bd['tshift_mu'])
 print(res_bd['linear_time_lambda'])
 print(res_bd['linear_time_mu'])
 
@@ -49,7 +54,6 @@ sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 print(sim_fossil['q'])
 print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
-print(sim_fossil['q'])
 
 # Write input files for PyRate analysis
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
