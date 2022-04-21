@@ -2,8 +2,12 @@ import subprocess
 
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
+rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
-rnd_seed = 576
+
+rnd_seed = 123
+
+rnd_seed = 55
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
@@ -17,8 +21,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         magnitude_mass_ext = [0.001, 0.002],
                         poiL = 1,  # expected number of birth rate shifts
                         poiM = 1,  # expected number of death rate shift
-                        range_linL = [0.0, 0.0],
-                        range_linM = [0.0, 0.0],
+                        range_linL = [-0.01, -0.005],
+                        range_linM = [0.005, 0.01],
                         n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
@@ -48,6 +52,7 @@ print(res_bd['mu'])
 print(res_bd['tshift_mu'])
 print(res_bd['linear_time_lambda'])
 print(res_bd['linear_time_mu'])
+print(res_bd['true_rates_through_time'])
 
 # Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])

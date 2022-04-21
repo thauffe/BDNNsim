@@ -429,9 +429,9 @@ class bdnn_simulator():
         ts_te = np.array([FAtrue, LOtrue]).T
         true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt)
 
-        res_bd = {'lambda': L,
+        res_bd = {'lambda': L * self.scale,
                   'tshift_lambda': timesL / self.scale,
-                  'mu': M,
+                  'mu': M * self.scale,
                   'tshift_mu': timesM / self.scale,
                   'true_rates_through_time': true_rates_through_time,
                   'linear_time_lambda': linL,
@@ -504,7 +504,7 @@ class fossil_simulator():
             for y in range(n_taxa):
                 occ_y = np.random.uniform(ts[y], te[y], exp_occ[y])
                 present = np.array([])
-                if is_alive[y] and y == len_q:
+                if is_alive[y] and i == (len_q - 1): # Alive and most recent sampling strata
                     present = np.zeros(1, dtype='float')
                 occ[y] = np.concatenate((occ[y], occ_y, present))
 
