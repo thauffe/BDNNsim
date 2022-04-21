@@ -17,6 +17,7 @@ class bdnn_simulator():
                  s_species = 1,  # number of starting species
                  rangeSP = [100, 1000],  # min/max size data set
                  minEX_SP = 0,  # minimum number of extinct lineages allowed
+                 minExtant_SP = 0, # minimum number of extant lineages
                  root_r = [30., 100],  # range root ages
                  rangeL = [0.2, 0.5], # range speciation rate
                  rangeM = [0.2, 0.5], # range extinction rate
@@ -43,6 +44,7 @@ class bdnn_simulator():
         self.minSP = np.min(rangeSP)
         self.maxSP = np.max(rangeSP)
         self.minEX_SP = minEX_SP
+        self.minExtant_SP = minExtant_SP
         self.root_r = root_r
         self.rangeL = rangeL
         self.rangeM = rangeM
@@ -397,36 +399,51 @@ class bdnn_simulator():
         return pi_normalized
 
 
+    def get_true_rate_through_time(self, root, L_tt, M_tt):
+        time_rates = np.linspace(0.0, np.abs(root), len(L_tt))
+        d = np.stack((time_rates, L_tt[::-1] * self.scale, M_tt[::-1] * self.scale), axis = -1)
+        div_rates = pd.DataFrame(data = d, columns = ['time', 'speciation', 'extinction'])
+
+        return div_rates
+
+
     def run_simulation(self, verbose = False):
         LOtrue = [0]
         n_extinct = -0
-        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP:
+        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q)
 
-            n_extinct = len(LOtrue[LOtrue > 0])
+            n_extinct = len(LOtrue[LOtrue > 0.0])
+            n_extant = len(LOtrue[LOtrue == 0.0])
 
             if verbose:
                 print('N. species', len(LOtrue))
-                print('Range speciation rate', np.round(np.min(L_tt), 3), np.round(np.max(L_tt), 3))
-                print('Range extinction rate', np.round(np.min(M_tt), 3), np.round(np.max(M_tt), 3))
+                print('N. extant species', n_extant)
+                print('Range speciation rate', np.round(np.min(L_tt) * self.scale, 3), np.round(np.max(L_tt) * self.scale, 3))
+                print('Range extinction rate', np.round(np.min(M_tt) * self.scale, 3), np.round(np.max(M_tt) * self.scale, 3))
 
         ts_te = np.array([FAtrue, LOtrue]).T
+        true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt)
 
         res_bd = {'lambda': L,
                   'tshift_lambda': timesL / self.scale,
                   'mu': M,
                   'tshift_mu': timesM / self.scale,
+                  'true_rates_through_time': true_rates_through_time,
                   'linear_time_lambda': linL,
                   'linear_time_mu': linM,
                   'N_species': len(LOtrue),
+                  'ts_te': ts_te,
                   'anc_desc': anc_desc,
                   'cont_traits': cont_traits,
                   'cat_traits': cat_traits,
-                  'ts_te': ts_te,
+                  'cont_traits_varcov': cont_traits_varcov,
+                  'cont_traits_Theta1': cont_traits_Theta1,
+                  'cont_traits_alpha': cont_traits_alpha,
                   'cat_traits_Q': cat_traits_Q}
         if verbose:
             print("N. species", len(LOtrue))
@@ -651,6 +668,13 @@ class write_PyRate_files():
         np.savetxt(file_time, time_vector, delimiter='\t')
 
 
+    def write_true_rates_through_time(self, res_bd, name_file):
+        div_rate_file = "%s/%s_true_rates_through_time.csv" % (self.output_wd, name_file)
+        div_rates = res_bd['true_rates_through_time']
+        div_rates.to_csv(div_rate_file, header = True, sep = '\t', index = False)
+
+
+
     def run_writter(self, sim_fossil, res_bd):
         name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
 
@@ -681,6 +705,8 @@ class write_PyRate_files():
             traits.to_csv(trait_file, header = True, sep = '\t', index = False)
 
         self.write_time_vector(res_bd, name_file)
+
+        self.write_true_rates_through_time(res_bd, name_file)
 
         return name_file
 

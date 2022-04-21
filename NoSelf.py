@@ -1,13 +1,14 @@
 import subprocess
 
-rnd_seed = 73
-
 cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
+rnd_seed = 123
+
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [100, 300],  # min/max size data set
+                        rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
-                        root_r = [15., 30.],  # range root ages
+                        minExtant_SP = 2, # minimum number of extant lineages
+                        root_r = [25., 30.],  # range root ages
                         rangeL = [0.05, 0.5],  # range of birth rates
                         rangeM = [0.05, 0.3],  # range of death rates
                         scale = 100.,
@@ -16,7 +17,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         poiL = 0,  # expected number of birth rate shifts
                         poiM = 0,  # expected number of death rate shift
                         range_linL = [-0.02, -0.01],
-                        range_linM = [0.001, 0.002],
+                        range_linM = [0.005, 0.01],
                         n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
@@ -29,8 +30,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
-fossil_sim = fossil_simulator(range_q = [0.5, 5.],
-                              range_alpha = [1.0, 3.0],
+fossil_sim = fossil_simulator(range_q = [2.0, 3.0],
+                              range_alpha = [2.0, 3.0],
                               poi_shifts = 2,
                               seed = rnd_seed)
 
@@ -40,18 +41,20 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
+print(res_bd['linear_time_lambda'])
+print(res_bd['linear_time_mu'])
 
-
+# Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 print(sim_fossil['q'])
 print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
 print(sim_fossil['q'])
 
-
+# Write input files for PyRate analysis
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 
-#name_file = write_PyRate_files_old(sim_fossil, '/home/torsten/Work/BDNN')
+
 
 
 
