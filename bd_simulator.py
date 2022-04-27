@@ -1,4 +1,5 @@
 import sys
+import os
 from numpy import linalg as la
 from scipy.stats import mode
 import numpy as np
@@ -577,9 +578,7 @@ class write_PyRate_files():
 
 
     def write_occurrences(self, fossil_occ, taxon_names, name_file):
-        #fossil_occ = sim_fossil['fossil_occurrences']
-        #taxon_names = sim_fossil['taxon_names']
-        py = "%s/%s.py" % (self.output_wd, name_file)
+        py = "%s/%s/%s.py" % (self.output_wd, name_file, name_file)
         pyfile = open(py, "w")
         pyfile.write('#!/usr/bin/env python')
         pyfile.write('\n')
@@ -612,13 +611,12 @@ class write_PyRate_files():
 
 
     def write_q_epochs(self, sim_fossil, name_file):
-        file_q_epochs = '%s/%s_q_epochs.txt' % (self.output_wd, name_file)
+        file_q_epochs = '%s/%s/%s_q_epochs.txt' % (self.output_wd, name_file, name_file)
         np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
 
 
     def get_mean_cont_traits_per_taxon(self, taxa_sampled, res_bd):
         cont_traits = res_bd['cont_traits']
-        #cont_traits = cont_traits[:,:,sim_fossil['taxa_sampled']]
         cont_traits = cont_traits[:, :, taxa_sampled]
         means_cont_traits = np.nanmean(cont_traits, axis = 0)
         means_cont_traits = means_cont_traits.transpose()
@@ -636,11 +634,9 @@ class write_PyRate_files():
     def get_majority_cat_trait_per_taxon(self, taxa_sampled, res_bd):
         cat_traits = res_bd['cat_traits']
         n_cat_traits = cat_traits.shape[1]
-        #n_taxa_sampled = len(sim_fossil['taxa_sampled'])
         n_taxa_sampled = len(taxa_sampled)
         maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
         for i in range(n_cat_traits):
-            #cat_traits_i = cat_traits[:, i, sim_fossil['taxa_sampled']]
             cat_traits_i = cat_traits[:, i, taxa_sampled]
             maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0][0]
             maj_cat_traits_i = maj_cat_traits_i.compressed()
@@ -670,19 +666,19 @@ class write_PyRate_files():
     def make_time_vector(self, res_bd):
         root_age = np.max(res_bd['ts_te'])
         root_age = root_age + 0.2 * root_age # Give a little extra time before the root?!
-        time_vector = np.arange(0.0, root_age, self.delta_time) # Should time include 0 ?
+        time_vector = np.arange(0.0, root_age, self.delta_time)
 
         return time_vector
 
 
     def write_time_vector(self, res_bd, name_file):
         time_vector = self.make_time_vector(res_bd)
-        file_time = '%s/%s_time.txt' % (self.output_wd, name_file)
+        file_time = '%s/%s/%s_time.txt' % (self.output_wd, name_file, name_file)
         np.savetxt(file_time, time_vector, delimiter='\t')
 
 
     def write_true_rates_through_time(self, rates, name_file):
-        rate_file = "%s/%s_true_rates_through_time.csv" % (self.output_wd, name_file)
+        rate_file = "%s/%s/%s_true_rates_through_time.csv" % (self.output_wd, name_file, name_file)
         rates.to_csv(rate_file, header = True, sep = '\t', index = False)
 
 
@@ -691,10 +687,8 @@ class write_PyRate_files():
         time_sampling = res_bd['true_rates_through_time']['time'].to_numpy()
         time_sampling = time_sampling[::-1]
         shift_time = np.concatenate(( np.array([time_sampling[0] + 0.01]), sim_fossil['shift_time'], np.zeros(1)))
-        #shift_time = sim_fossil['shift_time']
         n_shifts = len(sim_fossil['shift_time'])
 
-        #len_time_sampling = len(time_sampling)
         q_tt = np.zeros(len(time_sampling), dtype = 'float')
 
         for i in range(n_shifts + 1):
@@ -725,8 +719,6 @@ class write_PyRate_files():
                         occ_i = np.concatenate((occ_i, np.zeros(1)))
                     occ.append(occ_i)
                     keep.append(i)
-                #else:
-                #    omit.append(i)
 
             taxon_names = np.array(taxon_names)
             taxon_names = taxon_names[keep]
@@ -738,9 +730,12 @@ class write_PyRate_files():
 
 
     def run_writter(self, sim_fossil, res_bd):
-        fossil_occ, taxon_names, taxa_sampled = self.trunc_to_interval(sim_fossil)
+        # Get random name and create a subdirectory
+        name_file = ''.join(random.choices(string.ascii_lowercase, k = 10))
+        path_make_dir = os.path.join(self.output_wd, name_file)
+        os.mkdir(path_make_dir)
 
-        name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
+        fossil_occ, taxon_names, taxa_sampled = self.trunc_to_interval(sim_fossil)
 
         self.write_occurrences(fossil_occ, taxon_names, name_file)
         self.write_q_epochs(sim_fossil, name_file)
@@ -765,7 +760,7 @@ class write_PyRate_files():
                         traits['cat_trait_%s_%s' % (y, names_one_hot[i])] = cat_traits_taxon_one_hot[:, i]
 
         if traits.shape[1] > 1:
-            trait_file = "%s/%s_traits.csv" % (self.output_wd, name_file)
+            trait_file = "%s/%s/%s_traits.csv" % (self.output_wd, name_file, name_file)
             traits.to_csv(trait_file, header = True, sep = '\t', index = False)
 
         self.write_time_vector(res_bd, name_file)
