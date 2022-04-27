@@ -111,6 +111,8 @@ class bdnn_simulator():
                 for i in range(self.s_species):
                     cat_traits[-1,y,i] = np.random.choice(cat_states[y], 1, p = pi)
 
+        mass_ext_time = []
+        mass_ext_mag = []
         # evolution (from the past to the present)
         for t in range(root, 0):
             # time i.e. integers self.root * self.scale
@@ -134,6 +136,8 @@ class bdnn_simulator():
                 # print("Mass extinction", t / self.scale)
                 # increased loss of species: increased ext probability for this time bin
                 m = np.random.uniform(self.magnitude_mass_ext[0], self.magnitude_mass_ext[1])
+                mass_ext_time.append(t)
+                mass_ext_mag.append(m)
 
             for j in te_extant:  # extant lineages
                 # continuous trait evolution
@@ -172,7 +176,7 @@ class bdnn_simulator():
                     te[j] = t
 
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag
 
 
     def get_random_settings(self, root):
@@ -415,7 +419,7 @@ class bdnn_simulator():
             L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
@@ -428,12 +432,16 @@ class bdnn_simulator():
 
         ts_te = np.array([FAtrue, LOtrue]).T
         true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt)
+        mass_ext_time = np.abs(np.array([mass_ext_time])) / self.scale
+        mass_ext_mag = np.array([mass_ext_mag])
 
         res_bd = {'lambda': L * self.scale,
                   'tshift_lambda': timesL / self.scale,
                   'mu': M * self.scale,
                   'tshift_mu': timesM / self.scale,
                   'true_rates_through_time': true_rates_through_time,
+                  'mass_ext_time': mass_ext_time,
+                  'mass_ext_magnitude': mass_ext_mag,
                   'linear_time_lambda': linL,
                   'linear_time_mu': linM,
                   'N_species': len(LOtrue),
@@ -561,14 +569,16 @@ class fossil_simulator():
 class write_PyRate_files():
     def __init__(self,
                  output_wd = '',
-                 delta_time = 1.0):
+                 delta_time = 1.0,
+                 keep_in_interval = None):
         self.output_wd = output_wd
         self.delta_time = delta_time
+        self.keep_in_interval = keep_in_interval
 
 
-    def write_occurrences(self, sim_fossil, name_file):
-        fossil_occ = sim_fossil['fossil_occurrences']
-        taxon_names = sim_fossil['taxon_names']
+    def write_occurrences(self, fossil_occ, taxon_names, name_file):
+        #fossil_occ = sim_fossil['fossil_occurrences']
+        #taxon_names = sim_fossil['taxon_names']
         py = "%s/%s.py" % (self.output_wd, name_file)
         pyfile = open(py, "w")
         pyfile.write('#!/usr/bin/env python')
@@ -606,9 +616,10 @@ class write_PyRate_files():
         np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
 
 
-    def get_mean_cont_traits_per_taxon(self, sim_fossil, res_bd):
+    def get_mean_cont_traits_per_taxon(self, taxa_sampled, res_bd):
         cont_traits = res_bd['cont_traits']
-        cont_traits = cont_traits[:,:,sim_fossil['taxa_sampled']]
+        #cont_traits = cont_traits[:,:,sim_fossil['taxa_sampled']]
+        cont_traits = cont_traits[:, :, taxa_sampled]
         means_cont_traits = np.nanmean(cont_traits, axis = 0)
         means_cont_traits = means_cont_traits.transpose()
 
@@ -622,13 +633,15 @@ class write_PyRate_files():
         return cont_traits
 
 
-    def get_majority_cat_trait_per_taxon(self, sim_fossil, res_bd):
+    def get_majority_cat_trait_per_taxon(self, taxa_sampled, res_bd):
         cat_traits = res_bd['cat_traits']
         n_cat_traits = cat_traits.shape[1]
-        n_taxa_sampled = len(sim_fossil['taxa_sampled'])
+        #n_taxa_sampled = len(sim_fossil['taxa_sampled'])
+        n_taxa_sampled = len(taxa_sampled)
         maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
         for i in range(n_cat_traits):
-            cat_traits_i = cat_traits[:, i, sim_fossil['taxa_sampled']]
+            #cat_traits_i = cat_traits[:, i, sim_fossil['taxa_sampled']]
+            cat_traits_i = cat_traits[:, i, taxa_sampled]
             maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0][0]
             maj_cat_traits_i = maj_cat_traits_i.compressed()
             maj_cat_traits[:,i] = maj_cat_traits_i.astype(int)
@@ -691,23 +704,57 @@ class write_PyRate_files():
         return q_tt[::-1]
 
 
+    def trunc_to_interval(self, sim_fossil):
+        fossil_occ = sim_fossil['fossil_occurrences']
+        occ = fossil_occ
+        taxon_names = sim_fossil['taxon_names']
+        taxa_sampled = sim_fossil['taxa_sampled']
+        if self.keep_in_interval is not None:
+            occ = []
+            keep = []
+            for i in range(len(fossil_occ)):
+                occ_i = fossil_occ[i]
+                is_alive = np.any(occ_i == 0)
+                occ_keep = np.array([])
+                for y in range(self.keep_in_interval.shape[0]):
+                    occ_keep_y = occ_i[np.logical_and(occ_i <= self.keep_in_interval[y,0], occ_i >= self.keep_in_interval[y,1])]
+                    occ_keep = np.concatenate((occ_keep, occ_keep_y))
+                occ_i = occ_keep
+                if len(occ_i) > 0:
+                    if is_alive:
+                        occ_i = np.concatenate((occ_i, np.zeros(1)))
+                    occ.append(occ_i)
+                    keep.append(i)
+                #else:
+                #    omit.append(i)
+
+            taxon_names = np.array(taxon_names)
+            taxon_names = taxon_names[keep]
+            taxon_names = taxon_names.tolist()
+            taxa_sampled = taxa_sampled[keep]
+
+        return occ, taxon_names, taxa_sampled
+
+
 
     def run_writter(self, sim_fossil, res_bd):
+        fossil_occ, taxon_names, taxa_sampled = self.trunc_to_interval(sim_fossil)
+
         name_file = ''.join(random.choices(string.ascii_lowercase, k=10))
 
-        self.write_occurrences(sim_fossil, name_file)
+        self.write_occurrences(fossil_occ, taxon_names, name_file)
         self.write_q_epochs(sim_fossil, name_file)
 
-        traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
+        traits = pd.DataFrame(data = taxon_names, columns = ['scientificName'])
 
         if res_bd['cont_traits'] is not None:
-            mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
+            mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(taxa_sampled, res_bd)
             mean_cont_traits_taxon = self.center_and_scale_unitvar(mean_cont_traits_taxon)
             for i in range(mean_cont_traits_taxon.shape[1]):
                 traits['cont_trait_%s' % i] = mean_cont_traits_taxon[:,i]
 
         if res_bd['cat_traits'] is not None:
-            maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
+            maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(taxa_sampled , res_bd)
             for y in range(maj_cat_traits_taxon.shape[1]):
                 is_ordinal = self.is_ordinal_trait(res_bd['cat_traits_Q'][y])
                 if is_ordinal:

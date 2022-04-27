@@ -5,11 +5,9 @@ cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
 
-rnd_seed = 123
+rnd_seed = 576
 
-rnd_seed = 55
-
-bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
+bd_sim = bdnn_simulator(s_species = 3,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
@@ -19,10 +17,10 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.001, 0.002],
-                        poiL = 1,  # expected number of birth rate shifts
-                        poiM = 1,  # expected number of death rate shift
-                        range_linL = [-0.01, -0.005],
-                        range_linM = [0.005, 0.01],
+                        poiL = 0,  # expected number of birth rate shifts
+                        poiM = 0,  # expected number of death rate shift
+                        range_linL = [0.0, 0.0],
+                        range_linM = [0.0, 0.0],
                         n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
@@ -42,7 +40,9 @@ fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
 
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
-                                  delta_time = 1.0)
+                                  delta_time = 1.0,
+                                  keep_in_interval = np.array([[np.inf, 20.0],
+                                                               [10.0, 5.0]]))
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -50,6 +50,7 @@ print(res_bd['lambda'])
 print(res_bd['tshift_lambda'])
 print(res_bd['mu'])
 print(res_bd['tshift_mu'])
+print(res_bd['mass_ext_time'])
 print(res_bd['linear_time_lambda'])
 print(res_bd['linear_time_mu'])
 print(res_bd['true_rates_through_time'])
@@ -79,7 +80,7 @@ PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
                              '-A 4',
                              '-mG', '-n 200001', '-s 5000', '-p 100000'])
 
-PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/pyrate_mcmc_logs', '-b 50'])
+PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/pyrate_mcmc_logs', '-b 10'])
 
 
 np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
