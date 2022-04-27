@@ -39,7 +39,7 @@ class bdnn_simulator():
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
                  cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
-                 cat_traits_effect = [10., 10.], # effect of categorical traits on speciation and extinction
+                 cat_traits_effect = [1., 1.], # effect of categorical traits on speciation and extinction (1 is no effect)
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -116,6 +116,11 @@ class bdnn_simulator():
 
         mass_ext_time = []
         mass_ext_mag = []
+
+        # Trait dependent rates through time
+        lineage_weighted_lambda_tt = np.zeros(np.abs(root))
+        lineage_weighted_mu_tt = np.zeros(np.abs(root))
+
         # evolution (from the past to the present)
         for t in range(root, 0):
             # time i.e. integers self.root * self.scale
@@ -142,6 +147,12 @@ class bdnn_simulator():
                 mass_ext_time.append(t)
                 mass_ext_mag.append(m)
 
+            # Trait dependent rates for all extant lineages
+            lineage_lambda = np.zeros(TE)
+            lineage_lambda[:] = np.nan
+            lineage_mu = np.zeros(TE)
+            lineage_mu[:] = np.nan
+
             for j in te_extant:  # extant lineages
                 l_j = l + 0.
                 m_j = m + 0.
@@ -158,6 +169,9 @@ class bdnn_simulator():
                     #print('multi cat trait species j' ,cat_trait_effect[y][0, int(cat_trait_j)])
                     l_j = l_j * cat_trait_effect[y][0, int(cat_trait_j)]
                     m_j = m_j * cat_trait_effect[y][0, int(cat_trait_j)]
+
+                lineage_lambda[j] = l_j
+                lineage_mu[j] = m_j
 
                 ran = ran_vec[j]
                 # speciation
@@ -184,8 +198,12 @@ class bdnn_simulator():
                 elif ran > l_j and ran < (l_j + m_j):
                     te[j] = t
 
+            if t != -1:
+                lineage_weighted_lambda_tt[t_abs-1] = self.get_harmonic_mean(lineage_lambda)
+                lineage_weighted_mu_tt[t_abs-1] = self.get_harmonic_mean(lineage_mu)
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag
+
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt
 
 
     def get_random_settings(self, root):
@@ -265,6 +283,16 @@ class bdnn_simulator():
         M_tt[M_tt < 0.0] = 1e-10
 
         return L_tt, M_tt, linL, linM
+
+
+    def get_harmonic_mean(self, v):
+        hm = np.nan
+        v = v[np.isnan(v) == False]
+        if len(v) > 0:
+            v = v * self.scale
+            hm = len(v) / np.sum(1.0 / v)
+
+        return hm
 
 
     def empty_traits(self, past, n_cont_traits):
@@ -429,23 +457,24 @@ class bdnn_simulator():
         return cat_trait_effect
 
 
-    def get_true_rate_through_time(self, root, L_tt, M_tt):
+    def get_true_rate_through_time(self, root, L_tt, M_tt, L_weighted_tt, M_weighted_tt):
         time_rates = np.linspace(0.0, np.abs(root), len(L_tt))
-        d = np.stack((time_rates, L_tt[::-1] * self.scale, M_tt[::-1] * self.scale), axis = -1)
-        div_rates = pd.DataFrame(data = d, columns = ['time', 'speciation', 'extinction'])
+        d = np.stack((time_rates, L_tt[::-1] * self.scale, M_tt[::-1] * self.scale, L_weighted_tt, M_weighted_tt), axis = -1)
+        div_rates = pd.DataFrame(data = d, columns = ['time', 'speciation', 'extinction', 'trait_weighted_speciation', 'trait_weighted_extinction'])
 
         return div_rates
 
 
     def run_simulation(self, verbose = False):
-        LOtrue = [0]
-        n_extinct = -0
+        LOtrue = []
+        n_extinct = 0
+        n_extant = 0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
@@ -453,11 +482,11 @@ class bdnn_simulator():
             if verbose:
                 print('N. species', len(LOtrue))
                 print('N. extant species', n_extant)
-                print('Range speciation rate', np.round(np.min(L_tt) * self.scale, 3), np.round(np.max(L_tt) * self.scale, 3))
-                print('Range extinction rate', np.round(np.min(M_tt) * self.scale, 3), np.round(np.max(M_tt) * self.scale, 3))
+                print('Range speciation rate', np.round(np.min(L_tt[:-1]) * self.scale, 3), np.round(np.max(L_tt[:-1]) * self.scale, 3))
+                print('Range extinction rate', np.round(np.min(M_tt[:-1]) * self.scale, 3), np.round(np.max(M_tt[:-1]) * self.scale, 3))
 
         ts_te = np.array([FAtrue, LOtrue]).T
-        true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt)
+        true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt, lineage_weighted_lambda_tt, lineage_weighted_mu_tt)
         mass_ext_time = np.abs(np.array([mass_ext_time])) / self.scale
         mass_ext_mag = np.array([mass_ext_mag])
 
