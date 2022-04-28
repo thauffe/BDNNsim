@@ -809,7 +809,7 @@ def keep_fossils_in_interval(fossils, keep_in_interval, keep_extant = True):
             is_alive = np.any(occ_i == 0)
             occ_keep = np.array([])
             for y in range(keep_in_interval.shape[0]):
-                occ_keep_y = occ_i[np.logical_and(occ_i <= keep_in_interval[y,0], occ_i >= keep_in_interval[y,1])]
+                occ_keep_y = occ_i[np.logical_and(occ_i <= keep_in_interval[y,0], occ_i > keep_in_interval[y,1])]
                 occ_keep = np.concatenate((occ_keep, occ_keep_y))
             occ_i = occ_keep
             if len(occ_i) > 0:
@@ -830,11 +830,174 @@ def keep_fossils_in_interval(fossils, keep_in_interval, keep_extant = True):
     return fossils
 
 
-write_FBD():
+class write_FBD_files():
     def __init__(self,
                  output_wd = '',
-                 keep_in_interval = None):
+                 name_file = '',
+                 interval_ages = np.array([[np.inf, 0.0]])):
         self.output_wd = output_wd
+        self.name_file = name_file
         self.interval_ages = interval_ages
 
-    def run_FBD_writter(self, written_PyRate_files):
+    def get_ranges(self, fossils):
+        taxon_names = fossils['taxon_names']
+        n_lineages = len(taxon_names)
+        ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
+        ranges['min'] = np.zeros(n_lineages)
+        ranges['max'] = np.zeros(n_lineages)
+        occ = fossils['fossil_occurrences']
+        for i in range(n_lineages):
+            occ_i = occ[i]
+            ranges.iloc[i, 1] = np.min(occ_i)
+            ranges.iloc[i, 2] = np.max(occ_i)
+
+        return ranges
+
+
+    def get_occurrences_per_interval(self, fossils):
+        taxon_names = fossils['taxon_names']
+        n_lineages = len(taxon_names)
+        names_df = pd.DataFrame(data = taxon_names, columns = ['taxon'])
+        n_intervals = self.interval_ages.shape[0]
+        counts = np.zeros((n_lineages, n_intervals), dtype = int)
+        occ = fossils['fossil_occurrences']
+        for i in range(n_lineages):
+            for y in range(n_intervals):
+                occ_i = occ[i]
+                # What to do with a record at the present? Is this rho for FBD?
+                occ_i_y = occ_i[np.logical_and(occ_i <= self.interval_ages[y, 0], occ_i > self.interval_ages[y, 1])]
+                counts[i, y] = len(occ_i_y)
+
+        counts_df = pd.DataFrame(data = counts, columns = np.arange(n_intervals))
+        counts_df = pd.concat([names_df, counts_df], axis=1)
+
+        return counts_df
+
+
+    def write_script(self, name_file):
+        scr = "%s/%s/%s/%s/%s_mcmc_FBDRMatrix_model1.Rev" % (self.output_wd, name_file, 'FBD', 'scripts', name_file)
+        scrfile = open(scr, "w")
+        scrfile.write('taxa = readTaxonData(file = "data/%s_ranges.csv")' % name_file)
+        scrfile.write('\n')
+        scrfile.write('k <- readDataDelimitedFile(file = "data/%s_counts.csv", header = true, rownames = true)' % name_file)
+        scrfile.write('\n')
+        timeline = self.interval_ages[1:,0]
+        timeline = timeline.tolist()
+        scrfile.write('timeline <- v(')
+        for i in range(len(timeline)):
+            scrfile.write(str(timeline[i]))
+            if i != 0 or i != (len(timeline) - 1):
+                scrfile.write(',')
+        scrfile.write(')')
+        scrfile.write('\n')
+        scrfile.write('moves = VectorMoves()')
+        scrfile.write('\n')
+        scrfile.write('monitors = VectorMonitors()')
+        scrfile.write('\n')
+        scrfile.write('alpha <- 10')
+        scrfile.write('\n')
+        scrfile.write('for (i in 1:(timeline.size()+1)) {')
+        scrfile.write('\n')
+        scrfile.write('    mu[i] ~ dnExp(alpha)')
+        scrfile.write('\n')
+        scrfile.write('    lambda [i] ~ dnExp(alpha)')
+        scrfile.write('\n')
+        scrfile.write('    psi[i] ~ dnExp(alpha)')
+        scrfile.write('\n')
+        scrfile.write('    div[i] := lambda[i] - mu[i]')
+        scrfile.write('\n')
+        scrfile.write('    turnover[i] := mu[i] / lambda[i]')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale(mu[i], lambda = 0.01) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale(mu[i], lambda = 0.1) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale(mu[i], lambda = 1) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale( lambda[i], lambda = 0.01) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale( lambda[i], lambda = 0.1) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale( lambda[i], lambda = 1) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale(psi[i], lambda = 0.01) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale(psi[i], lambda = 0.1) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvScale(psi[i], lambda = 1) )')
+        scrfile.write('\n')
+        scrfile.write('}')
+        scrfile.write('\n')
+        scrfile.write('rho <- 1')
+        scrfile.write('\n')
+        scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = lambda, mu=mu, psi=psi, rho=rho, timeline=timeline, k=k)')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvMatrixElementScale(bd, lambda = 0.01, weight=taxa.size()))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvMatrixElementScale(bd, lambda = 0.1, weight=taxa.size()))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvMatrixElementScale(bd, lambda = 1, weight=taxa.size()))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvMatrixElementSlide(bd, delta=0.01, weight=taxa.size()))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvMatrixElementSlide(bd, delta=0.1, weight=taxa.size()))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvMatrixElementSlide(bd, delta=1, weight=taxa.size()))')
+        scrfile.write('\n')
+        scrfile.write('mymodel = model(bd)')
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnScreen(lambda , mu, psi, printgen=100))')
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnModel(filename="output/%s_model1.log", printgen=100))' % name_file)
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_rates.log", lambda , printgen=10))' % name_file)
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_times.log", timeline, printgen=10))' % name_file)
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_rates.log", mu, printgen=10))' % name_file)
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_times.log", timeline, printgen=10))' % name_file)
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_rates.log", psi, printgen=10))' % name_file)
+        scrfile.write('\n')
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_times.log", timeline, printgen=10))' % name_file)
+        scrfile.write('\n')
+        scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule="random")')
+        scrfile.write('\n')
+        scrfile.write('mymcmc.run(30000)')
+        scrfile.write('\n')
+        scrfile.write('q()')
+        scrfile.flush()
+
+
+
+    def run_FBD_writter(self, fossils):
+        path_dir = os.path.join(self.output_wd, name_file)
+
+        path_make_dir_FBD = os.path.join(path_dir, 'FBD')
+        try:
+            os.mkdir(path_make_dir_FBD)
+        except OSError as error:
+            print(error)
+
+        path_make_dir_scripts = os.path.join(path_make_dir_FBD, 'scripts')
+        try:
+            os.mkdir(path_make_dir_scripts)
+        except OSError as error:
+            print(error)
+
+        path_make_dir_data = os.path.join(path_make_dir_FBD, 'data')
+        try:
+            os.mkdir(path_make_dir_data)
+        except OSError as error:
+            print(error)
+
+        ranges = self.get_ranges(fossils)
+        ranges_file = "%s/%s/%s/%s/%s_ranges.csv" % (self.output_wd, name_file, 'FBD', 'data', name_file)
+        ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
+
+        counts = self.get_occurrences_per_interval(fossils)
+        counts_file = "%s/%s/%s/%s/%s_counts.csv" % (self.output_wd, name_file, 'FBD', 'data', name_file)
+        counts.to_csv(counts_file, header = True, sep = '\t', index = False)
+
+        self.write_script(name_file)

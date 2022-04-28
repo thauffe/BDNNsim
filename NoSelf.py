@@ -68,26 +68,35 @@ sim_fossil = keep_fossils_in_interval(sim_fossil,
 # Write input files for PyRate analysis
 # written_PyRate_files = write_PyRate.run_writter(sim_fossil, res_bd)
 # name_file = written_PyRate_files['name_file']
-name_file_PyRate = write_PyRate.run_writter(sim_fossil, res_bd)
-
+name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 
 
 if len(sim_fossil['shift_time']) > 0:
-    sampl = '-qShift', '/home/torsten/Work/BDNN/%s_q_epochs.txt' % name_file_PyRate
+    sampl = '-qShift', '/home/torsten/Work/BDNN/%s_q_epochs.txt' % name_file
 else:
     sampl = '-mHPP'
 
 PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                             '/home/torsten/Work/BDNN/%s/%s.py' % (name_file_PyRate, name_file_PyRate),
+                             '/home/torsten/Work/BDNN/%s/%s.py' % (name_file, name_file),
                              #sampl,
-                             '-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file_PyRate, name_file_PyRate),
+                             '-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
                              '-A 4',
                              '-mG', '-n 200001', '-s 5000', '-p 100000'])
 
-PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file_PyRate, '-b 10'])
+PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b 10'])
 
 
 np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
 np.nanvar(res_bd['cont_traits'][1,0,:])
 
 np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')
+
+
+# Create inpute files for FBD analysis
+######################################
+write_FBD = write_FBD_files(output_wd = '/home/torsten/Work/BDNN',
+                            name_file =  name_file,
+                            interval_ages = np.array([[np.inf, 15.0],
+                                                      [15.0, 7.0],
+                                                      [7.0, 0.0]]))
+write_FBD.run_FBD_writter(sim_fossil)
