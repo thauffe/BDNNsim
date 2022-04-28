@@ -43,12 +43,6 @@ fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0)
 
-# Edge effect
-#write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
-#                                  delta_time = 1.0,
-#                                  keep_in_interval = np.array([[np.inf, 20.0],
-#                                                               [10.0, 5.0]]))
-
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
 print(res_bd['lambda'])
@@ -66,26 +60,31 @@ print(sim_fossil['q'])
 print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
 
+# Truncate fossil record for edge effect
+sim_fossil = keep_fossils_in_interval(sim_fossil,
+                                      keep_in_interval = np.array([[np.inf, 20.0],
+                                                                   [10.0, 5.0]]))
+
 # Write input files for PyRate analysis
-name_file = write_PyRate.run_writter(sim_fossil, res_bd)
-
-
+# written_PyRate_files = write_PyRate.run_writter(sim_fossil, res_bd)
+# name_file = written_PyRate_files['name_file']
+name_file_PyRate = write_PyRate.run_writter(sim_fossil, res_bd)
 
 
 
 if len(sim_fossil['shift_time']) > 0:
-    sampl = '-qShift', '/home/torsten/Work/BDNN/%s_q_epochs.txt' % name_file
+    sampl = '-qShift', '/home/torsten/Work/BDNN/%s_q_epochs.txt' % name_file_PyRate
 else:
     sampl = '-mHPP'
 
 PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                             '/home/torsten/Work/BDNN/%s/%s.py' % (name_file, name_file),
+                             '/home/torsten/Work/BDNN/%s/%s.py' % (name_file_PyRate, name_file_PyRate),
                              #sampl,
-                             '-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
+                             '-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file_PyRate, name_file_PyRate),
                              '-A 4',
                              '-mG', '-n 200001', '-s 5000', '-p 100000'])
 
-PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b 10'])
+PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file_PyRate, '-b 10'])
 
 
 np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')

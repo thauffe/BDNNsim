@@ -624,14 +624,13 @@ class fossil_simulator():
 class write_PyRate_files():
     def __init__(self,
                  output_wd = '',
-                 delta_time = 1.0,
-                 keep_in_interval = None):
+                 delta_time = 1.0):
         self.output_wd = output_wd
         self.delta_time = delta_time
-        self.keep_in_interval = keep_in_interval
 
-
-    def write_occurrences(self, fossil_occ, taxon_names, name_file):
+    def write_occurrences(self, sim_fossil, name_file):
+        fossil_occ = sim_fossil['fossil_occurrences']
+        taxon_names = sim_fossil['taxon_names']
         py = "%s/%s/%s.py" % (self.output_wd, name_file, name_file)
         pyfile = open(py, "w")
         pyfile.write('#!/usr/bin/env python')
@@ -669,9 +668,9 @@ class write_PyRate_files():
         np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
 
 
-    def get_mean_cont_traits_per_taxon(self, taxa_sampled, res_bd):
+    def get_mean_cont_traits_per_taxon(self, sim_fossil, res_bd):
         cont_traits = res_bd['cont_traits']
-        cont_traits = cont_traits[:, :, taxa_sampled]
+        cont_traits = cont_traits[:, :, sim_fossil['taxa_sampled']]
         means_cont_traits = np.nanmean(cont_traits, axis = 0)
         means_cont_traits = means_cont_traits.transpose()
 
@@ -685,9 +684,10 @@ class write_PyRate_files():
         return cont_traits
 
 
-    def get_majority_cat_trait_per_taxon(self, taxa_sampled, res_bd):
+    def get_majority_cat_trait_per_taxon(self, sim_fossil, res_bd):
         cat_traits = res_bd['cat_traits']
         n_cat_traits = cat_traits.shape[1]
+        taxa_sampled = sim_fossil['taxa_sampled']
         n_taxa_sampled = len(taxa_sampled)
         maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
         for i in range(n_cat_traits):
@@ -752,58 +752,25 @@ class write_PyRate_files():
         return q_tt[::-1]
 
 
-    def trunc_to_interval(self, sim_fossil):
-        fossil_occ = sim_fossil['fossil_occurrences']
-        occ = fossil_occ
-        taxon_names = sim_fossil['taxon_names']
-        taxa_sampled = sim_fossil['taxa_sampled']
-        if self.keep_in_interval is not None:
-            occ = []
-            keep = []
-            for i in range(len(fossil_occ)):
-                occ_i = fossil_occ[i]
-                is_alive = np.any(occ_i == 0)
-                occ_keep = np.array([])
-                for y in range(self.keep_in_interval.shape[0]):
-                    occ_keep_y = occ_i[np.logical_and(occ_i <= self.keep_in_interval[y,0], occ_i >= self.keep_in_interval[y,1])]
-                    occ_keep = np.concatenate((occ_keep, occ_keep_y))
-                occ_i = occ_keep
-                if len(occ_i) > 0:
-                    if is_alive:
-                        occ_i = np.concatenate((occ_i, np.zeros(1)))
-                    occ.append(occ_i)
-                    keep.append(i)
-
-            taxon_names = np.array(taxon_names)
-            taxon_names = taxon_names[keep]
-            taxon_names = taxon_names.tolist()
-            taxa_sampled = taxa_sampled[keep]
-
-        return occ, taxon_names, taxa_sampled
-
-
-
     def run_writter(self, sim_fossil, res_bd):
         # Get random name and create a subdirectory
         name_file = ''.join(random.choices(string.ascii_lowercase, k = 10))
         path_make_dir = os.path.join(self.output_wd, name_file)
         os.mkdir(path_make_dir)
 
-        fossil_occ, taxon_names, taxa_sampled = self.trunc_to_interval(sim_fossil)
-
-        self.write_occurrences(fossil_occ, taxon_names, name_file)
+        self.write_occurrences(sim_fossil, name_file)
         self.write_q_epochs(sim_fossil, name_file)
 
-        traits = pd.DataFrame(data = taxon_names, columns = ['scientificName'])
+        traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
 
         if res_bd['cont_traits'] is not None:
-            mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(taxa_sampled, res_bd)
+            mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
             mean_cont_traits_taxon = self.center_and_scale_unitvar(mean_cont_traits_taxon)
             for i in range(mean_cont_traits_taxon.shape[1]):
                 traits['cont_trait_%s' % i] = mean_cont_traits_taxon[:,i]
 
         if res_bd['cat_traits'] is not None:
-            maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(taxa_sampled , res_bd)
+            maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
             for y in range(maj_cat_traits_taxon.shape[1]):
                 is_ordinal = self.is_ordinal_trait(res_bd['cat_traits_Q'][y])
                 if is_ordinal:
@@ -829,3 +796,45 @@ class write_PyRate_files():
 
 
 
+def keep_fossils_in_interval(fossils, keep_in_interval, keep_extant = True):
+    fossil_occ = fossils['fossil_occurrences']
+    occ = fossil_occ
+    taxon_names = fossils['taxon_names']
+    taxa_sampled = fossils['taxa_sampled']
+    if keep_in_interval is not None:
+        occ = []
+        keep = []
+        for i in range(len(fossil_occ)):
+            occ_i = fossil_occ[i]
+            is_alive = np.any(occ_i == 0)
+            occ_keep = np.array([])
+            for y in range(keep_in_interval.shape[0]):
+                occ_keep_y = occ_i[np.logical_and(occ_i <= keep_in_interval[y,0], occ_i >= keep_in_interval[y,1])]
+                occ_keep = np.concatenate((occ_keep, occ_keep_y))
+            occ_i = occ_keep
+            if len(occ_i) > 0:
+                if is_alive and keep_extant:
+                    occ_i = np.concatenate((occ_i, np.zeros(1)))
+                occ.append(occ_i)
+                keep.append(i)
+
+        taxon_names = np.array(taxon_names)
+        taxon_names = taxon_names[keep]
+        taxon_names = taxon_names.tolist()
+        taxa_sampled = taxa_sampled[keep]
+
+    fossils['fossil_occurrences'] = occ
+    fossils['taxon_names'] = taxon_names
+    fossils['taxa_sampled'] = taxa_sampled
+
+    return fossils
+
+
+write_FBD():
+    def __init__(self,
+                 output_wd = '',
+                 keep_in_interval = None):
+        self.output_wd = output_wd
+        self.interval_ages = interval_ages
+
+    def run_FBD_writter(self, written_PyRate_files):
