@@ -29,8 +29,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         n_cat_traits = [1, 1],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
-                        cat_traits_dir = 5,
-                        cat_traits_effect = [1., 1.],
+                        cat_traits_dir = 2,
+                        cat_traits_effect = [2., 3.],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
@@ -53,6 +53,7 @@ print(res_bd['mass_ext_time'])
 print(res_bd['linear_time_lambda'])
 print(res_bd['linear_time_mu'])
 print(res_bd['true_rates_through_time'])
+print(res_bd['lineage_rates'])
 
 # Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])

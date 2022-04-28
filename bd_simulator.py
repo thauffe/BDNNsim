@@ -29,7 +29,6 @@ class bdnn_simulator():
                  poiM = 3, # Number of rate shifts expected according to a Poisson distribution
                  range_linL = None, # Or a range (e.g. [-0.2, 0.2])
                  range_linM = None, # Or a range (e.g. [-0.2, 0.2])
-                 #cont_traits_varcov = None, # variance-covariance matrix for evolving continuous traits
                  n_cont_traits = [2, 5], # number of continuous traits
                  cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
@@ -84,10 +83,15 @@ class bdnn_simulator():
         # Following entries: descendants
         anc_desc = []
 
+        # Track time of origin/extinction (already in ts and te) and rates per lineage
+        lineage_rates = []
+
         for i in range(self.s_species):
             ts.append(root)
-            te.append(0)
+            te.append(-0.0)
             anc_desc.append(np.array([i]))
+            lineage_rates_tmp = np.array([root, -0.0, L[root], M[root]])
+            lineage_rates.append(lineage_rates_tmp)
 
         # init continuous traits (if there are any to simulate)
         root_plus_1 = np.abs(root) + 2
@@ -112,7 +116,10 @@ class bdnn_simulator():
             #cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
             pi = self.get_stationary_distribution(cat_traits_Q[y])
             for i in range(self.s_species):
-                cat_traits[-1,y,i] = np.random.choice(cat_states[y], 1, p = pi)
+                cat_trait_yi = int(np.random.choice(cat_states[y], 1, p = pi))
+                cat_traits[-1,y,i] = cat_trait_yi
+                lineage_rates[i][2] = lineage_rates[i][2] * cat_trait_effect[y][0, cat_trait_yi]
+                lineage_rates[i][3] = lineage_rates[i][3] * cat_trait_effect[y][1, cat_trait_yi]
 
         mass_ext_time = []
         mass_ext_mag = []
@@ -168,7 +175,7 @@ class bdnn_simulator():
                     cat_trait_j = cat_traits[t_abs, y, j]
                     #print('multi cat trait species j' ,cat_trait_effect[y][0, int(cat_trait_j)])
                     l_j = l_j * cat_trait_effect[y][0, int(cat_trait_j)]
-                    m_j = m_j * cat_trait_effect[y][0, int(cat_trait_j)]
+                    m_j = m_j * cat_trait_effect[y][1, int(cat_trait_j)]
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -176,12 +183,17 @@ class bdnn_simulator():
                 ran = ran_vec[j]
                 # speciation
                 if ran < l_j:
-                    te.append(0)  # add species
+                    te.append(-0.0)  # add species
                     ts.append(t)  # sp time
+
                     desc = np.array([len(ts)])
                     anc_desc[j] = np.concatenate((anc_desc[j], desc))
                     anc = np.random.choice(anc_desc[j], 1)  # If a lineage already has multiple descendents
                     anc_desc.append(anc)
+
+                    lineage_rates_tmp = np.array([t, -0.0, l_j, m_j])
+                    lineage_rates.append(lineage_rates_tmp)
+
                     # Inherit traits
                     if n_cont_traits > 0:
                         cont_traits_new_species = self.empty_traits(root_plus_1, n_cont_traits)
@@ -197,13 +209,19 @@ class bdnn_simulator():
                 # extinction
                 elif ran > l_j and ran < (l_j + m_j):
                     te[j] = t
+                    lineage_rates[j][1] = t
 
             if t != -1:
                 lineage_weighted_lambda_tt[t_abs-1] = self.get_harmonic_mean(lineage_lambda)
                 lineage_weighted_mu_tt[t_abs-1] = self.get_harmonic_mean(lineage_mu)
 
+        lineage_rates = np.array(lineage_rates)
+        lineage_rates[:, 0] = -lineage_rates[:, 0] / self.scale # Why is it not working? lineage_rates[:,:2] = -lineage_rates[:,:2] / self.scale
+        lineage_rates[:, 1] = -lineage_rates[:, 1] / self.scale
+        lineage_rates[:, 2] = lineage_rates[:, 2] * self.scale
+        lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates
 
 
     def get_random_settings(self, root):
@@ -474,7 +492,7 @@ class bdnn_simulator():
             L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
@@ -482,8 +500,8 @@ class bdnn_simulator():
             if verbose:
                 print('N. species', len(LOtrue))
                 print('N. extant species', n_extant)
-                print('Range speciation rate', np.round(np.min(L_tt[:-1]) * self.scale, 3), np.round(np.max(L_tt[:-1]) * self.scale, 3))
-                print('Range extinction rate', np.round(np.min(M_tt[:-1]) * self.scale, 3), np.round(np.max(M_tt[:-1]) * self.scale, 3))
+                print('Range speciation rate', np.round(np.nanmin(lineage_weighted_lambda_tt[1:-1]), 3), np.round(np.nanmax(lineage_weighted_lambda_tt[1:-1]), 3))
+                print('Range extinction rate', np.round(np.nanmin(lineage_weighted_mu_tt[1:-1]), 3), np.round(np.nanmax(lineage_weighted_mu_tt[1:-1]), 3))
 
         ts_te = np.array([FAtrue, LOtrue]).T
         true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt, lineage_weighted_lambda_tt, lineage_weighted_mu_tt)
@@ -502,6 +520,7 @@ class bdnn_simulator():
                   'N_species': len(LOtrue),
                   'ts_te': ts_te,
                   'anc_desc': anc_desc,
+                  'lineage_rates': lineage_rates,
                   'cont_traits': cont_traits,
                   'cat_traits': cat_traits,
                   'cont_traits_varcov': cont_traits_varcov,
@@ -752,6 +771,18 @@ class write_PyRate_files():
         return q_tt[::-1]
 
 
+    def write_lineage_rates(self, res_bd, name_file):
+        taxa_sampled = sim_fossil['taxa_sampled']
+        taxon_names = sim_fossil['taxon_names']
+        lineage_rate = res_bd['lineage_rates']
+        lineage_rate = lineage_rate[taxa_sampled,:]
+        names_df = pd.DataFrame(data = taxon_names, columns=['scientificName'])
+        tste_rates = pd.DataFrame(data = lineage_rate, columns = ['ts', 'te', 'speciation', 'extinction'])
+        df = pd.concat([names_df, tste_rates], axis=1)
+        file = "%s/%s/%s_lineage_rates.csv" % (self.output_wd, name_file, name_file)
+        df.to_csv(file, header = True, sep = '\t', index = False)
+
+
     def run_writter(self, sim_fossil, res_bd):
         # Get random name and create a subdirectory
         name_file = ''.join(random.choices(string.ascii_lowercase, k = 10))
@@ -789,8 +820,9 @@ class write_PyRate_files():
         qtt = self.get_sampling_rates_through_time(sim_fossil, res_bd)
         rates = res_bd['true_rates_through_time']
         rates['sampling'] = qtt
-
         self.write_true_rates_through_time(rates, name_file)
+
+        self.write_lineage_rates(res_bd, name_file)
 
         return name_file
 
