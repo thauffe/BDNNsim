@@ -5,7 +5,7 @@ cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
 
-rnd_seed = 42
+rnd_seed = 123
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [100, 300],  # min/max size data set
@@ -30,7 +30,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
-                        cat_traits_effect = [2., 3.],
+                        cat_traits_effect = [2., 5.],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 

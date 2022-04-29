@@ -643,9 +643,11 @@ class fossil_simulator():
 class write_PyRate_files():
     def __init__(self,
                  output_wd = '',
-                 delta_time = 1.0):
+                 delta_time = 1.0,
+                 name = None):
         self.output_wd = output_wd
         self.delta_time = delta_time
+        self.name_file = name
 
     def write_occurrences(self, sim_fossil, name_file):
         fossil_occ = sim_fossil['fossil_occurrences']
@@ -785,7 +787,10 @@ class write_PyRate_files():
 
     def run_writter(self, sim_fossil, res_bd):
         # Get random name and create a subdirectory
-        name_file = ''.join(random.choices(string.ascii_lowercase, k = 10))
+        if self.name_file is None:
+            name_file = ''.join(random.choices(string.ascii_lowercase, k = 10))
+        else:
+            name_file = self.name_file
         path_make_dir = os.path.join(self.output_wd, name_file)
         os.mkdir(path_make_dir)
 
@@ -913,14 +918,18 @@ class write_FBD_files():
         scrfile.write('\n')
         scrfile.write('k <- readDataDelimitedFile(file = "data/%s_counts.csv", header = true, rownames = true)' % name_file)
         scrfile.write('\n')
-        timeline = self.interval_ages[1:,0]
-        timeline = timeline.tolist()
-        scrfile.write('timeline <- v(')
-        for i in range(len(timeline)):
-            scrfile.write(str(timeline[i]))
-            if i != 0 or i != (len(timeline) - 1):
-                scrfile.write(',')
-        scrfile.write(')')
+        if self.interval_ages.shape[0] > 1: # Skyline model
+            timeline = self.interval_ages[1:,0]
+            timeline = timeline.tolist()
+            scrfile.write('timeline_size <- timeline.size()')
+            scrfile.write('timeline <- v(')
+            for i in range(len(timeline)):
+                scrfile.write(str(timeline[i]))
+                if i != 0 or i != (len(timeline) - 1):
+                    scrfile.write(',')
+            scrfile.write(')')
+        else:
+            scrfile.write('timeline_size <- 0')
         scrfile.write('\n')
         scrfile.write('moves = VectorMoves()')
         scrfile.write('\n')
@@ -928,7 +937,7 @@ class write_FBD_files():
         scrfile.write('\n')
         scrfile.write('alpha <- 10')
         scrfile.write('\n')
-        scrfile.write('for (i in 1:(timeline.size()+1)) {')
+        scrfile.write('for (i in 1:(timeline_size+1)) {')
         scrfile.write('\n')
         scrfile.write('    mu[i] ~ dnExp(alpha)')
         scrfile.write('\n')
