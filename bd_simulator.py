@@ -835,13 +835,14 @@ class write_PyRate_files():
 
 def keep_fossils_in_interval(fossils, keep_in_interval, keep_extant = True):
     fossil_occ = fossils['fossil_occurrences']
+    n_lineages = len(fossil_occ)
     occ = fossil_occ
     taxon_names = fossils['taxon_names']
     taxa_sampled = fossils['taxa_sampled']
     if keep_in_interval is not None:
         occ = []
         keep = []
-        for i in range(len(fossil_occ)):
+        for i in range(n_lineages):
             occ_i = fossil_occ[i]
             is_alive = np.any(occ_i == 0)
             occ_keep = np.array([])
@@ -865,6 +866,29 @@ def keep_fossils_in_interval(fossils, keep_in_interval, keep_extant = True):
     fossils['taxa_sampled'] = taxa_sampled
 
     return fossils
+
+
+def get_interval_exceedings(fossils, ts_te, keep_in_interval):
+    taxa_sampled = fossils['taxa_sampled']
+    ts_te = ts_te[taxa_sampled, :]
+    intervall_exceeds_df = pd.DataFrame(data = np.zeros((1,2)), columns = ['ts_before_upper_bound', 'te_after_lower_bound'])
+    if keep_in_interval is not None:
+        n_intervals = keep_in_interval.shape[0]
+        intervall_exceeds = np.zeros((1, 2 * n_intervals))
+        colnames = []
+        ts = ts_te[:, 0] + 0.0
+        te = ts_te[:, 1] + 0.0
+        for y in range(n_intervals):
+            # Speciation before upper interval boundary, discard lineages that speciate before but go also extinct
+            intervall_exceeds[0, 2 * y] = np.sum(np.logical_and(ts > keep_in_interval[y,0], (te > keep_in_interval[y,0]) == False))
+            # Extinction after lower interval boundary, discard lineages that speciate after the lower interval boundary
+            intervall_exceeds[0, 1 + 2 * y] = np.sum(np.logical_and(te < keep_in_interval[y,1], (ts < keep_in_interval[y,1]) == False))
+            colnames.append('ts_before_%s' % str(keep_in_interval[y,0]))
+            colnames.append('te_after_%s' % str(keep_in_interval[y, 1]))
+
+        intervall_exceeds_df = pd.DataFrame(data = intervall_exceeds, columns = colnames)
+
+    return intervall_exceeds_df
 
 
 class write_FBD_files():

@@ -62,9 +62,10 @@ print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
 
 # Truncate fossil record for edge effect
+keep_in_interval = np.array([ [np.inf, 20.0], [10.0, 5.0] ])
 sim_fossil = keep_fossils_in_interval(sim_fossil,
-                                      keep_in_interval = np.array([[np.inf, 20.0],
-                                                                   [10.0, 5.0]]))
+                                      keep_in_interval = keep_in_interval)
+interval_exceedings = get_interval_exceedings(sim_fossil, res_bd['ts_te'], keep_in_interval)
 
 # Write input files for PyRate analysis
 # written_PyRate_files = write_PyRate.run_writter(sim_fossil, res_bd)
