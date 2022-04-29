@@ -689,13 +689,32 @@ class write_PyRate_files():
         np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
 
 
-    def get_mean_cont_traits_per_taxon(self, sim_fossil, res_bd):
+    # def get_mean_cont_traits_per_taxon(self, sim_fossil, res_bd):
+    #     cont_traits = res_bd['cont_traits']
+    #     cont_traits = cont_traits[:, :, sim_fossil['taxa_sampled']]
+    #     means_cont_traits = np.nanmean(cont_traits, axis = 0)
+    #     means_cont_traits = means_cont_traits.transpose()
+    #
+    #     return means_cont_traits
+
+
+    def get_mean_cont_traits_per_taxon_from_sampling_events(self, sim_fossil, res_bd):
+        fossil_occ = sim_fossil['fossil_occurrences']
+        taxa_sampled = sim_fossil['taxa_sampled']
         cont_traits = res_bd['cont_traits']
-        cont_traits = cont_traits[:, :, sim_fossil['taxa_sampled']]
-        means_cont_traits = np.nanmean(cont_traits, axis = 0)
-        means_cont_traits = means_cont_traits.transpose()
+        cont_traits = cont_traits[:, :, taxa_sampled]
+        time = res_bd['true_rates_through_time']['time']
+        n_lineages = len(taxa_sampled)
+        means_cont_traits = np.zeros((n_lineages, cont_traits.shape[1]))
+        for i in range(n_lineages):
+            occ_i = fossil_occ[i]
+            trait_idx = np.searchsorted(time, occ_i)
+            cont_trait_i = cont_traits[trait_idx, :, i]
+            means_cont_traits[i,:] = np.nanmean(cont_trait_i, axis = 0)
 
         return means_cont_traits
+
+
 
 
     def center_and_scale_unitvar(self, cont_traits):
@@ -800,7 +819,8 @@ class write_PyRate_files():
         traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
 
         if res_bd['cont_traits'] is not None:
-            mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
+            #mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
+            mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon_from_sampling_events(sim_fossil, res_bd)
             mean_cont_traits_taxon = self.center_and_scale_unitvar(mean_cont_traits_taxon)
             for i in range(mean_cont_traits_taxon.shape[1]):
                 traits['cont_trait_%s' % i] = mean_cont_traits_taxon[:,i]
