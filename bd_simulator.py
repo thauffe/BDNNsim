@@ -2,6 +2,7 @@ import sys
 import os
 from numpy import linalg as la
 from scipy.stats import mode
+from scipy.stats import norm
 import numpy as np
 import pandas as pd
 import scipy.linalg
@@ -34,11 +35,12 @@ class bdnn_simulator():
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
                  cont_traits_Theta1 = [0, 0],  # morphological optima; 0 is no directional change from the ancestral values
                  cont_traits_alpha = [0, 0],  # strength of attraction towards Theta1; 0 is pure Brownian motion; [0.5, 2.0] is sensible
-                 n_cat_traits = [1,2], # number of categorical traits
+                 cont_traits_effect = [0., 0.], # range of effect of categorical traits on speciation and extinction (1 is no effect)
+                 n_cat_traits = [1, 2], # number of categorical traits
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
                  cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
-                 cat_traits_effect = [1., 1.], # effect of categorical traits on speciation and extinction (1 is no effect)
+                 cat_traits_effect = [1., 1.], # range of effect of categorical traits on speciation and extinction (1 is no effect)
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -61,6 +63,7 @@ class bdnn_simulator():
         self.cont_traits_cor = cont_traits_cor
         self.cont_traits_Theta1 = cont_traits_Theta1
         self.cont_traits_alpha = cont_traits_alpha
+        self.cont_traits_effect = cont_traits_effect
         self.n_cat_traits = n_cat_traits
         self.n_cat_traits_states = n_cat_traits_states
         self.cat_traits_ordinal = cat_traits_ordinal
@@ -71,7 +74,7 @@ class bdnn_simulator():
             np.random.seed(seed)
 
 
-    def simulate(self, L, M, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect):
+    def simulate(self, L, M, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect):
         ts = list()
         te = list()
 
@@ -90,25 +93,15 @@ class bdnn_simulator():
             ts.append(root)
             te.append(-0.0)
             anc_desc.append(np.array([i]))
-            lineage_rates_tmp = np.array([root, -0.0, L[root], M[root]])
+            lineage_rates_tmp = np.zeros(5 + n_cont_traits +  2 * n_cat_traits)
+            lineage_rates_tmp[:] = np.nan
+            lineage_rates_tmp[:5] = np.array([root, -0.0, L[root], M[root], 0.0])
             lineage_rates.append(lineage_rates_tmp)
 
         # init continuous traits (if there are any to simulate)
         root_plus_1 = np.abs(root) + 2
 
-        if n_cont_traits > 0:
-            if n_cont_traits == 0:
-                cont_traits_varcov = np.sqrt(cont_traits_varcov + 0.0) # standard deviation to variance
-            cont_traits_varcov = dT * (cont_traits_varcov + 0.0)
-
-        cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
-        cont_traits[:] = np.nan
-        if n_cont_traits > 0:
-            for i in range(self.s_species):
-                Theta0 = np.zeros(n_cont_traits)
-                cont_traits[-1,:,i] = self.evolve_cont_traits(Theta0, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov) # from past to present
-
-        # init single categorical trait
+        # init categorical traits
         cat_traits = np.empty((root_plus_1, n_cat_traits, self.s_species))
         cat_traits[:] = np.nan
 
@@ -120,6 +113,24 @@ class bdnn_simulator():
                 cat_traits[-1,y,i] = cat_trait_yi
                 lineage_rates[i][2] = lineage_rates[i][2] * cat_trait_effect[y][0, cat_trait_yi]
                 lineage_rates[i][3] = lineage_rates[i][3] * cat_trait_effect[y][1, cat_trait_yi]
+                lineage_rates[i][(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_yi
+                lineage_rates[i][2] = L[root] * cat_trait_effect[y][0, int(cat_trait_yi)]
+                lineage_rates[i][3] = M[root] * cat_trait_effect[y][1, int(cat_trait_yi)]
+
+        # init continuous traits
+        if n_cont_traits > 0:
+            if n_cont_traits == 0:
+                cont_traits_varcov = np.sqrt(cont_traits_varcov + 0.0) # standard deviation to variance
+            cont_traits_varcov = dT * (cont_traits_varcov + 0.0)
+
+        cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
+        cont_traits[:] = np.nan
+        if n_cont_traits > 0:
+            for i in range(self.s_species):
+                Theta0 = np.zeros(n_cont_traits)
+                cont_traits_i = self.evolve_cont_traits(Theta0, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov) # from past to present
+                cont_traits[-1, :, i] = cont_traits_i
+                lineage_rates[i][5:(5 + n_cont_traits)] = cont_traits_i
 
         mass_ext_time = []
         mass_ext_mag = []
@@ -164,18 +175,21 @@ class bdnn_simulator():
                 l_j = l + 0.
                 m_j = m + 0.
 
-                # continuous trait evolution
-                if n_cont_traits > 0:
-                    cont_traits[t_abs, :, j] = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov)
-
                 # categorical trait evolution
                 for y in range(n_cat_traits):
                     #cat_traits[t_abs, y, j] = self.evolve_cat_traits_ana(cat_traits_Q[y], cat_traits[t_abs + 1, y, j], ran_vec_cat_trait[j], cat_states[y])
                     cat_traits[t_abs, y, j] = cat_traits[t_abs + 1, y, j] # No change along branches
                     cat_trait_j = cat_traits[t_abs, y, j]
-                    #print('multi cat trait species j' ,cat_trait_effect[y][0, int(cat_trait_j)])
                     l_j = l_j * cat_trait_effect[y][0, int(cat_trait_j)]
                     m_j = m_j * cat_trait_effect[y][1, int(cat_trait_j)]
+
+                # continuous trait evolution
+                if n_cont_traits > 0:
+                    cont_trait_j = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov)
+                    cont_traits[t_abs, :, j] = cont_trait_j
+                    for y in range(n_cont_traits):
+                        l_j = l_j + self.get_cont_trait_effect(cont_traits_varcov[y, y], cont_trait_j[y], cont_traits_effect[0, y])
+                        m_j = m_j + self.get_cont_trait_effect(cont_traits_varcov[y, y], cont_trait_j[y], cont_traits_effect[1, y])
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -191,21 +205,35 @@ class bdnn_simulator():
                     anc = np.random.choice(anc_desc[j], 1)  # If a lineage already has multiple descendents
                     anc_desc.append(anc)
 
-                    lineage_rates_tmp = np.array([t, -0.0, l_j, m_j])
-                    lineage_rates.append(lineage_rates_tmp)
+                    lineage_rates_tmp = np.zeros(5 + n_cont_traits + 2 * n_cat_traits)
+                    #l_new = l_j + 0.0
+                    #m_new = m_j + 0.0
 
                     # Inherit traits
-                    if n_cont_traits > 0:
-                        cont_traits_new_species = self.empty_traits(root_plus_1, n_cont_traits)
-                        cont_traits_new_species[t_abs,:] = cont_traits[t_abs,:,j]
-                        cont_traits = np.dstack((cont_traits, cont_traits_new_species))
                     if n_cat_traits > 0:
                         cat_traits_new_species = self.empty_traits(root_plus_1, n_cat_traits)
                         # cat_traits_new_species[t_abs,] = cat_traits[t_abs,:,j] # inherit state at speciation
                         for y in range(n_cat_traits):
                             # Change of categorical trait at speciation
-                            cat_traits_new_species[t_abs, y] = self.evolve_cat_traits_clado(cat_traits_Q[y], cat_traits[t_abs,y,j], cat_states[y])
+                            ancestral_cat_trait = cat_traits[t_abs, y, j]
+                            cat_trait_new = self.evolve_cat_traits_clado(cat_traits_Q[y], ancestral_cat_trait, cat_states[y])
+                            cat_traits_new_species[t_abs, y] = cat_trait_new
+                            # trait state for the just originated lineage
+                            lineage_rates_tmp[(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_new
+                            # trait state of the ancestral lineage
+                            lineage_rates_tmp[(5 + y + n_cont_traits + n_cat_traits):(6 + y + n_cont_traits + n_cat_traits)] = ancestral_cat_trait
+                            l_new = l * cat_trait_effect[y][0, int(cat_trait_new)]
+                            m_new = m * cat_trait_effect[y][1, int(cat_trait_new)]
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
+                    if n_cont_traits > 0:
+                        cont_traits_new_species = self.empty_traits(root_plus_1, n_cont_traits)
+                        cont_traits_new_species[t_abs,:] = cont_traits[t_abs,:,j]
+                        cont_traits = np.dstack((cont_traits, cont_traits_new_species))
+                        lineage_rates_tmp[5:(5 + n_cont_traits)] = cont_traits[t_abs,:,j]
+
+                    lineage_rates_tmp[:5] = np.array([t, -0.0, l_new, m_new, l_j])
+                    lineage_rates.append(lineage_rates_tmp)
+
                 # extinction
                 elif ran > l_j and ran < (l_j + m_j):
                     te[j] = t
@@ -220,6 +248,7 @@ class bdnn_simulator():
         lineage_rates[:, 1] = -lineage_rates[:, 1] / self.scale
         lineage_rates[:, 2] = lineage_rates[:, 2] * self.scale
         lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
+        lineage_rates[:, 4] = lineage_rates[:, 4] * self.scale
 
         return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates
 
@@ -258,13 +287,18 @@ class bdnn_simulator():
         # continuous traits
         n_cont_traits = np.random.choice(np.arange(min(self.n_cont_traits), max(self.n_cont_traits) + 1), 1)
         n_cont_traits = int(n_cont_traits)
+        cont_traits_effect = np.zeros((2,1))
         if n_cont_traits > 0:
             cont_traits_varcov = self.make_cont_traits_varcov(n_cont_traits)
             cont_traits_Theta1 = self.make_cont_traits_Theta1(n_cont_traits)
             cont_traits_alpha = self.make_cont_traits_alpha(n_cont_traits, root_scaled)
+            cont_traits_effect = np.zeros((2, n_cont_traits))
+            cont_traits_effect[0, :] = np.random.uniform(min(self.cont_traits_effect), max(self.cont_traits_effect), n_cont_traits)
+            cont_traits_effect[1, :] = np.random.uniform(min(self.cont_traits_effect), max(self.cont_traits_effect), n_cont_traits)
 
         # categorical traits
-        n_cat_traits = int(np.random.choice(np.arange(min(self.n_cat_traits), max(self.n_cat_traits) + 1), 1))
+        n_cat_traits = np.random.choice(np.arange(min(self.n_cat_traits), max(self.n_cat_traits) + 1), 1)
+        n_cat_traits = int(n_cat_traits)
         cat_traits_Q = []
         n_cat_traits_states = np.zeros(n_cat_traits, dtype = int)
         cat_states = []
@@ -278,7 +312,7 @@ class bdnn_simulator():
             cat_trait_effect_i = self.make_cat_trait_effect(n_cat_traits_states[i])
             cat_trait_effect.append(cat_trait_effect_i)
 
-        return L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect
+        return L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect
 
 
     def add_linear_time_effect(self, L_shifts, M_shifts):
@@ -363,6 +397,7 @@ class bdnn_simulator():
     def make_cont_traits_varcov(self, n_cont_traits):
         if n_cont_traits == 1:
             varcov = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), 1)
+            varcov = np.array([varcov])
         else:
             sigma2 = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), n_cont_traits)
             sigma2 = np.diag(sigma2)
@@ -397,11 +432,18 @@ class bdnn_simulator():
     def evolve_cont_traits(self, cont_traits, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov):
         if n_cont_traits == 1:
             # Not possible to vectorize; sd needs to have the same size than mean
-            cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.normal(0.0, cont_traits_varcov, 1)
+            cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.normal(0.0, cont_traits_varcov[0,0], 1)
         elif n_cont_traits > 1:
             cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.multivariate_normal(np.zeros(n_cont_traits), cont_traits_varcov, 1)
 
         return cont_traits
+
+
+    def get_cont_trait_effect(self, sigma2, cont_trait_value, effect):
+        max_pdf = norm.pdf(0.0, 0.0, sigma2)
+        cont_trait_effect = ((norm.pdf(cont_trait_value, 0, sigma2) * -1) + max_pdf) * effect
+
+        return cont_trait_effect
 
 
     def evolve_cat_traits_ana(self, Q, s, ran, cat_states):
@@ -489,10 +531,10 @@ class bdnn_simulator():
         n_extant = 0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect = self.get_random_settings(root)
+            L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates = self.simulate(L_tt, M_tt, root, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
@@ -526,7 +568,9 @@ class bdnn_simulator():
                   'cont_traits_varcov': cont_traits_varcov,
                   'cont_traits_Theta1': cont_traits_Theta1,
                   'cont_traits_alpha': cont_traits_alpha,
-                  'cat_traits_Q': cat_traits_Q}
+                  'cont_traits_effect': cont_traits_effect,
+                  'cat_traits_Q': cat_traits_Q,
+                  'cat_traits_effect': cat_traits_effect}
         if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
@@ -798,10 +842,22 @@ class write_PyRate_files():
         lineage_rate = res_bd['lineage_rates']
         lineage_rate = lineage_rate[taxa_sampled,:]
         names_df = pd.DataFrame(data = taxon_names, columns=['scientificName'])
-        tste_rates = pd.DataFrame(data = lineage_rate, columns = ['ts', 'te', 'speciation', 'extinction'])
+        colnames = ['ts', 'te', 'speciation', 'extinction', 'ancestral_speciation']
+        if res_bd['cont_traits'] is not None:
+            n_cont_traits = res_bd['cont_traits'].shape[1]
+            for y in range(n_cont_traits):
+                colnames.append('cont_trait_%s' % y)
+        if res_bd['cat_traits'] is not None:
+            n_cat_traits = res_bd['cat_traits'].shape[1]
+            for y in range(n_cat_traits):
+                colnames.append('cat_trait_%s_' % y)
+            for y in range(n_cat_traits):
+                colnames.append('cat_trait_anc_%s' % y)
+
+        tste_rates = pd.DataFrame(data = lineage_rate, columns = colnames)
         df = pd.concat([names_df, tste_rates], axis=1)
         file = "%s/%s/%s_lineage_rates.csv" % (self.output_wd, name_file, name_file)
-        df.to_csv(file, header = True, sep = '\t', index = False)
+        df.to_csv(file, header = True, sep = '\t', index = False, na_rep = 'NA')
 
 
     def run_writter(self, sim_fossil, res_bd):
@@ -810,8 +866,13 @@ class write_PyRate_files():
             name_file = ''.join(random.choices(string.ascii_lowercase, k = 10))
         else:
             name_file = self.name_file
+
         path_make_dir = os.path.join(self.output_wd, name_file)
-        os.mkdir(path_make_dir)
+        try:
+            os.mkdir(path_make_dir)
+        except OSError as error:
+            print(error)
+
 
         self.write_occurrences(sim_fossil, name_file)
         self.write_q_epochs(sim_fossil, name_file)

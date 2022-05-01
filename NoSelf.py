@@ -1,19 +1,18 @@
 import subprocess
 
-cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
+# cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
-
-rnd_seed = 123
+# rnd_seed = 11
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [100, 300],  # min/max size data set
+                        rangeSP = [100, 500],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 0, # minimum number of extant lineages
                         root_r = [25., 30.],  # range root ages
-                        rangeL = [0.2, 0.2],  # range of birth rates
-                        rangeM = [0.1, 0.1],  # range of death rates
+                        rangeL = [0.2, 0.4],  # range of birth rates
+                        rangeM = [0.1, 0.3],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.001, 0.002],
@@ -21,13 +20,14 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         poiM = 0,  # expected number of death rate shift
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
-                        n_cont_traits = [2, 2],  # number of continuous traits
+                        n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        n_cat_traits = [1, 1],
-                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
+                        cont_traits_effect = [0.0, 0.0],
+                        n_cat_traits = [2, 2],
+                        n_cat_traits_states = [2, 5], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_effect = [2., 5.],
@@ -46,14 +46,17 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
 print(res_bd['lambda'])
-print(res_bd['tshift_lambda'])
+#print(res_bd['tshift_lambda'])
 print(res_bd['mu'])
-print(res_bd['tshift_mu'])
-print(res_bd['mass_ext_time'])
-print(res_bd['linear_time_lambda'])
-print(res_bd['linear_time_mu'])
-print(res_bd['true_rates_through_time'])
-print(res_bd['lineage_rates'])
+#print(res_bd['tshift_mu'])
+#print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
+#print(res_bd['linear_time_lambda'])
+#print(res_bd['linear_time_mu'])
+# print(res_bd['cat_traits_effect'])
+# print(res_bd['lineage_rates'][:3,:])
+
+np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')
+np.savetxt('/home/torsten/Work/BDNN/LineageRates.txt', res_bd['lineage_rates'], delimiter = '\t')
 
 # Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
@@ -62,10 +65,10 @@ print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
 
 # Truncate fossil record for edge effect
-keep_in_interval = np.array([ [np.inf, 20.0], [10.0, 5.0] ])
-sim_fossil = keep_fossils_in_interval(sim_fossil,
-                                      keep_in_interval = keep_in_interval)
-interval_exceedings = get_interval_exceedings(sim_fossil, res_bd['ts_te'], keep_in_interval)
+# keep_in_interval = np.array([ [np.inf, 20.0], [10.0, 5.0] ])
+# sim_fossil = keep_fossils_in_interval(sim_fossil,
+#                                       keep_in_interval = keep_in_interval)
+# interval_exceedings = get_interval_exceedings(sim_fossil, res_bd['ts_te'], keep_in_interval)
 
 # Write input files for PyRate analysis
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
@@ -89,7 +92,7 @@ PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyR
 np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
 np.nanvar(res_bd['cont_traits'][1,0,:])
 
-np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')
+
 
 
 # Create inpute files for FBD analysis
