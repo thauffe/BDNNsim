@@ -506,8 +506,8 @@ class bdnn_simulator():
     def make_cat_trait_effect(self, n_states):
         n_states = n_states - 1
         cat_trait_effect = np.ones((2, n_states))
-        cat_trait_effect[0, :] = np.random.uniform(1.0, self.cat_traits_effect[0], n_states) # effect on speciation
-        cat_trait_effect[1, :] = np.random.uniform(1.0, self.cat_traits_effect[1], n_states) # effect on extinction
+        cat_trait_effect[0, :] = np.random.uniform(self.cat_traits_effect[0], self.cat_traits_effect[1], n_states) # effect on speciation
+        cat_trait_effect[1, :] = np.random.uniform(self.cat_traits_effect[0], self.cat_traits_effect[1], n_states) # effect on extinction
         id = np.random.choice([True, False], n_states)
         cat_trait_effect[0, id] = 1.0 / cat_trait_effect[0, id]
         id = np.random.choice([True, False], n_states)
@@ -850,7 +850,7 @@ class write_PyRate_files():
         if res_bd['cat_traits'] is not None:
             n_cat_traits = res_bd['cat_traits'].shape[1]
             for y in range(n_cat_traits):
-                colnames.append('cat_trait_%s_' % y)
+                colnames.append('cat_trait_%s' % y)
             for y in range(n_cat_traits):
                 colnames.append('cat_trait_anc_%s' % y)
 

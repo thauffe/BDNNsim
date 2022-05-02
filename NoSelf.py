@@ -7,7 +7,7 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 # rnd_seed = 11
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [100, 500],  # min/max size data set
+                        rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 0, # minimum number of extant lineages
                         root_r = [25., 30.],  # range root ages
@@ -25,9 +25,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        cont_traits_effect = [0.0, 0.0],
-                        n_cat_traits = [2, 2],
-                        n_cat_traits_states = [2, 5], # range number of states for categorical trait
+                        n_cat_traits = [1, 1],
+                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_effect = [2., 5.],
@@ -41,7 +40,8 @@ fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
 
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
-                                  delta_time = 1.0)
+                                  delta_time = 1.0,
+                                  name = 'scenario5')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -52,11 +52,9 @@ print(res_bd['mu'])
 #print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
 #print(res_bd['linear_time_lambda'])
 #print(res_bd['linear_time_mu'])
-# print(res_bd['cat_traits_effect'])
+print(res_bd['cat_traits_effect'])
 # print(res_bd['lineage_rates'][:3,:])
-
-np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')
-np.savetxt('/home/torsten/Work/BDNN/LineageRates.txt', res_bd['lineage_rates'], delimiter = '\t')
+print(np.unique(res_bd['lineage_rates'][:,6], return_counts = True)[1])
 
 # Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
@@ -89,6 +87,9 @@ PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
 PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b 10'])
 
 
+
+np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')
+np.savetxt('/home/torsten/Work/BDNN/LineageRates.txt', res_bd['lineage_rates'], delimiter = '\t')
 np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
 np.nanvar(res_bd['cont_traits'][1,0,:])
 
