@@ -6,13 +6,13 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
 # rnd_seed = 11
 
-bd_sim = bdnn_simulator(s_species = 250,  # number of starting species
-                        rangeSP = [5, 300],  # min/max size data set
+bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
+                        rangeSP = [100, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
-                        root_r = [17., 17.],  # range root ages
-                        rangeL = [0.0, 0.0],  # range of birth rates
-                        rangeM = [0.0, 0.0],  # range of death rates
+                        root_r = [25., 30.],  # range root ages
+                        rangeL = [0.2, 0.3],  # range of birth rates
+                        rangeM = [0.1, 0.2],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.001, 0.002],
@@ -20,12 +20,12 @@ bd_sim = bdnn_simulator(s_species = 250,  # number of starting species
                         poiM = 0,  # expected number of death rate shift
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
-                        n_cont_traits = [1, 1],  # number of continuous traits
+                        n_cont_traits = [2, 2],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        cont_traits_effect = [0.0, 0.0],
+                        cont_traits_effect = [0.001, 0.005],
                         n_cat_traits = [1, 1],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
@@ -85,7 +85,7 @@ PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
                              #sampl,
                              '-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
                              '-A 4',
-                             '-mG', '-n 200001', '-s 5000', '-p 100000'])
+                             '-mG', '-n 500001', '-s 5000', '-p 100000'])
 
 PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b 10'])
 

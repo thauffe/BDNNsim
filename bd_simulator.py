@@ -446,6 +446,7 @@ class bdnn_simulator():
             cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.normal(0.0, cont_traits_varcov[0,0], 1)
         elif n_cont_traits > 1:
             cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.multivariate_normal(np.zeros(n_cont_traits), cont_traits_varcov, 1)
+            cont_traits = cont_traits[0]
 
         return cont_traits
 
@@ -472,9 +473,6 @@ class bdnn_simulator():
         eff = np.random.uniform(np.min(self.cont_traits_effect), np.max(self.cont_traits_effect), 2)
         bell_shape = np.random.choice([True, False], 2)
         effect_par[:,0] = eff
-        print('root', root)
-        print('dT', dT)
-        print('sigma2', sigma2)
         effect_par[:,1] = np.sqrt(root * (dT * sigma2**2))
         ub = np.zeros(2) - 1
         ub[bell_shape] = 1
