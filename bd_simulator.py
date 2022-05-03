@@ -3,6 +3,9 @@ import os
 from numpy import linalg as la
 from scipy.stats import mode
 from scipy.stats import norm
+from itertools import combinations
+from functools import reduce
+from operator import iconcat
 import numpy as np
 import pandas as pd
 import scipy.linalg
@@ -300,9 +303,6 @@ class bdnn_simulator():
             cont_traits_varcov = self.make_cont_traits_varcov(n_cont_traits)
             cont_traits_Theta1 = self.make_cont_traits_Theta1(n_cont_traits)
             cont_traits_alpha = self.make_cont_traits_alpha(n_cont_traits, root_scaled)
-            # cont_traits_effect = np.zeros((2, n_cont_traits))
-            # cont_traits_effect[0, :] = np.random.uniform(min(self.cont_traits_effect), max(self.cont_traits_effect), n_cont_traits)
-            # cont_traits_effect[1, :] = np.random.uniform(min(self.cont_traits_effect), max(self.cont_traits_effect), n_cont_traits)
             for i in range(n_cont_traits):
                 cont_trait_effect_i = self.get_cont_trait_effect_parameters(root, dT, cont_traits_varcov[i, i])
                 cont_trait_effect.append(cont_trait_effect_i)
@@ -460,8 +460,6 @@ class bdnn_simulator():
 
 
     def get_cont_trait_effect(self, cont_trait_value, par):
-        #expected_variance, ub, max_pdf, effect
-        #cont_trait_effect = ((norm.pdf(cont_trait_value, 0, expected_variance) * ub) + max_pdf) * effect
         effect = ((norm.pdf(cont_trait_value, 0.0, par[1]) * par[2]) + par[3]) * par[0]
 
         return effect
@@ -469,9 +467,8 @@ class bdnn_simulator():
 
     def get_cont_trait_effect_parameters(self, root, dT, sigma2):
         effect_par = np.zeros((2, 4)) # rows: sp/ext cols: trait effect, expected SD, u/-bell-shape, max_pdf
-
         eff = np.random.uniform(np.min(self.cont_traits_effect), np.max(self.cont_traits_effect), 2)
-        bell_shape = np.random.choice([True, False], 2)
+        bell_shape = np.random.choice([True, False], 2) # np.array([False, True]) works too
         effect_par[:,0] = eff
         effect_par[:,1] = np.sqrt(root * (dT * sigma2**2))
         ub = np.zeros(2) - 1
@@ -553,6 +550,52 @@ class bdnn_simulator():
         cat_trait_effect = np.hstack((np.ones((2,1)), cat_trait_effect))
 
         return cat_trait_effect
+
+
+    def get_geographic_states(self, areas):
+        a = np.arange(areas)
+        comb = []
+        for i in range(1, areas + 1):
+            comb.append(list(combinations(a, i)))
+        # flatten nested list: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+        comb = reduce(iconcat, comb, [])
+
+        return comb
+
+
+    def make_anagenetic_DEC_matrix(self, areas, d, e):
+        # No state 0 i.e. global extinction is disconnected from the geographic evolution!
+        n_geo_states = 2**areas - 1
+        de_mat = np.zeros((n_geo_states, n_geo_states))
+        comb = self.get_geographic_states(areas)
+        len_comb = len(comb)
+        areas_per_state = np.zeros(len_comb)
+        for i in range(len(comb)):
+            areas_per_state[i] = len(comb[i])
+
+        for i in range(n_geo_states):
+            disp_from_outgoing_state = np.zeros(n_geo_states, dtype = bool)
+            areas_outgoing_state = int(areas_per_state[i])
+            outgoing = set(comb[i])
+            # Check only increase by one area unit. E.g. A -> A,B or A,B -> A,B,C but not A -> A,B,C or A,B -> A,B,C,D
+            candidate_states_for_dispersal = np.where(areas_per_state == (areas_outgoing_state + 1))[0]
+            for y in candidate_states_for_dispersal:
+                ingoing = set(comb[y])
+                inter = outgoing.intersection(ingoing)
+                disp_from_outgoing_state[y] = inter == outgoing
+            de_mat[i, disp_from_outgoing_state] = d
+
+            ext_from_outgoing_state = np.zeros(n_geo_states, dtype = bool)
+            outgoing = set(comb[i])
+            # Check only decrease by one area unit. E.g. A,B -> A/B, A,B,C -> A,B/A,C/B,C but not A,B -> A,C/A,B,C or A,B,C -> A/B
+            candidate_states_for_extinction = np.where(areas_per_state == (areas_outgoing_state - 1))[0]
+            for y in candidate_states_for_extinction:
+                ingoing = set(comb[y])
+                inter = outgoing.intersection(ingoing)
+                ext_from_outgoing_state[y] = inter == ingoing
+            de_mat[i, ext_from_outgoing_state] = e
+
+        return de_mat, comb
 
 
     def get_true_rate_through_time(self, root, L_tt, M_tt, L_weighted_tt, M_weighted_tt):
