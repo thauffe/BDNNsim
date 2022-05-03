@@ -172,6 +172,7 @@ class bdnn_simulator():
             ran_vec = np.random.random(TE)
             te_extant = np.where(np.array(te) == 0)[0]
             ran_vec_cat_trait = np.random.random(TE)
+            ran_vec_biogeo = np.random.random(TE)
 
             no = np.random.uniform(0, 1)  # draw a random number
             no_extant_lineages = len(te_extant)  # the number of currently extant species
@@ -213,7 +214,7 @@ class bdnn_simulator():
                 # range evolution
                 if n_areas > 1:
                     # Q, s, ran, cat_states
-                    biogeo[t_abs, 0, j] = self.evolve_cat_traits_ana(de_Q, biogeo[t_abs + 1, 0, j], ran_vec_cat_trait[j], biogeo_states)
+                    biogeo[t_abs, 0, j] = self.evolve_cat_traits_ana(de_Q, biogeo[t_abs + 1, 0, j], ran_vec_biogeo[j], biogeo_states)
 
 
                 lineage_lambda[j] = l_j
@@ -605,10 +606,14 @@ class bdnn_simulator():
         n_geo_states = 2**areas - 1
         de_mat = np.zeros((n_geo_states, n_geo_states))
         comb = self.get_geographic_states(areas)
-        len_comb = len(comb)
-        areas_per_state = np.zeros(len_comb)
-        for i in range(len(comb)):
+        areas_per_state = np.zeros(n_geo_states)
+        for i in range(n_geo_states):
             areas_per_state[i] = len(comb[i])
+
+        # Multiplier for dispersal rate (number of areas in state - 1)
+        d_multi = np.ones(n_geo_states)
+        for i in range(n_geo_states):
+            d_multi[i] = len(comb[i]) - 1
 
         for i in range(n_geo_states):
             disp_from_outgoing_state = np.zeros(n_geo_states, dtype = bool)
@@ -620,7 +625,7 @@ class bdnn_simulator():
                 ingoing = set(comb[y])
                 inter = outgoing.intersection(ingoing)
                 disp_from_outgoing_state[y] = inter == outgoing
-            de_mat[i, disp_from_outgoing_state] = d
+            de_mat[i, disp_from_outgoing_state] = d * d_multi[disp_from_outgoing_state]
 
             ext_from_outgoing_state = np.zeros(n_geo_states, dtype = bool)
             outgoing = set(comb[i])
@@ -636,6 +641,18 @@ class bdnn_simulator():
         np.fill_diagonal(de_mat, de_mat_colsums)
 
         return de_mat, comb
+
+
+    # def make_cladoenetic_DEC_matrix(self, areas):
+    #     # No state 0 i.e. global extinction is disconnected from the geographic evolution!
+    #     n_geo_states = 2 ** areas - 1
+    #     c_mat = np.zeros((n_geo_states, n_geo_states), dtype = int)
+    #     comb = self.get_geographic_states(areas)
+    #     # narrow sympatry (rangesize of 1 area)
+    #     for i in range(areas):
+    #         c_mat[i,i] = 1
+    #     # subset sympatry
+    #     # narrow vicariance
 
 
     def get_true_rate_through_time(self, root, L_tt, M_tt, L_weighted_tt, M_weighted_tt):

@@ -32,7 +32,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cat_traits_dir = 2,
                         cat_traits_effect = [1., 1.],
                         n_areas = [4, 4],
-                        dispersal = [0.2, 0.5],
+                        dispersal = [0.05, 0.1],
                         extirpation = [0.05, 0.2],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
@@ -61,6 +61,7 @@ print(res_bd['lineage_rates'][:3,:])
 print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 print(np.unique(res_bd['lineage_rates'][:,6], return_counts = True)[1])
 np.savetxt('/home/torsten/Work/BDNN/Biogeography.txt', res_bd['biogeography'][:,0,:], delimiter = '\t')
+np.nanmax(res_bd['biogeography'][:,0,:])
 
 # Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
