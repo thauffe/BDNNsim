@@ -25,12 +25,15 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        cont_traits_effect = [0.001, 0.005],
+                        cont_traits_effect = [0.0, 0.0], # [0.001, 0.005],
                         n_cat_traits = [1, 1],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_effect = [1., 1.],
+                        n_areas = [4, 4],
+                        dispersal = [0.2, 0.5],
+                        extirpation = [0.05, 0.2],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 
@@ -41,8 +44,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
 
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
-                                  delta_time = 1.0,
-                                  name = 'ContTest')
+                                  delta_time = 1.0)
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -58,6 +60,7 @@ print(res_bd['cont_traits_effect'])
 print(res_bd['lineage_rates'][:3,:])
 print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 print(np.unique(res_bd['lineage_rates'][:,6], return_counts = True)[1])
+np.savetxt('/home/torsten/Work/BDNN/Biogeography.txt', res_bd['biogeography'][:,0,:], delimiter = '\t')
 
 # Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])

@@ -44,6 +44,9 @@ class bdnn_simulator():
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
                  cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
                  cat_traits_effect = [1., 1.], # range of effect of categorical traits on speciation and extinction (1 is no effect)
+                 n_areas = [0, 0], # number of biogeographic areas (minimum of 2)
+                 dispersal = [0.1, 0.3], # range for the rate of area expansion
+                 extirpation = [0.05, 0.1], # range for the rate of area loss
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -72,12 +75,14 @@ class bdnn_simulator():
         self.cat_traits_ordinal = cat_traits_ordinal
         self.cat_traits_dir = cat_traits_dir
         self.cat_traits_effect = cat_traits_effect
-        self.s_species = s_species
+        self.n_areas = n_areas
+        self.dispersal = dispersal
+        self.extirpation = extirpation
         if seed:
             np.random.seed(seed)
 
 
-    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect):
+    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation):
         ts = list()
         te = list()
 
@@ -137,6 +142,14 @@ class bdnn_simulator():
                     lineage_rates[i][2] = lineage_rates[i][2] + self.get_cont_trait_effect(cont_traits_i[y], cont_trait_effect[y][0, :])
                     lineage_rates[i][3] = lineage_rates[i][3] + self.get_cont_trait_effect(cont_traits_i[y], cont_trait_effect[y][1, :])
 
+        # init biogeography
+        biogeo = np.empty((root_plus_1, 1, self.s_species))
+        biogeo[:] = np.nan
+        biogeo[-1,:,:] = np.random.choice(np.arange(n_areas + 1), self.s_species)
+        if n_areas > 1:
+            biogeo_states = np.arange(2**n_areas - 1)
+            de_Q, area_comb = self.make_anagenetic_DEC_matrix(n_areas, dT * dispersal, dT * extirpation)
+
         mass_ext_time = []
         mass_ext_mag = []
 
@@ -182,11 +195,12 @@ class bdnn_simulator():
 
                 # categorical trait evolution
                 for y in range(n_cat_traits):
-                    #cat_traits[t_abs, y, j] = self.evolve_cat_traits_ana(cat_traits_Q[y], cat_traits[t_abs + 1, y, j], ran_vec_cat_trait[j], cat_states[y])
-                    cat_traits[t_abs, y, j] = cat_traits[t_abs + 1, y, j] # No change along branches
-                    cat_trait_j = cat_traits[t_abs, y, j]
-                    l_j = l_j * cat_trait_effect[y][0, int(cat_trait_j)]
-                    m_j = m_j * cat_trait_effect[y][1, int(cat_trait_j)]
+                    #cat_trait_j = self.evolve_cat_traits_ana(cat_traits_Q[y], cat_traits[t_abs + 1, y, j], ran_vec_cat_trait[j], cat_states[y])
+                    cat_trait_j = cat_traits[t_abs + 1, y, j] # No change along branches
+                    cat_trait_j = int(cat_trait_j)
+                    cat_traits[t_abs, y, j] = cat_trait_j
+                    l_j = l_j * cat_trait_effect[y][0, cat_trait_j]
+                    m_j = m_j * cat_trait_effect[y][1, cat_trait_j]
 
                 # continuous trait evolution
                 if n_cont_traits > 0:
@@ -195,6 +209,12 @@ class bdnn_simulator():
                     for y in range(n_cont_traits):
                         l_j = l_j + self.get_cont_trait_effect(cont_trait_j[y], cont_trait_effect[y][0,:])
                         m_j = m_j + self.get_cont_trait_effect(cont_trait_j[y], cont_trait_effect[y][1,:])
+
+                # range evolution
+                if n_areas > 1:
+                    # Q, s, ran, cat_states
+                    biogeo[t_abs, 0, j] = self.evolve_cat_traits_ana(de_Q, biogeo[t_abs + 1, 0, j], ran_vec_cat_trait[j], biogeo_states)
+
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -239,6 +259,12 @@ class bdnn_simulator():
                         for y in range(n_cont_traits):
                             l_new = l_new + self.get_cont_trait_effect(cont_traits_at_origin[y], cont_trait_effect[y][0,:])
                             m_new = m_new + self.get_cont_trait_effect(cont_traits_at_origin[y], cont_trait_effect[y][1,:])
+                    if n_areas > 1:
+                        biogeo_new_species = self.empty_traits(root_plus_1, 1)
+                        biogeo_at_origin = biogeo[t_abs, :, j]
+                        biogeo_new_species[t_abs, :] = biogeo_at_origin
+                        biogeo = np.dstack((biogeo, biogeo_new_species))
+
 
                     lineage_rates_tmp[:5] = np.array([t, -0.0, l_new, m_new, l_j])
                     lineage_rates.append(lineage_rates_tmp)
@@ -259,7 +285,7 @@ class bdnn_simulator():
         lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
         lineage_rates[:, 4] = lineage_rates[:, 4] * self.scale
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo
 
 
     def get_random_settings(self, root):
@@ -323,7 +349,16 @@ class bdnn_simulator():
             cat_trait_effect_i = self.make_cat_trait_effect(n_cat_traits_states[i])
             cat_trait_effect.append(cat_trait_effect_i)
 
-        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect
+        # biogeography
+        n_areas = np.random.choice(np.arange(min(self.n_areas), max(self.n_areas) + 1), 1)
+        n_areas = int(n_areas)
+        dispersal = np.zeros(1)
+        extirpation = np.zeros(1)
+        if n_areas > 1:
+            dispersal = np.random.uniform(np.min(self.dispersal), np.max(self.dispersal), nL + 1)
+            extirpation = np.random.uniform(np.min(self.extirpation), np.max(self.extirpation), nL + 1)
+
+        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation
 
 
     def add_linear_time_effect(self, L_shifts, M_shifts):
@@ -484,6 +519,8 @@ class bdnn_simulator():
     def evolve_cat_traits_ana(self, Q, s, ran, cat_states):
         s = int(s)
         state = s
+        # print('ran', ran)
+        # print('Q[s, s]', Q[s, s])
         if Q[s, s] > ran:
             pos_states = cat_states != s
             p = Q[s, pos_states]
@@ -595,6 +632,9 @@ class bdnn_simulator():
                 ext_from_outgoing_state[y] = inter == ingoing
             de_mat[i, ext_from_outgoing_state] = e
 
+        de_mat_colsums = np.sum(de_mat, axis = 0)
+        np.fill_diagonal(de_mat, de_mat_colsums)
+
         return de_mat, comb
 
 
@@ -612,10 +652,10 @@ class bdnn_simulator():
         n_extant = 0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect = self.get_random_settings(root)
+            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
@@ -651,7 +691,8 @@ class bdnn_simulator():
                   'cont_traits_alpha': cont_traits_alpha,
                   'cont_traits_effect': cont_traits_effect,
                   'cat_traits_Q': cat_traits_Q,
-                  'cat_traits_effect': cat_traits_effect}
+                  'cat_traits_effect': cat_traits_effect,
+                  'biogeography': biogeo}
         if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
