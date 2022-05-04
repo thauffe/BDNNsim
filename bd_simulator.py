@@ -6,6 +6,7 @@ from scipy.stats import norm
 from itertools import combinations
 from functools import reduce
 from operator import iconcat
+from math import comb
 import numpy as np
 import pandas as pd
 import scipy.linalg
@@ -148,7 +149,8 @@ class bdnn_simulator():
         biogeo[-1,:,:] = np.random.choice(np.arange(n_areas + 1), self.s_species)
         if n_areas > 1:
             biogeo_states = np.arange(2**n_areas - 1)
-            de_Q, area_comb = self.make_anagenetic_DEC_matrix(n_areas, dT * dispersal, dT * extirpation)
+            DEC_Q, areas_comb = self.make_anagenetic_DEC_matrix(n_areas, dT * dispersal, dT * extirpation)
+            # DEC_clado_weight = self.get_DEC_clado_weight(n_areas)
 
         mass_ext_time = []
         mass_ext_mag = []
@@ -211,14 +213,15 @@ class bdnn_simulator():
                         l_j = l_j + self.get_cont_trait_effect(cont_trait_j[y], cont_trait_effect[y][0,:])
                         m_j = m_j + self.get_cont_trait_effect(cont_trait_j[y], cont_trait_effect[y][1,:])
 
-                # range evolution
-                if n_areas > 1:
-                    # Q, s, ran, cat_states
-                    biogeo[t_abs, 0, j] = self.evolve_cat_traits_ana(de_Q, biogeo[t_abs + 1, 0, j], ran_vec_biogeo[j], biogeo_states)
-
-
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
+
+                # range evolution
+                if n_areas > 1:
+                    biogeo_j = self.evolve_cat_traits_ana(DEC_Q, biogeo[t_abs + 1, 0, j], ran_vec_biogeo[j], biogeo_states)
+                    biogeo[t_abs, 0, j] = biogeo_j
+                    # if biogeo_j > n_areas:
+                    #     m_j = m_j * DEC_clado_weight
 
                 ran = ran_vec[j]
                 # speciation
@@ -262,8 +265,11 @@ class bdnn_simulator():
                             m_new = m_new + self.get_cont_trait_effect(cont_traits_at_origin[y], cont_trait_effect[y][1,:])
                     if n_areas > 1:
                         biogeo_new_species = self.empty_traits(root_plus_1, 1)
-                        biogeo_at_origin = biogeo[t_abs, :, j]
-                        biogeo_new_species[t_abs, :] = biogeo_at_origin
+                        # biogeo_at_origin = biogeo[t_abs, :, j]
+                        # biogeo_new_species[t_abs, :] = biogeo_at_origin
+                        biogeo_ancestor, biogeo_descendant = self.evolve_biogeo_clado(n_areas, areas_comb, biogeo[t_abs, :, j])
+                        biogeo_new_species[t_abs, :] = biogeo_descendant
+                        biogeo[t_abs, :, j] = biogeo_ancestor
                         biogeo = np.dstack((biogeo, biogeo_new_species))
 
 
@@ -592,47 +598,46 @@ class bdnn_simulator():
 
     def get_geographic_states(self, areas):
         a = np.arange(areas)
-        comb = []
+        comb_areas = []
         for i in range(1, areas + 1):
-            comb.append(list(combinations(a, i)))
+            comb_areas.append(list(combinations(a, i)))
         # flatten nested list: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
-        comb = reduce(iconcat, comb, [])
+        comb_areas = reduce(iconcat, comb_areas, [])
 
-        return comb
+        return comb_areas
 
 
     def make_anagenetic_DEC_matrix(self, areas, d, e):
         # No state 0 i.e. global extinction is disconnected from the geographic evolution!
         n_geo_states = 2**areas - 1
         de_mat = np.zeros((n_geo_states, n_geo_states))
-        comb = self.get_geographic_states(areas)
+        comb_areas = self.get_geographic_states(areas)
         areas_per_state = np.zeros(n_geo_states)
         for i in range(n_geo_states):
-            areas_per_state[i] = len(comb[i])
+            areas_per_state[i] = len(comb_areas[i])
 
         # Multiplier for dispersal rate (number of areas in state - 1)
         d_multi = np.ones(n_geo_states)
         for i in range(n_geo_states):
-            d_multi[i] = len(comb[i]) - 1
+            d_multi[i] = len(comb_areas[i]) - 1
 
         for i in range(n_geo_states):
             disp_from_outgoing_state = np.zeros(n_geo_states, dtype = bool)
             areas_outgoing_state = int(areas_per_state[i])
-            outgoing = set(comb[i])
+            outgoing = set(comb_areas[i])
             # Check only increase by one area unit. E.g. A -> A,B or A,B -> A,B,C but not A -> A,B,C or A,B -> A,B,C,D
             candidate_states_for_dispersal = np.where(areas_per_state == (areas_outgoing_state + 1))[0]
             for y in candidate_states_for_dispersal:
-                ingoing = set(comb[y])
+                ingoing = set(comb_areas[y])
                 inter = outgoing.intersection(ingoing)
                 disp_from_outgoing_state[y] = inter == outgoing
             de_mat[i, disp_from_outgoing_state] = d * d_multi[disp_from_outgoing_state]
 
             ext_from_outgoing_state = np.zeros(n_geo_states, dtype = bool)
-            outgoing = set(comb[i])
             # Check only decrease by one area unit. E.g. A,B -> A/B, A,B,C -> A,B/A,C/B,C but not A,B -> A,C/A,B,C or A,B,C -> A/B
             candidate_states_for_extinction = np.where(areas_per_state == (areas_outgoing_state - 1))[0]
             for y in candidate_states_for_extinction:
-                ingoing = set(comb[y])
+                ingoing = set(comb_areas[y])
                 inter = outgoing.intersection(ingoing)
                 ext_from_outgoing_state[y] = inter == ingoing
             de_mat[i, ext_from_outgoing_state] = e
@@ -640,7 +645,80 @@ class bdnn_simulator():
         de_mat_colsums = np.sum(de_mat, axis = 0)
         np.fill_diagonal(de_mat, de_mat_colsums)
 
-        return de_mat, comb
+        return de_mat, comb_areas
+
+
+    def get_DEC_clado_weight(self, areas):
+        # there is probably an equation for this!
+        # narrow sympatry (1 area only)
+        range_inheritances = areas
+        # subset sympatry
+        for i in range(2, areas + 1):
+            for j in range(1, i):
+                range_inheritances += comb(i, j)
+        # narrow vicariance
+        range_inheritances += areas
+        for i in range(5, areas + 1):
+            # maximum number of areas for the smaller subset of the range
+            max_areas_subset = np.floor(i/2) - 1 + (i % 2)
+            max_areas_subset = int(max_areas_subset)
+            for j in range(1, max_areas_subset + 1):
+                range_inheritances += comb(i, j)
+
+        return 1.0 / range_inheritances
+
+
+    def get_range_idx_from_ranges_list(self, a, comb_areas):
+        a = set(a)
+        for i in range(len(comb_areas)):
+            if a == set(comb_areas[i]):
+                range_idx = i
+
+        return range_idx
+
+
+
+    def evolve_biogeo_clado(self, areas, comb_areas, range_idx):
+        lr = np.random.choice([0, 1], 2, replace=False)  # random flip ranges for the two lineages
+        if range_idx <= (areas - 1):
+            print('range copying')
+            range_ancestor = range_idx
+            range_descendant = range_idx
+        elif range_idx <= (areas + comb(areas, 2) - 1): # Range size == 2 (e.g. AB, AC)
+            if np.random.uniform(0.0, 1.0, 1) <= 0.5:
+                # narrow sympatry
+                range_ancestor = range_idx
+                range_descendant = range_idx
+            else:
+                # narrow vicariance
+                outgoing_range = comb_areas[int(range_idx)]
+                range_ancestor = outgoing_range[lr[0]] #self.get_range_idx_from_ranges_list(outgoing_range[lr[0]], comb_areas)
+                range_descendant = outgoing_range[lr[1]] #self.get_range_idx_from_ranges_list(outgoing_range[lr[1]], comb_areas)
+        else:
+            outgoing_range = comb_areas[int(range_idx)]
+            n_areas_outgoing_range = len(outgoing_range)
+            max_areas_subset = np.floor(n_areas_outgoing_range / 2) - 1 + (n_areas_outgoing_range % 2)
+            max_areas_subset = int(max_areas_subset)
+            n_areas_subset = int(np.random.choice(np.arange(max_areas_subset) + 1, 1))
+            ran_subset = np.random.choice(np.array(outgoing_range), n_areas_subset)
+            subset_range = tuple(np.sort(ran_subset))
+            range_idx2 = np.arange(2)
+            range_idx2[0] = self.get_range_idx_from_ranges_list(subset_range, comb_areas)
+            if np.random.uniform(0.0, 1.0, 1) <= 0.5:
+                # subset sympatry
+                range_idx2[1] = range_idx
+                range_ancestor = range_idx2[lr[0]]
+                range_descendant = range_idx2[lr[0]]
+            else:
+                # narrow vicariance
+                remaining_range = tuple(set(outgoing_range) - set(subset_range))
+                range_idx2[1] = self.get_range_idx_from_ranges_list(remaining_range, comb_areas)
+                range_ancestor = range_idx2[lr[0]]
+                range_descendant = range_idx2[lr[0]]
+
+        return range_ancestor, range_descendant
+
+
 
 
     # def make_cladoenetic_DEC_matrix(self, areas):
