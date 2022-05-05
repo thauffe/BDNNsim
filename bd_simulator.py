@@ -786,7 +786,7 @@ class bdnn_simulator():
                   'cat_traits_Q': cat_traits_Q,
                   'cat_traits_effect': cat_traits_effect,
                   'geographic_range': biogeo,
-                  'range_states', areas_comb}
+                  'range_states': areas_comb}
         if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
