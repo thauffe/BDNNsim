@@ -147,6 +147,7 @@ class bdnn_simulator():
         biogeo = np.empty((root_plus_1, 1, self.s_species))
         biogeo[:] = np.nan
         biogeo[-1,:,:] = np.random.choice(np.arange(n_areas + 1), self.s_species)
+        areas_comb = []
         if n_areas > 1:
             biogeo_states = np.arange(2**n_areas - 1)
             DEC_Q, areas_comb = self.make_anagenetic_DEC_matrix(n_areas, dT * dispersal, dT * extirpation)
@@ -292,7 +293,7 @@ class bdnn_simulator():
         lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
         lineage_rates[:, 4] = lineage_rates[:, 4] * self.scale
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb
 
 
     def get_random_settings(self, root):
@@ -681,7 +682,6 @@ class bdnn_simulator():
     def evolve_biogeo_clado(self, areas, comb_areas, range_idx):
         lr = np.random.choice([0, 1], 2, replace=False)  # random flip ranges for the two lineages
         if range_idx <= (areas - 1):
-            print('range copying')
             range_ancestor = range_idx
             range_descendant = range_idx
         elif range_idx <= (areas + comb(areas, 2) - 1): # Range size == 2 (e.g. AB, AC)
@@ -719,8 +719,6 @@ class bdnn_simulator():
         return range_ancestor, range_descendant
 
 
-
-
     # def make_cladoenetic_DEC_matrix(self, areas):
     #     # No state 0 i.e. global extinction is disconnected from the geographic evolution!
     #     n_geo_states = 2 ** areas - 1
@@ -750,7 +748,7 @@ class bdnn_simulator():
             dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation = self.get_random_settings(root)
             L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
@@ -787,7 +785,8 @@ class bdnn_simulator():
                   'cont_traits_effect': cont_traits_effect,
                   'cat_traits_Q': cat_traits_Q,
                   'cat_traits_effect': cat_traits_effect,
-                  'biogeography': biogeo}
+                  'geographic_range': biogeo,
+                  'range_states', areas_comb}
         if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
@@ -1241,13 +1240,14 @@ class write_FBD_files():
         if self.interval_ages.shape[0] > 1: # Skyline model
             timeline = self.interval_ages[1:,0]
             timeline = timeline.tolist()
-            scrfile.write('timeline_size <- timeline.size()')
             scrfile.write('timeline <- v(')
             for i in range(len(timeline)):
                 scrfile.write(str(timeline[i]))
-                if i != 0 or i != (len(timeline) - 1):
+                if i < (len(timeline) - 1):
                     scrfile.write(',')
             scrfile.write(')')
+            scrfile.write('\n')
+            scrfile.write('timeline_size <- timeline.size()')
         else:
             scrfile.write('timeline_size <- 0')
         scrfile.write('\n')

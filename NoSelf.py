@@ -11,13 +11,13 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [25., 30.],  # range root ages
-                        rangeL = [0.2, 0.3],  # range of birth rates
-                        rangeM = [0.1, 0.2],  # range of death rates
+                        rangeL = [0.1, 0.5],  # range of birth rates
+                        rangeM = [0.1, 0.3],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.001, 0.002],
-                        poiL = 0,  # expected number of birth rate shifts
-                        poiM = 0,  # expected number of death rate shift
+                        poiL = 1,  # expected number of birth rate shifts
+                        poiM = 1,  # expected number of death rate shift
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
                         n_cont_traits = [1, 1],  # number of continuous traits
@@ -31,7 +31,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_effect = [1., 1.],
-                        n_areas = [4, 4],
+                        n_areas = [1, 1],
                         dispersal = [0.005, 0.01],
                         extirpation = [0.05, 0.2],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
@@ -49,9 +49,9 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
 print(res_bd['lambda'])
-#print(res_bd['tshift_lambda'])
+print(res_bd['tshift_lambda'])
 print(res_bd['mu'])
-#print(res_bd['tshift_mu'])
+print(res_bd['tshift_mu'])
 #print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
 #print(res_bd['linear_time_lambda'])
 #print(res_bd['linear_time_mu'])
@@ -60,9 +60,9 @@ print(res_bd['cont_traits_effect'])
 print(res_bd['lineage_rates'][:3,:])
 print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 print(np.unique(res_bd['lineage_rates'][:,6], return_counts = True)[1])
-np.savetxt('/home/torsten/Work/BDNN/Biogeography.txt', res_bd['biogeography'][:,0,:], delimiter = '\t')
-np.nanmax(res_bd['biogeography'][:,0,:])
-print(np.unique(res_bd['biogeography'][:,0,:]))
+np.savetxt('/home/torsten/Work/BDNN/Biogeography.txt', res_bd['geographic_range'][:,0,:], delimiter = '\t')
+np.nanmax(res_bd['geographic_range'][:,0,:])
+print(np.unique(res_bd['geographic_range'][:,0,:]))
 
 # Sampling simulation
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
