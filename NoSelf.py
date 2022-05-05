@@ -7,12 +7,12 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 # rnd_seed = 11
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [100, 300],  # min/max size data set
+                        rangeSP = [30, 50],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [25., 30.],  # range root ages
-                        rangeL = [0.1, 0.5],  # range of birth rates
-                        rangeM = [0.1, 0.3],  # range of death rates
+                        rangeL = [0.05, 0.2],  # range of birth rates
+                        rangeM = [0.05, 0.1],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.001, 0.002],
@@ -31,7 +31,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_effect = [1., 1.],
-                        n_areas = [1, 1],
+                        n_areas = [4, 4],
                         dispersal = [0.005, 0.01],
                         extirpation = [0.05, 0.2],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible

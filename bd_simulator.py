@@ -363,8 +363,8 @@ class bdnn_simulator():
         dispersal = np.zeros(1)
         extirpation = np.zeros(1)
         if n_areas > 1:
-            dispersal = np.random.uniform(np.min(self.dispersal), np.max(self.dispersal), nL + 1)
-            extirpation = np.random.uniform(np.min(self.extirpation), np.max(self.extirpation), nL + 1)
+            dispersal = np.random.uniform(np.min(self.dispersal), np.max(self.dispersal), 1)
+            extirpation = np.random.uniform(np.min(self.extirpation), np.max(self.extirpation), 1)
 
         return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation
 
