@@ -40,10 +40,11 @@ class bdnn_simulator():
                  cont_traits_Theta1 = [0, 0],  # morphological optima; 0 is no directional change from the ancestral values
                  cont_traits_alpha = [0, 0],  # strength of attraction towards Theta1; 0 is pure Brownian motion; [0.5, 2.0] is sensible
                  cont_traits_effect = [0., 0.], # range of effect of categorical traits on speciation and extinction (1 is no effect)
-                 n_cat_traits = [1, 2], # number of categorical traits
+                 n_cat_traits = [1, 2], # range of the number of categorical traits
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
                  cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
+                 cat_traits_diag = None, # fix diagonal of categorical transition matrix to this value (overwrites cat_traits_dir)
                  cat_traits_effect = [1., 1.], # range of effect of categorical traits on speciation and extinction (1 is no effect)
                  n_areas = [0, 0], # number of biogeographic areas (minimum of 2)
                  dispersal = [0.1, 0.3], # range for the rate of area expansion
@@ -75,6 +76,7 @@ class bdnn_simulator():
         self.n_cat_traits_states = n_cat_traits_states
         self.cat_traits_ordinal = cat_traits_ordinal
         self.cat_traits_dir = cat_traits_dir
+        self.cat_traits_diag = cat_traits_diag
         self.cat_traits_effect = cat_traits_effect
         self.n_areas = n_areas
         self.dispersal = dispersal
@@ -554,6 +556,8 @@ class bdnn_simulator():
         cat_traits_ordinal = np.random.choice(self.cat_traits_ordinal, 1)
         n_states = int(n_states)
         Q = np.zeros([n_states**2]).reshape((n_states, n_states))
+        if self.cat_traits_diag is not None:
+            self.cat_traits_dir = 73.0
         for i in range(n_states):
             dir_alpha = np.ones(n_states)
             dir_alpha[i] = self.cat_traits_dir
@@ -569,7 +573,13 @@ class bdnn_simulator():
                     dir_alpha = np.ones(3)
                     dir_alpha[1] = self.cat_traits_dir
                     q_idx = np.arange(i - 1, i + 2)
-            Q[i, q_idx] = np.random.dirichlet(dir_alpha, 1).flatten()
+            if self.cat_traits_diag is not None:
+                fix_trans = np.zeros(len(q_idx))
+                fix_trans[dir_alpha == 73.0] = self.cat_traits_diag
+                fix_trans[dir_alpha != 73.0] = (1.0 - self.cat_traits_diag) / (len(q_idx) - 1)
+                Q[i, q_idx] = fix_trans
+            else:
+                Q[i, q_idx] = np.random.dirichlet(dir_alpha, 1).flatten()
 
         return Q
 

@@ -26,10 +26,11 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
                         cont_traits_effect = [0.0, 0.0], # [0.001, 0.005],
-                        n_cat_traits = [0, 0],
+                        n_cat_traits = [1, 1],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
-                        cat_traits_dir = 2,
+                        cat_traits_dir = 5,
+                        cat_traits_diag = 0.9,
                         cat_traits_effect = [1., 1.],
                         n_areas = [1, 1],
                         dispersal = [0.005, 0.01],
@@ -55,6 +56,7 @@ print(res_bd['tshift_mu'])
 #print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
 #print(res_bd['linear_time_lambda'])
 #print(res_bd['linear_time_mu'])
+print(res_bd['cat_traits_Q'])
 #print(res_bd['cat_traits_effect'])
 print(res_bd['cont_traits_effect'])
 print(res_bd['lineage_rates'][:3,:])
