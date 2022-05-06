@@ -332,6 +332,9 @@ class bdnn_simulator():
         # continuous traits
         n_cont_traits = np.random.choice(np.arange(min(self.n_cont_traits), max(self.n_cont_traits) + 1), 1)
         n_cont_traits = int(n_cont_traits)
+        cont_traits_varcov = []
+        cont_traits_Theta1 = []
+        cont_traits_alpha = []
         cont_trait_effect = []
         if n_cont_traits > 0:
             cont_traits_varcov = self.make_cont_traits_varcov(n_cont_traits)
@@ -1093,14 +1096,14 @@ class write_PyRate_files():
 
         traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
 
-        if res_bd['cont_traits'] is not None:
+        if res_bd['cont_traits'].shape[1] > 0:
             #mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
             mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon_from_sampling_events(sim_fossil, res_bd)
             mean_cont_traits_taxon = self.center_and_scale_unitvar(mean_cont_traits_taxon)
             for i in range(mean_cont_traits_taxon.shape[1]):
                 traits['cont_trait_%s' % i] = mean_cont_traits_taxon[:,i]
 
-        if res_bd['cat_traits'] is not None:
+        if res_bd['cat_traits'].shape[1] > 0:
             maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
             for y in range(maj_cat_traits_taxon.shape[1]):
                 is_ordinal = self.is_ordinal_trait(res_bd['cat_traits_Q'][y])
@@ -1311,17 +1314,17 @@ class write_FBD_files():
         scrfile.write('\n')
         scrfile.write('monitors.append(mnModel(filename="output/%s_model1.log", printgen=100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_rates.log", lambda , printgen=10))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_rates.log", lambda , printgen=100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_times.log", timeline, printgen=10))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_times.log", timeline, printgen=100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_rates.log", mu, printgen=10))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_rates.log", mu, printgen=100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_times.log", timeline, printgen=10))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_times.log", timeline, printgen=100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_rates.log", psi, printgen=10))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_rates.log", psi, printgen=100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_times.log", timeline, printgen=10))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_times.log", timeline, printgen=100))' % name_file)
         scrfile.write('\n')
         scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule="random")')
         scrfile.write('\n')
