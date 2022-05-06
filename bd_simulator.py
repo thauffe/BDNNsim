@@ -45,7 +45,12 @@ class bdnn_simulator():
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
                  cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
                  cat_traits_diag = None, # fix diagonal of categorical transition matrix to this value (overwrites cat_traits_dir)
-                 cat_traits_effect = [1., 1.], # range of effect of categorical traits on speciation and extinction (1 is no effect)
+                 # range of effect of categorical traits on speciation (1st row) and extinction (2nd row) (1 is no effect)
+                 # effects can be fixed with e.g. np.array([[2.3., 2.3.],[1.5.,1.5.]]) and cat_traits_effect_incr_decr = np.array([[True, True],[False, False]])
+                 # effect of n_cat_traits_states > 2 can be fixed with n_cat_traits_states = [3, 3] AND np.array([[1.5., 2.3.],[0.2.,1.5.]]) (no need for cat_traits_effect_incr_decr)
+                 # or in case of 4 states with n_cat_traits_states = [4, 4] AND np.array([[1.5., 2.3., 0.6],[0.2.,1.5., 1.9]])
+                 cat_traits_effect = np.array([[1., 1.],[1.,1.]]),
+                 cat_traits_effect_incr_decr = np.array([[True, False],[True, False]]), # should categorical effect cause a decrease (True) or increase (False) in speciation (1st row) and extinction (2nd row)?
                  n_areas = [0, 0], # number of biogeographic areas (minimum of 2)
                  dispersal = [0.1, 0.3], # range for the rate of area expansion
                  extirpation = [0.05, 0.1], # range for the rate of area loss
@@ -78,6 +83,7 @@ class bdnn_simulator():
         self.cat_traits_dir = cat_traits_dir
         self.cat_traits_diag = cat_traits_diag
         self.cat_traits_effect = cat_traits_effect
+        self.cat_traits_effect_incr_decr = cat_traits_effect_incr_decr
         self.n_areas = n_areas
         self.dispersal = dispersal
         self.extirpation = extirpation
@@ -599,12 +605,18 @@ class bdnn_simulator():
     def make_cat_trait_effect(self, n_states):
         n_states = n_states - 1
         cat_trait_effect = np.ones((2, n_states))
-        cat_trait_effect[0, :] = np.random.uniform(self.cat_traits_effect[0], self.cat_traits_effect[1], n_states) # effect on speciation
-        cat_trait_effect[1, :] = np.random.uniform(self.cat_traits_effect[0], self.cat_traits_effect[1], n_states) # effect on extinction
-        id = np.random.choice([True, False], n_states)
-        cat_trait_effect[0, id] = 1.0 / cat_trait_effect[0, id]
-        id = np.random.choice([True, False], n_states)
-        cat_trait_effect[1, id] = 1.0 / cat_trait_effect[1, id]
+        # allows user provided values for trait effect in case of more than two states
+        if self.cat_traits_effect.shape[1] == n_states:
+            cat_trait_effect[0,:] = self.cat_traits_effect[0,:]
+            cat_trait_effect[1,:] = self.cat_traits_effect[1,:]
+        else:
+            cat_trait_effect[0,:] = np.random.uniform(self.cat_traits_effect[0, 0], self.cat_traits_effect[0, 1], n_states) # effect on speciation
+            cat_trait_effect[1,:] = np.random.uniform(self.cat_traits_effect[1, 0], self.cat_traits_effect[1, 1], n_states) # effect on extinction
+            id = np.random.choice(self.cat_traits_effect_incr_decr[0,:], n_states)
+            cat_trait_effect[0, id] = 1.0 / cat_trait_effect[0, id]
+            id = np.random.choice(self.cat_traits_effect_incr_decr[1,:], n_states)
+            cat_trait_effect[1, id] = 1.0 / cat_trait_effect[1, id]
+
         cat_trait_effect = np.hstack((np.ones((2,1)), cat_trait_effect))
 
         return cat_trait_effect
