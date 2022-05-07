@@ -32,8 +32,10 @@ class bdnn_simulator():
                  magnitude_mass_ext = [0.8, 0.95],
                  poiL = 3, # Number of rate shifts expected according to a Poisson distribution
                  poiM = 3, # Number of rate shifts expected according to a Poisson distribution
-                 range_linL = None, # Or a range (e.g. [-0.2, 0.2])
-                 range_linM = None, # Or a range (e.g. [-0.2, 0.2])
+                 fixed_birth_shift = None, # list of shift-times and speciation rates e.g. [[20],[0.5, 0.4]] (overwrittes poiL)
+                 fixed_death_shift = None, # list of shift-times and extinction rates e.g. [[20],[0.5, 0.4]] (overwrittes poiM)
+                 range_linL = None, # None or a range (e.g. [-0.2, 0.2])
+                 range_linM = None, # None or a range (e.g. [-0.2, 0.2])
                  n_cont_traits = [2, 5], # number of continuous traits
                  cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
@@ -69,6 +71,8 @@ class bdnn_simulator():
         self.magnitude_mass_ext = np.sort(magnitude_mass_ext)
         self.poiL = poiL
         self.poiM = poiM
+        self.fixed_birth_shift = fixed_birth_shift
+        self.fixed_death_shift = fixed_death_shift
         self.range_linL = range_linL
         self.range_linM = range_linM
         self.n_cont_traits = n_cont_traits
@@ -179,6 +183,7 @@ class bdnn_simulator():
 
             TE = len(te)
             if TE > self.maxSP:
+                #print(t_abs)
                 break
             ran_vec = np.random.random(TE)
             te_extant = np.where(np.array(te) == 0)[0]
@@ -307,35 +312,9 @@ class bdnn_simulator():
     def get_random_settings(self, root):
         root = np.abs(root)
         root_scaled = int(root * self.scale)
-        timesL_temp = [root_scaled, 0.]
-        timesM_temp = [root_scaled, 0.]
-
         dT = root / root_scaled
 
-        # Number of rate shifts expected according to a Poisson distribution
-        nL = np.random.poisson(self.poiL)
-        nM = np.random.poisson(self.poiM)
-
-        L = np.random.uniform(np.min(self.rangeL), np.max(self.rangeL), nL + 1) / self.scale
-        M = np.random.uniform(np.min(self.rangeM), np.max(self.rangeM), nM + 1) / self.scale
-
-        shift_time_L = np.random.uniform(0, root_scaled, nL)
-        shift_time_M = np.random.uniform(0, root_scaled, nM)
-
-        timesL = np.sort(np.concatenate((timesL_temp, shift_time_L), axis=0))[::-1]
-        timesM = np.sort(np.concatenate((timesM_temp, shift_time_M), axis=0))[::-1]
-
-        # Rates through (scaled) time
-        L_shifts = np.zeros(root_scaled, dtype = 'float')
-        M_shifts = np.zeros(root_scaled, dtype='float')
-        idx_time_vec = np.arange(root_scaled)[::-1]
-
-        for i in range(nL + 1):
-            Lidx = np.logical_and(idx_time_vec <= timesL[i], idx_time_vec > timesL[i + 1])
-            L_shifts[Lidx] = L[i]
-        for i in range(nM + 1):
-            Midx = np.logical_and(idx_time_vec <= timesM[i], idx_time_vec > timesM[i + 1])
-            M_shifts[Midx] = M[i]
+        L_shifts, M_shifts, L, M, timesL, timesM = self.make_shifts_birth_death(root_scaled)
 
         # continuous traits
         n_cont_traits = np.random.choice(np.arange(min(self.n_cont_traits), max(self.n_cont_traits) + 1), 1)
@@ -378,6 +357,47 @@ class bdnn_simulator():
             extirpation = np.random.uniform(np.min(self.extirpation), np.max(self.extirpation), 1)
 
         return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation
+
+
+    def make_shifts_birth_death(self, root_scaled):
+        timesL_temp = [root_scaled, 0.]
+        timesM_temp = [root_scaled, 0.]
+
+        if self.fixed_birth_shift is None:
+            # Number of rate shifts expected according to a Poisson distribution
+            nL = np.random.poisson(self.poiL)
+            L = np.random.uniform(np.min(self.rangeL), np.max(self.rangeL), nL + 1) / self.scale
+            shift_time_L = np.random.uniform(0, root_scaled, nL)
+        else:
+            nL = len(self.fixed_birth_shift[1]) - 1
+            L = np.array(self.fixed_birth_shift[1]) / self.scale
+            shift_time_L = np.array(self.fixed_birth_shift[0]) * self.scale
+
+        if self.fixed_death_shift is None:
+            nM = np.random.poisson(self.poiM)
+            M = np.random.uniform(np.min(self.rangeM), np.max(self.rangeM), nM + 1) / self.scale
+            shift_time_M = np.random.uniform(0, root_scaled, nM)
+        else:
+            nM = len(self.fixed_death_shift[1]) - 1
+            M = np.array(self.fixed_death_shift[1]) / self.scale
+            shift_time_M = np.array(self.fixed_death_shift[0]) * self.scale
+
+        timesL = np.sort(np.concatenate((timesL_temp, shift_time_L), axis = 0))[::-1]
+        timesM = np.sort(np.concatenate((timesM_temp, shift_time_M), axis = 0))[::-1]
+
+        # Rates through (scaled) time
+        L_shifts = np.zeros(root_scaled, dtype = 'float')
+        M_shifts = np.zeros(root_scaled, dtype = 'float')
+        idx_time_vec = np.arange(root_scaled)[::-1]
+
+        for i in range(nL + 1):
+            Lidx = np.logical_and(idx_time_vec <= timesL[i], idx_time_vec > timesL[i + 1])
+            L_shifts[Lidx] = L[i]
+        for i in range(nM + 1):
+            Midx = np.logical_and(idx_time_vec <= timesM[i], idx_time_vec > timesM[i + 1])
+            M_shifts[Midx] = M[i]
+
+        return L_shifts, M_shifts, L, M, timesL, timesM
 
 
     def add_linear_time_effect(self, L_shifts, M_shifts):
@@ -1235,18 +1255,18 @@ class write_FBD_files():
         return ranges
 
 
-    def get_occurrences_per_interval(self, fossils):
+    def get_occurrences_per_interval(self, fossils, interval_ages):
         taxon_names = fossils['taxon_names']
         n_lineages = len(taxon_names)
         names_df = pd.DataFrame(data = taxon_names, columns = ['taxon'])
-        n_intervals = self.interval_ages.shape[0]
+        n_intervals = interval_ages.shape[0]
         counts = np.zeros((n_lineages, n_intervals), dtype = int)
         occ = fossils['fossil_occurrences']
         for i in range(n_lineages):
             for y in range(n_intervals):
                 occ_i = occ[i]
                 # What to do with a record at the present? Is this rho for FBD?
-                occ_i_y = occ_i[np.logical_and(occ_i <= self.interval_ages[y, 0], occ_i > self.interval_ages[y, 1])]
+                occ_i_y = occ_i[np.logical_and(occ_i <= interval_ages[y, 0], occ_i > interval_ages[y, 1])]
                 counts[i, y] = len(occ_i_y)
 
         counts_df = pd.DataFrame(data = counts, columns = np.arange(n_intervals))
@@ -1255,68 +1275,163 @@ class write_FBD_files():
         return counts_df
 
 
-    def write_script(self, name_file):
-        scr = "%s/%s/%s/%s/%s_mcmc_FBDRMatrix_model1.Rev" % (self.output_wd, name_file, 'FBD', 'scripts', name_file)
+    def get_oldest_fossil_age(self, fossils):
+        occ = fossils['fossil_occurrences']
+        len_occ = len(occ)
+        max_ages_taxa = np.zeros(len_occ)
+        for i in range(len(occ)):
+            max_ages_taxa[i] = np.max(occ[i])
+        max_age = np.max(max_ages_taxa)
+        max_age = np.ceil(max_age)
+
+        return max_age
+
+
+
+    def write_script(self, name_file, interval_ages):
+        scr = "%s/%s/%s/%s/%s_FBDRMatrix_model1.Rev" % (self.output_wd, name_file, 'FBD', 'scripts', name_file)
         scrfile = open(scr, "w")
         scrfile.write('taxa = readTaxonData(file = "data/%s_ranges.csv")' % name_file)
         scrfile.write('\n')
         scrfile.write('k <- readDataDelimitedFile(file = "data/%s_counts.csv", header = true, rownames = true)' % name_file)
         scrfile.write('\n')
-        if self.interval_ages.shape[0] > 1: # Skyline model
-            timeline = self.interval_ages[1:,0]
-            timeline = timeline.tolist()
-            scrfile.write('timeline <- v(')
-            for i in range(len(timeline)):
-                scrfile.write(str(timeline[i]))
-                if i < (len(timeline) - 1):
-                    scrfile.write(',')
-            scrfile.write(')')
-            scrfile.write('\n')
-            scrfile.write('timeline_size <- timeline.size()')
-        else:
-            scrfile.write('timeline_size <- 0')
+        timeline = interval_ages[1:,0]
+        timeline = timeline.tolist()
+        scrfile.write('timeline <- v(')
+        for i in range(len(timeline)):
+            scrfile.write(str(timeline[i]))
+            if i < (len(timeline) - 1):
+                scrfile.write(',')
+        scrfile.write(')')
+        scrfile.write('\n')
+        scrfile.write('timeline_size <- timeline.size()')
         scrfile.write('\n')
         scrfile.write('moves = VectorMoves()')
         scrfile.write('\n')
         scrfile.write('monitors = VectorMonitors()')
         scrfile.write('\n')
-        scrfile.write('alpha <- 10')
+        # if self.interval_ages.shape[0] > 1: # Skyline model
+        #     timeline = self.interval_ages[1:,0]
+        #     timeline = timeline.tolist()
+        #     scrfile.write('timeline <- v(')
+        #     for i in range(len(timeline)):
+        #         scrfile.write(str(timeline[i]))
+        #         if i < (len(timeline) - 1):
+        #             scrfile.write(',')
+        #     scrfile.write(')')
+        #     scrfile.write('\n')
+        #     scrfile.write('timeline_size <- timeline.size()')
+        # else:
+        #     scrfile.write('timeline_size <- 0')
+        # scrfile.write('\n')
+        # scrfile.write('alpha <- 10')
+        # scrfile.write('\n')
+        # scrfile.write('for (i in 1:(timeline_size+1)) {')
+        # scrfile.write('\n')
+        # scrfile.write('    mu[i] ~ dnExp(alpha)')
+        # scrfile.write('\n')
+        # scrfile.write('    lambda [i] ~ dnExp(alpha)')
+        # scrfile.write('\n')
+        # scrfile.write('    psi[i] ~ dnExp(alpha)')
+        # scrfile.write('\n')
+        # scrfile.write('    div[i] := lambda[i] - mu[i]')
+        # scrfile.write('\n')
+        # scrfile.write('    turnover[i] := mu[i] / lambda[i]')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale(mu[i], lambda = 0.01) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale(mu[i], lambda = 0.1) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale(mu[i], lambda = 1) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale( lambda[i], lambda = 0.01) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale( lambda[i], lambda = 0.1) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale( lambda[i], lambda = 1) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale(psi[i], lambda = 0.01) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale(psi[i], lambda = 0.1) )')
+        # scrfile.write('\n')
+        # scrfile.write('    moves.append( mvScale(psi[i], lambda = 1) )')
+        # scrfile.write('\n')
+        # scrfile.write('}')
+        scrfile.write('speciation_sd ~ dnExponential(1.0)')
         scrfile.write('\n')
-        scrfile.write('for (i in 1:(timeline_size+1)) {')
+        scrfile.write('moves.append(mvScale(speciation_sd, weight = 10))')
         scrfile.write('\n')
-        scrfile.write('    mu[i] ~ dnExp(alpha)')
+        scrfile.write('extinction_sd ~ dnExponential(1.0)')
         scrfile.write('\n')
-        scrfile.write('    lambda [i] ~ dnExp(alpha)')
+        scrfile.write('moves.append(mvScale(extinction_sd, weight = 10))')
         scrfile.write('\n')
-        scrfile.write('    psi[i] ~ dnExp(alpha)')
+        scrfile.write('psi_sd ~ dnExponential(1.0)')
         scrfile.write('\n')
-        scrfile.write('    div[i] := lambda[i] - mu[i]')
+        scrfile.write('moves.append(mvScale(psi_sd, weight = 10))')
         scrfile.write('\n')
-        scrfile.write('    turnover[i] := mu[i] / lambda[i]')
+        scrfile.write('log_speciation[1] ~ dnUniform(-10.0, 10.0)')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale(mu[i], lambda = 0.01) )')
+        scrfile.write('log_extinction[1] ~ dnUniform(-10.0, 10.0)')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale(mu[i], lambda = 0.1) )')
+        scrfile.write('log_psi[1] ~ dnUniform(-10.0, 10.0)')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale(mu[i], lambda = 1) )')
+        scrfile.write('moves.append(mvSlide(log_speciation[1], weight = 2))')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale( lambda[i], lambda = 0.01) )')
+        scrfile.write('moves.append(mvSlide(log_extinction[1], weight = 2))')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale( lambda[i], lambda = 0.1) )')
+        scrfile.write('moves.append(mvSlide(log_psi[1], weight=2))')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale( lambda[i], lambda = 1) )')
+        scrfile.write('speciation[1] := exp(log_speciation[1])')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale(psi[i], lambda = 0.01) )')
+        scrfile.write('extinction[1] := exp(log_extinction[1])')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale(psi[i], lambda = 0.1) )')
+        scrfile.write('psi[1] := exp(log_psi[1])')
         scrfile.write('\n')
-        scrfile.write('    moves.append( mvScale(psi[i], lambda = 1) )')
+        scrfile.write('for (i in 1:(timeline_size)) {')
+        scrfile.write('\n')
+        scrfile.write('    index = i+1')
+        scrfile.write('\n')
+        scrfile.write('    # specify normal priors (= Brownian motion) on the log of the rates')
+        scrfile.write('\n')
+        scrfile.write('    log_speciation[index] ~ dnNormal( mean=log_speciation[i], sd=speciation_sd )')
+        scrfile.write('\n')
+        scrfile.write('    log_extinction[index] ~ dnNormal( mean=log_extinction[i], sd=extinction_sd )')
+        scrfile.write('\n')
+        scrfile.write('    log_psi[index] ~ dnNormal( mean=log_psi[i], sd=psi_sd )')
+        scrfile.write('\n')
+        scrfile.write('    # apply moves on the rates')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvSlide(log_speciation[index], weight=2) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvSlide(log_extinction[index], weight=2) )')
+        scrfile.write('\n')
+        scrfile.write('    moves.append( mvSlide(log_psi[index], weight=2) )')
+        scrfile.write('\n')
+        scrfile.write('    # transform the log-rate into actual rates')
+        scrfile.write('\n')
+        scrfile.write('    speciation[index] := exp( log_speciation[index] )')
+        scrfile.write('\n')
+        scrfile.write('    extinction[index] := exp( log_extinction[index] )')
+        scrfile.write('\n')
+        scrfile.write('    psi[index] := exp( log_psi[index] )')
         scrfile.write('\n')
         scrfile.write('}')
         scrfile.write('\n')
+        scrfile.write('moves.append(mvVectorSlide(log_speciation, weight = 10))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvVectorSlide(log_extinction, weight = 10))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvVectorSlide(log_psi, weight = 10))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvShrinkExpand(log_speciation, sd=speciation_sd, weight = 10))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvShrinkExpand(log_extinction, sd=extinction_sd, weight = 10))')
+        scrfile.write('\n')
+        scrfile.write('moves.append(mvShrinkExpand(log_psi, sd=psi_sd, weight = 10))')
+        scrfile.write('\n')
         scrfile.write('rho <- 1')
         scrfile.write('\n')
-        scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = lambda, mu=mu, psi=psi, rho=rho, timeline=timeline, k=k)')
+        scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
         scrfile.write('\n')
         scrfile.write('moves.append(mvMatrixElementScale(bd, lambda = 0.01, weight=taxa.size()))')
         scrfile.write('\n')
@@ -1332,25 +1447,27 @@ class write_FBD_files():
         scrfile.write('\n')
         scrfile.write('mymodel = model(bd)')
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnScreen(lambda , mu, psi, printgen=100))')
+        scrfile.write('monitors.append(mnScreen(speciation, extinction, psi, printgen = 5000))')
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnModel(filename="output/%s_model1.log", printgen=100))' % name_file)
+        scrfile.write('monitors.append(mnModel(filename = "output/%s_model1.log", printgen = 100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_rates.log", lambda , printgen=100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_rates.log", speciation, printgen = 100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_speciation_times.log", timeline, printgen=100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_times.log", timeline, printgen = 100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_rates.log", mu, printgen=100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_rates.log", extinction, printgen = 100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_extinction_times.log", timeline, printgen=100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_times.log", timeline, printgen = 100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_rates.log", psi, printgen=100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_rates.log", psi, printgen = 100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename="output/%s_model1_sampling_times.log", timeline, printgen=100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_times.log", timeline, printgen = 100))' % name_file)
         scrfile.write('\n')
-        scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule="random")')
+        scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
         scrfile.write('\n')
-        scrfile.write('mymcmc.run(30000)')
+        scrfile.write('mymcmc.burnin(generations = 10000, tuningInterval = 200)')
+        scrfile.write('\n')
+        scrfile.write('mymcmc.run(50000)')
         scrfile.write('\n')
         scrfile.write('q()')
         scrfile.flush()
@@ -1378,12 +1495,17 @@ class write_FBD_files():
         except OSError as error:
             print(error)
 
+        if self.interval_ages is None:
+            root_height = self.get_oldest_fossil_age(fossils)
+            interval_ages = np.stack((np.arange(1, root_height + 1, 1, dtype = float)[::-1], np.arange(0, root_height, 1, dtype = float)[::-1]), axis=1)
+            interval_ages[0, 0] = np.inf
+
         ranges = self.get_ranges(fossils)
         ranges_file = "%s/%s/%s/%s/%s_ranges.csv" % (self.output_wd, name_file, 'FBD', 'data', name_file)
         ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
 
-        counts = self.get_occurrences_per_interval(fossils)
+        counts = self.get_occurrences_per_interval(fossils, interval_ages)
         counts_file = "%s/%s/%s/%s/%s_counts.csv" % (self.output_wd, name_file, 'FBD', 'data', name_file)
         counts.to_csv(counts_file, header = True, sep = '\t', index = False)
 
-        self.write_script(name_file)
+        self.write_script(name_file, interval_ages)
