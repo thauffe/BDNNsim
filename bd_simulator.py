@@ -36,6 +36,8 @@ class bdnn_simulator():
                  fixed_death_shift = None, # list of shift-times and extinction rates e.g. [[20],[0.5, 0.4]] (overwrittes poiM)
                  range_linL = None, # None or a range (e.g. [-0.2, 0.2])
                  range_linM = None, # None or a range (e.g. [-0.2, 0.2])
+                 fixed_linL = None, # fixed change in speciation rate through time. 1st value for root age and 2nd for present [0.6, 0.0]
+                 fixed_linM = None, # fixed change in extinction rate through time. 1st value for root age and 2nd for present [0.6, 0.0]
                  n_cont_traits = [2, 5], # number of continuous traits
                  cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
@@ -75,6 +77,8 @@ class bdnn_simulator():
         self.fixed_death_shift = fixed_death_shift
         self.range_linL = range_linL
         self.range_linM = range_linM
+        self.fixed_linL = fixed_linL
+        self.fixed_linM = fixed_linM
         self.n_cont_traits = n_cont_traits
         self.cont_traits_sigma = cont_traits_sigma
         self.cont_traits_cor = cont_traits_cor
@@ -401,20 +405,29 @@ class bdnn_simulator():
 
 
     def add_linear_time_effect(self, L_shifts, M_shifts):
-        # Effect sizes
-        if self.range_linL:
-            linL = np.random.uniform(np.min(self.range_linL), np.max(self.range_linL), 1)
-        else:
-            linL = np.zeros(1)
-        if self.range_linM:
-            linM = np.random.uniform(np.min(self.range_linM), np.max(self.range_linM), 1)
-        else:
-            linM = np.zeros(1)
-
         t_vec = np.linspace(-0.5, 0.5, len(L_shifts))
 
-        L_tt = L_shifts + linL * t_vec
-        M_tt = M_shifts + linM * t_vec
+        if self.fixed_linL is None:
+            if self.range_linL:
+                # Slope
+                linL = np.random.uniform(np.min(self.range_linL), np.max(self.range_linL), 1)
+            else:
+                linL = np.zeros(1)
+            L_tt = L_shifts + linL * t_vec
+        else:
+            linL = self.fixed_linL[1] - self.fixed_linL[0]
+            L_tt = np.linspace(self.fixed_linL[0], self.fixed_linL[1], len(L_shifts)) / self.scale
+
+        if self.fixed_linM is None:
+            if self.range_linM:
+                # Slope
+                linM = np.random.uniform(np.min(self.range_linM), np.max(self.range_linM), 1)
+            else:
+                linM = np.zeros(1)
+            M_tt = M_shifts + linM * t_vec
+        else:
+            linM = self.fixed_linM[1] - self.fixed_linM[0]
+            M_tt = np.linspace(self.fixed_linM[0], self.fixed_linM[1], len(L_shifts)) / self.scale
 
         L_tt[L_tt < 0.0] = 1e-10
         M_tt[M_tt < 0.0] = 1e-10
@@ -1449,19 +1462,19 @@ class write_FBD_files():
         scrfile.write('\n')
         scrfile.write('monitors.append(mnScreen(speciation, extinction, psi, printgen = 5000))')
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnModel(filename = "output/%s_model1.log", printgen = 100))' % name_file)
+        scrfile.write('monitors.append(mnModel(filename = "output/%s_model1.log", printgen = 50))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_rates.log", speciation, printgen = 100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_rates.log", speciation, printgen = 50))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_times.log", timeline, printgen = 100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_times.log", timeline, printgen = 50))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_rates.log", extinction, printgen = 100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_rates.log", extinction, printgen = 50))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_times.log", timeline, printgen = 100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_times.log", timeline, printgen = 50))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_rates.log", psi, printgen = 100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_rates.log", psi, printgen = 50))' % name_file)
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_times.log", timeline, printgen = 100))' % name_file)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_times.log", timeline, printgen = 50))' % name_file)
         scrfile.write('\n')
         scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
         scrfile.write('\n')
