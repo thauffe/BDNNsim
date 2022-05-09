@@ -7,35 +7,32 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 # rnd_seed = 11
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [150, 250],  # min/max size data set
+                        rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [35., 35.],  # range root ages
-                        rangeL = [0.05, 0.4],  # range of birth rates
-                        rangeM = [0.05, 0.3],  # range of death rates
+                        rangeL = [0.1, 0.1],  # range of birth rates
+                        rangeM = [0.05, 0.05],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
                         poiL = 0,  # expected number of birth rate shifts
                         poiM = 0,  # expected number of death rate shift
-                        #fixed_death_shift = [[15, 10],[0.05, 0.3, 0.01]],
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
-                        fixed_Ltt = np.array([[35., 0.4], [20.001, 0.4], [20., 0.1], [10.001, 0.1], [10., 0.01], [0.0, 0.01]]),
-                        fixed_Mtt = np.array([[35., 0.05], [15.001, 0.05], [15., 0.3], [10.001, 0.3], [10., 0.01], [0.0, 0.01]]),
-                        n_cont_traits = [0, 0],  # number of continuous traits
+                        n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
                         cont_traits_effect = [0.0, 0.0], # [0.001, 0.005],
-                        n_cat_traits = [0, 0],
+                        n_cat_traits = [1, 1],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_diag = 0.9,
-                        cat_traits_effect = np.array([[1., 1.],[1, 1]]),
-                        cat_traits_effect_incr_decr = np.array([[True, False],[True, False]]),
+                        cat_traits_effect = np.array([[4., 4.],[1, 1]]),
+                        cat_traits_effect_decr_incr = np.array([[False, False],[True, False]]),
                         n_areas = [1, 1],
                         dispersal = [0.005, 0.01],
                         extirpation = [0.05, 0.2],
@@ -50,7 +47,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0,
-                                  name = 'scenario3')
+                                  name = 'scenario5')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -59,9 +56,9 @@ print(res_bd['tshift_lambda'])
 print(res_bd['mu'])
 print(res_bd['tshift_mu'])
 #print(res_bd['mass_ext_time'])
-#print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
-#print(res_bd['linear_time_lambda'])
-#print(res_bd['linear_time_mu'])
+print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
+print(res_bd['linear_time_lambda'])
+print(res_bd['linear_time_mu'])
 print(res_bd['cat_traits_Q'])
 print(res_bd['cat_traits_effect'])
 #print(res_bd['cont_traits_effect'])
