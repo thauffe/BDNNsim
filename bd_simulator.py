@@ -32,12 +32,18 @@ class bdnn_simulator():
                  magnitude_mass_ext = [0.8, 0.95],
                  poiL = 3, # Number of rate shifts expected according to a Poisson distribution
                  poiM = 3, # Number of rate shifts expected according to a Poisson distribution
-                 fixed_birth_shift = None, # list of shift-times and speciation rates e.g. [[20],[0.5, 0.4]] (overwrittes poiL)
-                 fixed_death_shift = None, # list of shift-times and extinction rates e.g. [[20],[0.5, 0.4]] (overwrittes poiM)
+                 # fixed_birth_shift = None, # list of shift-times and speciation rates e.g. [[20],[0.5, 0.4]] (overwrittes poiL)
+                 # fixed_death_shift = None, # list of shift-times and extinction rates e.g. [[20],[0.5, 0.4]] (overwrittes poiM)
                  range_linL = None, # None or a range (e.g. [-0.2, 0.2])
                  range_linM = None, # None or a range (e.g. [-0.2, 0.2])
-                 fixed_linL = None, # fixed change in speciation rate through time. 1st value for root age and 2nd for present [0.6, 0.0]
-                 fixed_linM = None, # fixed change in extinction rate through time. 1st value for root age and 2nd for present [0.6, 0.0]
+                 # fix speciation rate through time
+                 # numpy 2D array with time in the 1st column and rate in the 2nd
+                 # skyline trajectory as in Silvestro et al., 2019 Paleobiology:
+                 # np.array([[35., 0.4], [20.001, 0.4], [20., 0.1], [10.001, 0.1], [10., 0.01], [0.0, 0.01]])
+                 # decline until 20 Ma and then constant
+                 # np.array([[35., 0.4], [20., 0.1], [0.0, 0.1]])
+                 fixed_Ltt = None,
+                 fixed_Mtt = None, # fix extinction rate through time (see fixed Mtt)
                  n_cont_traits = [2, 5], # number of continuous traits
                  cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
@@ -73,12 +79,14 @@ class bdnn_simulator():
         self.magnitude_mass_ext = np.sort(magnitude_mass_ext)
         self.poiL = poiL
         self.poiM = poiM
-        self.fixed_birth_shift = fixed_birth_shift
-        self.fixed_death_shift = fixed_death_shift
+        # self.fixed_birth_shift = fixed_birth_shift
+        # self.fixed_death_shift = fixed_death_shift
         self.range_linL = range_linL
         self.range_linM = range_linM
-        self.fixed_linL = fixed_linL
-        self.fixed_linM = fixed_linM
+        # self.fixed_linL = fixed_linL
+        # self.fixed_linM = fixed_linM
+        self.fixed_Ltt = fixed_Ltt
+        self.fixed_Mtt = fixed_Mtt
         self.n_cont_traits = n_cont_traits
         self.cont_traits_sigma = cont_traits_sigma
         self.cont_traits_cor = cont_traits_cor
@@ -318,7 +326,15 @@ class bdnn_simulator():
         root_scaled = int(root * self.scale)
         dT = root / root_scaled
 
-        L_shifts, M_shifts, L, M, timesL, timesM = self.make_shifts_birth_death(root_scaled)
+        if self.fixed_Ltt is None:
+            L_shifts, L, timesL = self.make_shifts_birth_death(root_scaled, self.poiL, self.rangeL)
+        else:
+            L_shifts, L, timesL = self.make_fixed_bd_through_time(root_scaled, self.fixed_Ltt)
+
+        if self.fixed_Mtt is None:
+            M_shifts, M, timesM = self.make_shifts_birth_death(root_scaled, self.poiM, self.rangeM)
+        else:
+            M_shifts, M, timesM = self.make_fixed_bd_through_time(root_scaled, self.fixed_Mtt)
 
         # continuous traits
         n_cont_traits = np.random.choice(np.arange(min(self.n_cont_traits), max(self.n_cont_traits) + 1), 1)
@@ -363,76 +379,51 @@ class bdnn_simulator():
         return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation
 
 
-    def make_shifts_birth_death(self, root_scaled):
-        timesL_temp = [root_scaled, 0.]
-        timesM_temp = [root_scaled, 0.]
-
-        if self.fixed_birth_shift is None:
-            # Number of rate shifts expected according to a Poisson distribution
-            nL = np.random.poisson(self.poiL)
-            L = np.random.uniform(np.min(self.rangeL), np.max(self.rangeL), nL + 1) / self.scale
-            shift_time_L = np.random.uniform(0, root_scaled, nL)
-        else:
-            nL = len(self.fixed_birth_shift[1]) - 1
-            L = np.array(self.fixed_birth_shift[1]) / self.scale
-            shift_time_L = np.array(self.fixed_birth_shift[0]) * self.scale
-
-        if self.fixed_death_shift is None:
-            nM = np.random.poisson(self.poiM)
-            M = np.random.uniform(np.min(self.rangeM), np.max(self.rangeM), nM + 1) / self.scale
-            shift_time_M = np.random.uniform(0, root_scaled, nM)
-        else:
-            nM = len(self.fixed_death_shift[1]) - 1
-            M = np.array(self.fixed_death_shift[1]) / self.scale
-            shift_time_M = np.array(self.fixed_death_shift[0]) * self.scale
-
-        timesL = np.sort(np.concatenate((timesL_temp, shift_time_L), axis = 0))[::-1]
-        timesM = np.sort(np.concatenate((timesM_temp, shift_time_M), axis = 0))[::-1]
-
+    def make_shifts_birth_death(self, root_scaled, poi_shifts, range_rate):
+        timesR_temp = [root_scaled, 0.]
+        # Number of rate shifts expected according to a Poisson distribution
+        n_shifts = np.random.poisson(poi_shifts)
+        R = np.random.uniform(np.min(range_rate), np.max(range_rate), n_shifts + 1)
+        R = R  / self.scale
+        # random shift times
+        shift_time_R = np.random.uniform(0, root_scaled, n_shifts)
+        timesR = np.sort(np.concatenate((timesR_temp, shift_time_R), axis = 0))[::-1]
         # Rates through (scaled) time
-        L_shifts = np.zeros(root_scaled, dtype = 'float')
-        M_shifts = np.zeros(root_scaled, dtype = 'float')
+        R_tt = np.zeros(root_scaled, dtype = 'float')
         idx_time_vec = np.arange(root_scaled)[::-1]
+        for i in range(n_shifts + 1):
+            Ridx = np.logical_and(idx_time_vec <= timesR[i], idx_time_vec > timesR[i + 1])
+            R_tt[Ridx] = R[i]
 
-        for i in range(nL + 1):
-            Lidx = np.logical_and(idx_time_vec <= timesL[i], idx_time_vec > timesL[i + 1])
-            L_shifts[Lidx] = L[i]
-        for i in range(nM + 1):
-            Midx = np.logical_and(idx_time_vec <= timesM[i], idx_time_vec > timesM[i + 1])
-            M_shifts[Midx] = M[i]
-
-        return L_shifts, M_shifts, L, M, timesL, timesM
+        return R_tt, R, timesR
 
 
-    def add_linear_time_effect(self, L_shifts, M_shifts):
-        t_vec = np.linspace(-0.5, 0.5, len(L_shifts))
-
-        if self.fixed_linL is None:
-            if self.range_linL:
-                # Slope
-                linL = np.random.uniform(np.min(self.range_linL), np.max(self.range_linL), 1)
-            else:
-                linL = np.zeros(1)
-            L_tt = L_shifts + linL * t_vec
+    def add_linear_time_effect(self, R_shifts, range_lin, fixed_rtt):
+        t_vec = np.linspace(-0.5, 0.5, len(R_shifts))
+        if range_lin and fixed_rtt is None:
+            # Slope
+            linR = np.random.uniform(np.min(range_lin), np.max(range_lin), 1)
         else:
-            linL = self.fixed_linL[1] - self.fixed_linL[0]
-            L_tt = np.linspace(self.fixed_linL[0], self.fixed_linL[1], len(L_shifts)) / self.scale
+            # No change through time
+            linR = np.zeros(1)
+        R_tt = R_shifts + linR * t_vec
+        R_tt[R_tt < 0.0] = 1e-10
 
-        if self.fixed_linM is None:
-            if self.range_linM:
-                # Slope
-                linM = np.random.uniform(np.min(self.range_linM), np.max(self.range_linM), 1)
-            else:
-                linM = np.zeros(1)
-            M_tt = M_shifts + linM * t_vec
-        else:
-            linM = self.fixed_linM[1] - self.fixed_linM[0]
-            M_tt = np.linspace(self.fixed_linM[0], self.fixed_linM[1], len(L_shifts)) / self.scale
+        return R_tt, linR
 
-        L_tt[L_tt < 0.0] = 1e-10
-        M_tt[M_tt < 0.0] = 1e-10
 
-        return L_tt, M_tt, linL, linM
+    def make_fixed_bd_through_time(self, root_scaled, fixed_rtt):
+        rtt = np.zeros(root_scaled, dtype = 'float')
+        idx_time_vec = np.arange(root_scaled)[::-1]
+        fixed_rtt2 = fixed_rtt + 0.0
+        fixed_rtt2[:, 0] = fixed_rtt2[:, 0] * self.scale
+        fixed_rtt2[:, 1] = fixed_rtt2[:, 1] / self.scale
+        for i in range(len(fixed_rtt2) - 1):
+            idx = np.logical_and(idx_time_vec <= fixed_rtt2[i, 0], idx_time_vec > fixed_rtt2[i + 1, 0])
+            rate_idx = np.linspace(fixed_rtt2[i, 1], fixed_rtt2[i + 1, 1], sum(idx))
+            rtt[idx] = rate_idx
+
+        return rtt, fixed_rtt2[:,1], fixed_rtt2[1:,0]
 
 
     def get_harmonic_mean(self, v):
@@ -804,7 +795,9 @@ class bdnn_simulator():
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation = self.get_random_settings(root)
-            L_tt, M_tt, linL, linM = self.add_linear_time_effect(L_shifts, M_shifts)
+
+            L_tt, linL = self.add_linear_time_effect(L_shifts, self.range_linL, self.fixed_Ltt)
+            M_tt, linM = self.add_linear_time_effect(M_shifts, self.range_linM, self.fixed_Mtt)
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
 
