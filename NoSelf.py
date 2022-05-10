@@ -11,8 +11,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [35., 35.],  # range root ages
-                        rangeL = [0.1, 0.1],  # range of birth rates
-                        rangeM = [0.05, 0.05],  # range of death rates
+                        rangeL = [0.2, 0.3],  # range of birth rates
+                        rangeM = [0.1, 0.2],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
@@ -20,6 +20,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         poiM = 0,  # expected number of death rate shift
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
+                        fixed_Ltt = np.array([[35., 0.4], [20.001, 0.4], [20., 0.1], [10.001, 0.1], [10., 0.01], [0.0, 0.01]]),
+                        fixed_Mtt = np.array([[35., 0.05], [15.001, 0.05], [15., 0.3], [10.001, 0.3], [10., 0.01], [0.0, 0.01]]),
                         n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
@@ -31,8 +33,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_diag = 0.9,
-                        cat_traits_effect = np.array([[4., 4.],[1, 1]]),
-                        cat_traits_effect_decr_incr = np.array([[False, False],[True, False]]),
+                        cat_traits_effect = np.array([[1., 1.],[1, 1]]),
+                        cat_traits_effect_decr_incr = np.array([[True, False],[True, False]]),
                         n_areas = [1, 1],
                         dispersal = [0.005, 0.01],
                         extirpation = [0.05, 0.2],
@@ -47,7 +49,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0,
-                                  name = 'scenario5')
+                                  name = 'Edge')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -78,6 +80,7 @@ print(sim_fossil['alpha'])
 
 # Truncate fossil record for edge effect
 # keep_in_interval = np.array([ [np.inf, 20.0], [10.0, 5.0] ])
+# keep_in_interval = np.array([ [23.0, 5.0] ])
 # sim_fossil = keep_fossils_in_interval(sim_fossil,
 #                                       keep_in_interval = keep_in_interval)
 # interval_exceedings = get_interval_exceedings(sim_fossil, res_bd['ts_te'], keep_in_interval)
@@ -96,6 +99,7 @@ PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
                              #sampl,
                              #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
                              '-A 4',
+                             #'-FBDrange 3',
                              '-mG', '-n 500001', '-s 5000', '-p 100000'])
 
 PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py', '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b 10'])
