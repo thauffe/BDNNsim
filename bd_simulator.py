@@ -1,3 +1,4 @@
+import copy
 import sys
 import os
 from numpy import linalg as la
@@ -1244,7 +1245,7 @@ class write_FBD_files():
                  name_file = '',
                  interval_size = 1.0,
                  FBD_rate_prior = 'HSMRF',
-                 translate = None,
+                 translate = None, # move occurrence by time X (only useful if lineages are extinct)
                  interval_ages = None):
         self.output_wd = output_wd
         self.name_file = name_file
@@ -1253,13 +1254,13 @@ class write_FBD_files():
         self.translate = translate
         self.interval_ages = interval_ages
 
-    def get_ranges(self, fossils):
-        taxon_names = fossils['taxon_names']
+    def get_ranges(self, fossils_copy):
+        taxon_names = fossils_copy['taxon_names']
         n_lineages = len(taxon_names)
         ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
         ranges['min'] = np.zeros(n_lineages)
         ranges['max'] = np.zeros(n_lineages)
-        occ = fossils['fossil_occurrences']
+        occ = fossils_copy['fossil_occurrences']
         for i in range(n_lineages):
             occ_i = occ[i]
             ranges.iloc[i, 1] = np.min(occ_i)
@@ -1268,13 +1269,13 @@ class write_FBD_files():
         return ranges
 
 
-    def get_occurrences_per_interval(self, fossils, interval_ages):
-        taxon_names = fossils['taxon_names']
+    def get_occurrences_per_interval(self, fossils_copy, interval_ages):
+        taxon_names = fossils_copy['taxon_names']
         n_lineages = len(taxon_names)
         names_df = pd.DataFrame(data = taxon_names, columns = ['taxon'])
         n_intervals = interval_ages.shape[0]
         counts = np.zeros((n_lineages, n_intervals), dtype = int)
-        occ = fossils['fossil_occurrences']
+        occ = fossils_copy['fossil_occurrences']
         for i in range(n_lineages):
             for y in range(n_intervals):
                 occ_i = occ[i]
@@ -1289,8 +1290,8 @@ class write_FBD_files():
         return counts_df
 
 
-    def get_oldest_fossil_age(self, fossils):
-        occ = fossils['fossil_occurrences']
+    def get_oldest_fossil_age(self, fossils_copy):
+        occ = fossils_copy['fossil_occurrences']
         len_occ = len(occ)
         max_ages_taxa = np.zeros(len_occ)
         for i in range(len(occ)):
@@ -1301,10 +1302,17 @@ class write_FBD_files():
         return max_age
 
 
+    def translate_fossil_occurrences(self, fossils_copy):
+        for i in range(len(fossils_copy['fossil_occurrences'])):
+            fossils_copy['fossil_occurrences'][i] = fossils_copy['fossil_occurrences'][i] - self.translate
 
-    def write_script(self, name_file, interval_ages):
+
+    def write_script(self, interval_ages):
+        rho = 1.0
+        if self.translate is not None:
+            rho = 0.0
         if self.FBD_rate_prior == 'HSMRF':
-            scr = "%s/%s/%s/%s/%s_FBDR_HSMRF.Rev" % (self.output_wd, name_file, 'FBD', 'scripts', name_file)
+            scr = "%s/%s/%s/%s/%s_FBDR_HSMRF.Rev" % (self.output_wd, self.name_file, 'FBD', 'scripts', self.name_file)
             scrfile = open(scr, "w")
             scrfile.write('######################################')
             scrfile.write('\n')
@@ -1315,12 +1323,11 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('# read stratigraphic ranges')
             scrfile.write('\n')
-            scrfile.write('taxa = readTaxonData(file = "data/%s_ranges.csv")' % name_file)
+            scrfile.write('taxa = readTaxonData(file = "data/%s_ranges.csv")' % self.name_file)
             scrfile.write('\n')
             scrfile.write('# read fossil counts')
             scrfile.write('\n')
-            scrfile.write(
-                'k <- readDataDelimitedFile(file = "data/%s_counts.csv", header = true, rownames = true)' % name_file)
+            scrfile.write('k <- readDataDelimitedFile(file = "data/%s_counts.csv", header = true, rownames = true)' % self.name_file)
             scrfile.write('\n')
             scrfile.write('\n')
             timeline = interval_ages[1:, 0]
@@ -1520,7 +1527,7 @@ class write_FBD_files():
             scrfile.write('moves.append(mvHSRFIntervalSwap(delta_log_extinction, sigma_extinction, weight = 5))')
             scrfile.write('\n')
             scrfile.write('\n')
-            scrfile.write('rho <- 1')
+            scrfile.write('rho <- %s' % str(rho))
             scrfile.write('\n')
             scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
             scrfile.write('\n')
@@ -1547,29 +1554,29 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('monitors.append(mnScreen(speciation, extinction, psi, printgen = 5000))')
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnModel(filename = "output/%s_model1.log", printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnModel(filename = "output/%s_model1_HSMRF.log", printgen = 50))' % self.name_file)
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# monitors to print RevGagets input')
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_rates.log", speciation, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_HSMRF_speciation_rates.log", speciation, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_times.log", timeline, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_HSMRF_speciation_times.log", timeline, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_rates.log", extinction, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_HSMRF_extinction_rates.log", extinction, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_times.log", timeline, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_HSMRF_extinction_times.log", timeline, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_rates.log", psi, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_HSMRF_sampling_rates.log", psi, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_times.log", timeline, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_HSMRF_sampling_times.log", timeline, printgen = 50))' % self.name_file)
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# run the analysis')
             scrfile.write('\n')
             scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
             scrfile.write('\n')
-            scrfile.write('mymcmc.burnin(generations = 10000, tuningInterval = 200)')
+            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 200)')
             scrfile.write('\n')
             scrfile.write('mymcmc.run(50000)')
             scrfile.write('\n')
@@ -1577,7 +1584,7 @@ class write_FBD_files():
             scrfile.write('q()')
             scrfile.flush()
         else:
-            scr = "%s/%s/%s/%s/%s_FBDR.Rev" % (self.output_wd, name_file, 'FBD', 'scripts', name_file)
+            scr = "%s/%s/%s/%s/%s_FBDR.Rev" % (self.output_wd, self.name_file, 'FBD', 'scripts', self.name_file)
             scrfile = open(scr, "w")
             scrfile.write('######################################')
             scrfile.write('\n')
@@ -1588,11 +1595,11 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('# read stratigraphic ranges')
             scrfile.write('\n')
-            scrfile.write('taxa = readTaxonData(file = "data/%s_ranges.csv")' % name_file)
+            scrfile.write('taxa = readTaxonData(file = "data/%s_ranges.csv")' % self.name_file)
             scrfile.write('\n')
             scrfile.write('# read fossil counts')
             scrfile.write('\n')
-            scrfile.write('k <- readDataDelimitedFile(file = "data/%s_counts.csv", header = true, rownames = true)' % name_file)
+            scrfile.write('k <- readDataDelimitedFile(file = "data/%s_counts.csv", header = true, rownames = true)' % self.name_file)
             scrfile.write('\n')
             scrfile.write('\n')
             timeline = interval_ages[1:,0]
@@ -1702,7 +1709,7 @@ class write_FBD_files():
             scrfile.write('moves.append(mvShrinkExpand(log_psi, sd = psi_sd, weight = 10))')
             scrfile.write('\n')
             scrfile.write('\n')
-            scrfile.write('rho <- 1')
+            scrfile.write('rho <- %s' % str(rho))
             scrfile.write('\n')
             scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
             scrfile.write('\n')
@@ -1729,29 +1736,29 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('monitors.append(mnScreen(speciation, extinction, psi, printgen = 5000))')
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnModel(filename = "output/%s_model1.log", printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnModel(filename = "output/%s_model1_HSMRF.log", printgen = 50))' % self.name_file)
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# monitors to print RevGagets input')
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_rates.log", speciation, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_rates.log", speciation, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_times.log", timeline, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_speciation_times.log", timeline, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_rates.log", extinction, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_rates.log", extinction, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_times.log", timeline, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_extinction_times.log", timeline, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_rates.log", psi, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_rates.log", psi, printgen = 50))' % self.name_file)
             scrfile.write('\n')
-            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_times.log", timeline, printgen = 50))' % name_file)
+            scrfile.write('monitors.append(mnFile(filename = "output/%s_model1_sampling_times.log", timeline, printgen = 50))' % self.name_file)
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# run the analysis')
             scrfile.write('\n')
             scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
             scrfile.write('\n')
-            scrfile.write('mymcmc.burnin(generations = 10000, tuningInterval = 200)')
+            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 200)')
             scrfile.write('\n')
             scrfile.write('mymcmc.run(50000)')
             scrfile.write('\n')
@@ -1762,7 +1769,7 @@ class write_FBD_files():
 
 
     def run_FBD_writter(self, fossils):
-        path_dir = os.path.join(self.output_wd, name_file)
+        path_dir = os.path.join(self.output_wd, self.name_file)
 
         path_make_dir_FBD = os.path.join(path_dir, 'FBD')
         try:
@@ -1782,19 +1789,24 @@ class write_FBD_files():
         except OSError as error:
             print(error)
 
+        fossils_deepcopy = copy.deepcopy(fossils)
+
+        if self.translate is not None:
+            self.translate_fossil_occurrences(fossils_deepcopy)
+
         if self.interval_ages is None:
-            root_height = self.get_oldest_fossil_age(fossils)
+            root_height = self.get_oldest_fossil_age(fossils_deepcopy)
             interval_ages = np.stack((np.arange(self.interval_size, root_height + self.interval_size, self.interval_size, dtype = float)[::-1],
                                       np.arange(0, root_height, self.interval_size, dtype = float)[::-1]),
                                      axis = 1)
             #interval_ages[0, 0] = np.inf
 
-        ranges = self.get_ranges(fossils)
-        ranges_file = "%s/%s/%s/%s/%s_ranges.csv" % (self.output_wd, name_file, 'FBD', 'data', name_file)
+        ranges = self.get_ranges(fossils_deepcopy)
+        ranges_file = "%s/%s/%s/%s/%s_ranges.csv" % (self.output_wd, self.name_file, 'FBD', 'data', self.name_file)
         ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
 
-        counts = self.get_occurrences_per_interval(fossils, interval_ages)
-        counts_file = "%s/%s/%s/%s/%s_counts.csv" % (self.output_wd, name_file, 'FBD', 'data', name_file)
+        counts = self.get_occurrences_per_interval(fossils_deepcopy, interval_ages)
+        counts_file = "%s/%s/%s/%s/%s_counts.csv" % (self.output_wd, self.name_file, 'FBD', 'data', self.name_file)
         counts.to_csv(counts_file, header = True, sep = '\t', index = False)
 
-        self.write_script(name_file, interval_ages)
+        self.write_script(interval_ages)
