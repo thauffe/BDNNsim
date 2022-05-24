@@ -65,6 +65,10 @@ class bdnn_simulator():
                  n_areas = [0, 0], # number of biogeographic areas (minimum of 2)
                  dispersal = [0.1, 0.3], # range for the rate of area expansion
                  extirpation = [0.05, 0.1], # range for the rate of area loss
+                 sp_env_file = None, # Path to environmental file influencing speciation
+                 sp_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
+                 ex_env_file = None,  # Path to environmental file influencing speciation
+                 ex_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -105,6 +109,10 @@ class bdnn_simulator():
         self.n_areas = n_areas
         self.dispersal = dispersal
         self.extirpation = extirpation
+        self.sp_env_file = sp_env_file
+        self.sp_env_eff = sp_env_eff
+        self.ex_env_file = ex_env_file
+        self.ex_env_eff = ex_env_eff
         if seed:
             np.random.seed(seed)
 
@@ -378,7 +386,11 @@ class bdnn_simulator():
             dispersal = np.random.uniform(np.min(self.dispersal), np.max(self.dispersal), 1)
             extirpation = np.random.uniform(np.min(self.extirpation), np.max(self.extirpation), 1)
 
-        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation
+        # environmental effects
+        env_eff_sp = np.random.uniform(np.min(self.sp_env_eff), np.max(self.sp_env_eff), 1)
+        env_eff_ex = np.random.uniform(np.min(self.ex_env_eff), np.max(self.ex_env_eff), 1)
+
+        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex
 
 
     def make_shifts_birth_death(self, root_scaled, poi_shifts, range_rate):
@@ -796,10 +808,24 @@ class bdnn_simulator():
         n_extant = 0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation = self.get_random_settings(root)
+            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root)
 
             L_tt, linL = self.add_linear_time_effect(L_shifts, self.range_linL, self.fixed_Ltt)
             M_tt, linM = self.add_linear_time_effect(M_shifts, self.range_linM, self.fixed_Mtt)
+
+            # environmental effect
+            sp_env = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis = 1)
+            if self.sp_env_file is not None:
+                sp_env = np.loadtxt(self.sp_env_file, skiprows = 1)
+                time_vec = np.arange( int(np.abs(root) * self.scale) + 1 )
+                sp_env_binned = get_binned_continuous_variable(sp_env, time_vec, self.scale)
+                L_tt = L_tt * np.exp(env_eff_sp * sp_env_binned)
+            ex_env = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis=1)
+            if self.ex_env_file is not None:
+                ex_env = np.loadtxt(self.ex_env_file, skiprows = 1)
+                time_vec = np.arange(int(np.abs(root) * self.scale) + 1)
+                ex_env_binned = get_binned_continuous_variable(ex_env, time_vec, self.scale)
+                M_tt = M_tt * np.exp(env_eff_ex * ex_env_binned)
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
 
@@ -839,7 +865,11 @@ class bdnn_simulator():
                   'cat_traits_Q': cat_traits_Q,
                   'cat_traits_effect': cat_traits_effect,
                   'geographic_range': biogeo,
-                  'range_states': areas_comb}
+                  'range_states': areas_comb,
+                  'env_eff_sp': env_eff_sp,
+                  'sp_env': sp_env,
+                  'env_eff_ex': env_eff_ex,
+                  'ex_env': ex_env}
         if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
@@ -1134,6 +1164,14 @@ class write_PyRate_files():
         df.to_csv(file, header = True, sep = '\t', index = False, na_rep = 'NA')
 
 
+    def bin_and_write_env(self, env_var, env_file_name):
+        max_age_env = np.max(env_var[:, 0])
+        time_vec = np.arange(0, max_age_env + self.delta_time, self.delta_time)
+        binned_env = get_binned_continuous_variable(env_var, time_vec, 1.0)
+        binned_env = np.stack((time_vec[:-1], binned_env), axis = 1)
+        np.savetxt(env_file_name, binned_env, delimiter = '\t')
+
+
     def run_writter(self, sim_fossil, res_bd):
         # Get random name and create a subdirectory
         if self.name_file is None:
@@ -1186,8 +1224,30 @@ class write_PyRate_files():
 
         self.write_true_tste(res_bd, sim_fossil, name_file)
 
+        env_sp_name = "%s/%s/%s_env_sp.csv" % (self.output_wd, name_file, name_file)
+        self.bin_and_write_env(res_bd['sp_env'], env_sp_name)
+        env_ex_name = "%s/%s/%s_env_ex.csv" % (self.output_wd, name_file, name_file)
+        self.bin_and_write_env(res_bd['ex_env'], env_ex_name)
+
         return name_file
 
+
+# Bin environmental variable into time time-bins.
+# Needed to simulate diversification and to write files for analyses.
+def get_binned_continuous_variable(env_var, time_vec, scaletime):
+    times = env_var[:, 0]
+    times = times * scaletime
+    values = env_var[:, 1]
+    mean_var = np.zeros(len(time_vec) - 1)
+    mean_var[:] = np.nan
+    for i in range(len(time_vec) - 1):
+        t_min = time_vec[i]
+        t_max = time_vec[i + 1]
+        in_range_M = (times <= t_max).nonzero()[0]
+        in_range_m = (times >= t_min).nonzero()[0]
+        mean_var[i] = np.mean(values[np.intersect1d(in_range_m, in_range_M)])
+
+    return mean_var
 
 
 def keep_fossils_in_interval(fossils, keep_in_interval, keep_extant = True):

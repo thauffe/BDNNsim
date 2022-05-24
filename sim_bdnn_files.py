@@ -6,12 +6,12 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 # rnd_seed = 89651236
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [300, 500],  # min/max size data set
+                        rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [35., 35.],  # range root ages
-                        rangeL = [0.1, 0.1],  # range of birth rates
-                        rangeM = [0.05, 0.05],  # range of death rates
+                        rangeL = [0.2, 0.5],  # range of birth rates
+                        rangeM = [0.05, 0.1],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
@@ -19,8 +19,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         poiM = 0,  # expected number of death rate shift
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
-                        fixed_Ltt = np.array([[35.0, 0.6],[15.0, 0.1], [15.001, 0.6], [0.0, 0.01]]),
-                        fixed_Mtt = np.array([[35.0, 0.1],[20.0, 0.1],[0.0, 0.7]]),
+                        # fixed_Ltt = np.array([[35.0, 0.6],[15.0, 0.1], [15.001, 0.6], [0.0, 0.01]]),
+                        # fixed_Mtt = np.array([[35.0, 0.1],[20.0, 0.1],[0.0, 0.7]]),
                         n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
                         cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
@@ -37,6 +37,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         n_areas = [1, 1],
                         dispersal = [0.005, 0.01],
                         extirpation = [0.05, 0.2],
+                        sp_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
+                        sp_env_eff = [-0.1, -0.3],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
@@ -47,7 +49,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0,
-                                  name = 'scenario4')
+                                  name = 'sp_env')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -89,3 +91,9 @@ PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
 
 PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                               '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b 10'])
+
+
+write_FBD = write_FBD_files(output_wd = '/home/torsten/Work/BDNN',
+                            name_file =  name_file,
+                            interval_ages = None)
+write_FBD.run_FBD_writter(sim_fossil)
