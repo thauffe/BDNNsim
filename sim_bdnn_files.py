@@ -3,14 +3,14 @@ import copy
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
-# rnd_seed = 89651236
+#rnd_seed = 54574560
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
-                        root_r = [35., 35.],  # range root ages
-                        rangeL = [0.2, 0.5],  # range of birth rates
+                        root_r = [65., 65.],  # range root ages
+                        rangeL = [0.2, 0.8],  # range of birth rates
                         rangeM = [0.05, 0.1],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
@@ -38,7 +38,9 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         dispersal = [0.005, 0.01],
                         extirpation = [0.05, 0.2],
                         sp_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
-                        sp_env_eff = [-0.1, -0.3],
+                        sp_env_eff = [-0.02, -0.01],
+                        ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
+                        ex_env_eff = [-0.02, -0.01],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
@@ -97,3 +99,11 @@ write_FBD = write_FBD_files(output_wd = '/home/torsten/Work/BDNN',
                             name_file =  name_file,
                             interval_ages = None)
 write_FBD.run_FBD_writter(sim_fossil)
+
+
+np.savetxt('/home/torsten/Work/BDNN/CatTraits.txt', res_bd['cat_traits'][:,0,:], delimiter = '\t')
+np.savetxt('/home/torsten/Work/BDNN/LineageRates.txt', res_bd['lineage_rates'], delimiter = '\t')
+np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:], delimiter = '\t')
+
+print(np.nanvar(res_bd['cont_traits'][1,0,:]))
+print(res_bd['cont_traits_effect'][0][0,1]**2) # Should be similar to the variance
