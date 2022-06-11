@@ -23,24 +23,16 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
                         # Shifts
-                        # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.00001], [0.0, 0.00001]]),
+                        # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
                         # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
+                        fixed_Ltt = np.array([[60., 0.10], [45.001, 0.10], [45., 1.0], [43.001, 1.0], [43., 0.1], [37.001, 0.1], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
+                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [22.001, 0.1], [22., 2.0], [20.001, 2.0], [20., 0.1], [0.0, 0.1]]),
                         # Linear change
-                        fixed_Ltt = np.array([[60., 0.4], [0.0, 0.01]]),
-                        fixed_Mtt = np.array([[60., 0.01], [0.0, 0.4]]),
+                        # fixed_Ltt = np.array([[60., 0.4], [0.0, 0.01]]),
+                        # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.4]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-
-fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
-                              range_alpha = [1000.0, 1000.0],
-                              poi_shifts = 2,
-                              seed = rnd_seed)
-
-
-scenario = 'RanShifts'
-write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-                                  delta_time = 1.0,
-                                  name = 'Complete')
+scenario = 'Shift_rep06'
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -50,12 +42,22 @@ print(res_bd['mu'])
 print(res_bd['tshift_mu'])
 
 # Sampling simulation
+fossil_sim = fossil_simulator(range_q = [0.5, 2.0],
+                              range_alpha = [1000.0, 1000.0],
+                              poi_shifts = 2,
+                              seed = rnd_seed)
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 print(sim_fossil['q'])
 print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
 
+
+# Complete data
+################
 # Write input files for PyRate analysis
+write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                                  delta_time = 1.0,
+                                  name = 'Complete')
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 
 
@@ -64,24 +66,23 @@ name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 # else:
 #     sampl = '-mHPP'
 
-PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                             '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_file, name_file),
-                             #sampl,
-                             #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
-                             '-A 4',
-                             #'-mG',
-                             '-n 500001', '-s 5000', '-p 100000'])
-
-PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                              '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_file),
-                              '-b 20'])
+# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_file, name_file),
+#                              #sampl,
+#                              #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
+#                              '-A 4',
+#                              #'-mG',
+#                              '-n 500001', '-s 5000', '-p 100000'])
+#
+# PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+#                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_file),
+#                               '-b 20'])
 
 
 
 
 
 # Create inpute files for FBD analysis
-######################################
 # interval_ages = np.array([[np.inf, 27.0],
 #                           [27.0, 26.0],
 #                           [26.0, 25.0]])
@@ -98,28 +99,28 @@ write_FBD.run_FBD_writter(sim_fossil)
 keep_in_interval = np.array([ [44.0, 21.0] ])
 sim_fossil_deepcopy = copy.deepcopy(sim_fossil)
 
-trunc_fossil_inclExt = keep_fossils_in_interval(sim_fossil_deepcopy,
-                                                keep_in_interval = keep_in_interval,
-                                                keep_extant = True)
-interval_exceedings = get_interval_exceedings(sim_fossil, res_bd['ts_te'], keep_in_interval)
-
-write_inclExt = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-                                   delta_time = 1.0,
-                                   name = 'TruncInclExt')
-name_inclExt = write_inclExt.run_writter(trunc_fossil_inclExt, res_bd)
-
-PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                             '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_inclExt, name_inclExt),
-                             '-A 4',
-                             #'-mG',
-                             '-n 500001', '-s 5000', '-p 100000'])
-PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                              '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_inclExt),
-                              '-b 20'])
-
-write_FBD_inclExt = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-                                    name_file =  name_inclExt)
-write_FBD_inclExt.run_FBD_writter(trunc_fossil_inclExt)
+# trunc_fossil_inclExt = keep_fossils_in_interval(sim_fossil_deepcopy,
+#                                                 keep_in_interval = keep_in_interval,
+#                                                 keep_extant = True)
+# interval_exceedings = get_interval_exceedings(sim_fossil, res_bd['ts_te'], keep_in_interval)
+#
+# write_inclExt = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+#                                    delta_time = 1.0,
+#                                    name = 'TruncInclExt')
+# name_inclExt = write_inclExt.run_writter(trunc_fossil_inclExt, res_bd)
+#
+# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_inclExt, name_inclExt),
+#                              '-A 4',
+#                              #'-mG',
+#                              '-n 500001', '-s 5000', '-p 100000'])
+# PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+#                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_inclExt),
+#                               '-b 20'])
+#
+# write_FBD_inclExt = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+#                                     name_file =  name_inclExt)
+# write_FBD_inclExt.run_FBD_writter(trunc_fossil_inclExt)
 
 # truncate data and remove information on extant lineages
 #########################################################
@@ -132,24 +133,26 @@ write_exclExt = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Si
                                    name = 'TruncExclExt')
 name_exclExt = write_exclExt.run_writter(trunc_fossil_exclExt, res_bd)
 
-PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                             '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_exclExt, name_exclExt),
-                             '-A 4',
-                             #' -translate -%s' % keep_in_interval[0,1], # Why is PyRate complaining about no argument translate?
-                             #'-mG',
-                             '-n 500001', '-s 5000', '-p 100000'])
-PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                              '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_exclExt),
-                              '-b 20'])
+# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_exclExt, name_exclExt),
+#                              '-A 4',
+#                              #' -translate -%s' % keep_in_interval[0,1], # Why is PyRate complaining about no argument translate?
+#                              #'-mG',
+#                              '-n 500001', '-s 5000', '-p 100000'])
+# PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+#                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_exclExt),
+#                               '-b 20'])
 
 write_FBD_exclExt = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                                     name_file = name_exclExt,
                                     translate = keep_in_interval[0,1])
 write_FBD_exclExt.run_FBD_writter(trunc_fossil_exclExt)
 
-# truncate data and remove information on extant lineages
-#########################################################
-# Do not translate fossil occurrences by keep_in_interval[1
+
+# truncate data
+# Do not translate fossil occurrences by keep_in_interval[1]
+# but pad the counts by an additional column before and after the truncation boundaries
+########################################################################################
 write_padded = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                                   delta_time = 1.0,
                                   name = 'TruncPadded')
@@ -159,3 +162,20 @@ write_FBD_padded = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Si
                                    name_file = name_padded,
                                    padding = keep_in_interval[0,:])
 write_FBD_padded.run_FBD_writter(trunc_fossil_exclExt)
+
+
+# truncate data
+# Do not translate fossil occurrences by keep_in_interval[1]
+# but pad the counts by an additional column before and after the truncation boundaries
+# and center horseshoe prior
+########################################################################################
+write_padded_center = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                                  delta_time = 1.0,
+                                  name = 'TruncPaddedCenter')
+name_padded_center = write_padded_center.run_writter(trunc_fossil_exclExt, res_bd)
+
+write_FBD_padded_center = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                                          name_file = name_padded_center,
+                                          padding = keep_in_interval[0,:],
+                                          center_HSMRF = True)
+write_FBD_padded_center.run_FBD_writter(trunc_fossil_exclExt)
