@@ -1674,7 +1674,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
             scrfile.write('\n')
-            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 200)')
+            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 500)')
             scrfile.write('\n')
             scrfile.write('mymcmc.run(50000)')
             scrfile.write('\n')
@@ -2045,7 +2045,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
             scrfile.write('\n')
-            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 200)')
+            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 500)')
             scrfile.write('\n')
             scrfile.write('mymcmc.run(50000)')
             scrfile.write('\n')
@@ -2453,8 +2453,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('rho <- %s' % str(rho))
             scrfile.write('\n')
-            scrfile.write(
-                'bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
+            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('moves.append(mvMatrixElementScale(bd, lambda = 0.01, weight = taxa.size()))')
@@ -2499,7 +2498,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
             scrfile.write('\n')
-            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 200)')
+            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 500)')
             scrfile.write('\n')
             scrfile.write('mymcmc.run(50000)')
             scrfile.write('\n')
@@ -2681,7 +2680,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('mymcmc = mcmc(mymodel, moves, monitors, moveschedule = "random")')
             scrfile.write('\n')
-            scrfile.write('mymcmc.burnin(generations = 10000, tuningInterval = 200)')
+            scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 500)')
             scrfile.write('\n')
             scrfile.write('mymcmc.run(50000)')
             scrfile.write('\n')
@@ -2734,3 +2733,23 @@ class write_FBD_files():
         counts.to_csv(counts_file, header = True, sep = '\t', index = False)
 
         self.write_script(interval_ages, min_age)
+
+
+def write_occurrence_table(fossils, output_wd, name_file):
+    occ_list = fossils['fossil_occurrences']
+    occ = np.concatenate(occ_list).ravel()
+    occ = np.stack((occ, occ), axis = 1)
+    n_occ = np.zeros(len(fossils['taxon_names']), dtype = int)
+    for i in range(len(n_occ)):
+        n_occ[i] = len(occ_list[i])
+    taxon_names = np.repeat(fossils['taxon_names'], n_occ)
+    names_df = pd.DataFrame(data = taxon_names, columns = ['sp'])
+    occ_df = pd.DataFrame(data = occ, columns = ['hmin', 'hmax'])
+    occ_df = pd.concat([names_df, occ_df], axis = 1)
+    try:
+        os.mkdir(output_wd)
+    except OSError as error:
+        print(error)
+    occ_file = "%s/%s/%s_fossil_occurrences.csv" % (output_wd, name_file, name_file)
+    occ_df.to_csv(occ_file, header = True, sep = '\t', index = False, na_rep = 'NA')
+

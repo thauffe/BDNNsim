@@ -32,7 +32,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.4]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-scenario = 'Shift_rep06'
+scenario = 'Shift_rep07'
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -42,7 +42,7 @@ print(res_bd['mu'])
 print(res_bd['tshift_mu'])
 
 # Sampling simulation
-fossil_sim = fossil_simulator(range_q = [0.5, 2.0],
+fossil_sim = fossil_simulator(range_q = [0.1, 1.0],
                               range_alpha = [1000.0, 1000.0],
                               poi_shifts = 2,
                               seed = rnd_seed)
@@ -59,6 +59,10 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Sim
                                   delta_time = 1.0,
                                   name = 'Complete')
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
+
+write_occurrence_table(sim_fossil,
+                       output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                       name_file = 'Complete')
 
 
 # if len(sim_fossil['shift_time']) > 0:
@@ -77,10 +81,6 @@ name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 # PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
 #                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_file),
 #                               '-b 20'])
-
-
-
-
 
 # Create inpute files for FBD analysis
 # interval_ages = np.array([[np.inf, 27.0],
