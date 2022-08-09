@@ -1,5 +1,12 @@
 import subprocess
 import copy
+import sys
+import numpy as np
+
+sys.path.insert(0, r'/home/torsten/Work/Software/BDNNsim')
+#import bdnn_simulator as bdnnsim
+from bdnn_simulator import *
+
 
 # cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
@@ -23,16 +30,16 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
                         # Shifts
-                        # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
-                        # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
-                        fixed_Ltt = np.array([[60., 0.10], [45.001, 0.10], [45., 1.0], [43.001, 1.0], [43., 0.1], [37.001, 0.1], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
-                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [22.001, 0.1], [22., 2.0], [20.001, 2.0], [20., 0.1], [0.0, 0.1]]),
+                        fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
+                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
+                        # fixed_Ltt = np.array([[60., 0.10], [45.001, 0.10], [45., 1.0], [43.001, 1.0], [43., 0.1], [37.001, 0.1], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
+                        # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [22.001, 0.1], [22., 1.0], [20.001, 1.0], [20., 0.1], [0.0, 0.1]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.4], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.4]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-scenario = 'Shift_rep07'
+scenario = 'Shifts_10'
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -70,13 +77,13 @@ write_occurrence_table(sim_fossil,
 # else:
 #     sampl = '-mHPP'
 
-# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_file, name_file),
-#                              #sampl,
-#                              #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
-#                              '-A 4',
-#                              #'-mG',
-#                              '-n 500001', '-s 5000', '-p 100000'])
+PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+                             '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_file, name_file),
+                             #sampl,
+                             #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
+                             '-A 4',
+                             #'-mG',
+                             '-n 500001', '-s 5000', '-p 100000'])
 #
 # PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
 #                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_file),
@@ -123,15 +130,20 @@ sim_fossil_deepcopy = copy.deepcopy(sim_fossil)
 # write_FBD_inclExt.run_FBD_writter(trunc_fossil_inclExt)
 
 # truncate data and remove information on extant lineages
-#########################################################
-trunc_fossil_exclExt = keep_fossils_in_interval(sim_fossil_deepcopy,
-                                                keep_in_interval = keep_in_interval,
-                                                keep_extant = False)
+# Do not translate fossil occurrences by keep_in_interval[1]
+############################################################
+trunc_fossil = keep_fossils_in_interval(sim_fossil_deepcopy,
+                                        keep_in_interval = keep_in_interval,
+                                        keep_extant = False)
 
-write_exclExt = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-                                   delta_time = 1.0,
-                                   name = 'TruncExclExt')
-name_exclExt = write_exclExt.run_writter(trunc_fossil_exclExt, res_bd)
+write_trunc = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                                 delta_time = 1.0,
+                                 name = 'Truncated')
+name_trunc = write_trunc.run_writter(trunc_fossil, res_bd)
+
+write_occurrence_table(trunc_fossil,
+                       output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                       name_file = 'Truncated')
 
 # PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
 #                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_exclExt, name_exclExt),
@@ -143,25 +155,23 @@ name_exclExt = write_exclExt.run_writter(trunc_fossil_exclExt, res_bd)
 #                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_exclExt),
 #                               '-b 20'])
 
-write_FBD_exclExt = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-                                    name_file = name_exclExt,
-                                    translate = keep_in_interval[0,1])
-write_FBD_exclExt.run_FBD_writter(trunc_fossil_exclExt)
+write_FBD_trunc = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                                  name_file = name_trunc,
+                                  translate = keep_in_interval[0,1])
+write_FBD_trunc.run_FBD_writter(trunc_fossil)
 
 
-# truncate data
-# Do not translate fossil occurrences by keep_in_interval[1]
-# but pad the counts by an additional column before and after the truncation boundaries
-########################################################################################
+# pad the counts by an additional column before and after the truncation boundaries
+###################################################################################
 write_padded = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                                   delta_time = 1.0,
-                                  name = 'TruncPadded')
-name_padded = write_padded.run_writter(trunc_fossil_exclExt, res_bd)
+                                  name = 'TruncatedPadded')
+name_padded = write_padded.run_writter(trunc_fossil, res_bd)
 
 write_FBD_padded = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                                    name_file = name_padded,
                                    padding = keep_in_interval[0,:])
-write_FBD_padded.run_FBD_writter(trunc_fossil_exclExt)
+write_FBD_padded.run_FBD_writter(trunc_fossil)
 
 
 # truncate data
@@ -169,13 +179,29 @@ write_FBD_padded.run_FBD_writter(trunc_fossil_exclExt)
 # but pad the counts by an additional column before and after the truncation boundaries
 # and center horseshoe prior
 ########################################################################################
-write_padded_center = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-                                  delta_time = 1.0,
-                                  name = 'TruncPaddedCenter')
-name_padded_center = write_padded_center.run_writter(trunc_fossil_exclExt, res_bd)
+# write_padded_center = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+#                                   delta_time = 1.0,
+#                                   name = 'TruncPaddedCenter')
+# name_padded_center = write_padded_center.run_writter(trunc_fossil_exclExt, res_bd)
+#
+# write_FBD_padded_center = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+#                                           name_file = name_padded_center,
+#                                           padding = keep_in_interval[0,:],
+#                                           center_HSMRF = True)
+# write_FBD_padded_center.run_FBD_writter(trunc_fossil_exclExt)
 
-write_FBD_padded_center = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-                                          name_file = name_padded_center,
-                                          padding = keep_in_interval[0,:],
-                                          center_HSMRF = True)
-write_FBD_padded_center.run_FBD_writter(trunc_fossil_exclExt)
+# truncate data
+# Do not translate fossil occurrences by keep_in_interval[1]
+# but pad the counts by an additional column before and after the truncation boundaries
+# and fix speciation for most recent bin and extinction of the earliest bin
+########################################################################################
+write_fix = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                               delta_time = 1.0,
+                               name = 'TruncatedPaddedFix')
+name_fix = write_fix.run_writter(trunc_fossil, res_bd)
+
+write_FBD_fix = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                                name_file = name_fix,
+                                padding = keep_in_interval[0,:],
+                                fix_fake_bin = True)
+write_FBD_fix.run_FBD_writter(trunc_fossil)
