@@ -77,13 +77,13 @@ write_occurrence_table(sim_fossil,
 # else:
 #     sampl = '-mHPP'
 
-PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                             '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_file, name_file),
-                             #sampl,
-                             #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
-                             '-A 4',
-                             #'-mG',
-                             '-n 500001', '-s 5000', '-p 100000'])
+# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_file, name_file),
+#                              #sampl,
+#                              #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
+#                              '-A 4',
+#                              #'-mG',
+#                              '-n 500001', '-s 5000', '-p 100000'])
 #
 # PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
 #                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_file),

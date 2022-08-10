@@ -13,7 +13,7 @@ import pandas as pd
 import scipy.linalg
 import random
 import string
-np.set_printoptions(suppress=True, precision=3)
+# np.set_printoptions(suppress = True, precision = 3)
 from collections.abc import Iterable
 #from .extract_properties import *
 SMALL_NUMBER = 1e-10
@@ -50,7 +50,7 @@ class bdnn_simulator():
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
                  cont_traits_Theta1 = [0, 0],  # morphological optima; 0 is no directional change from the ancestral values
                  cont_traits_alpha = [0, 0],  # strength of attraction towards Theta1; 0 is pure Brownian motion; [0.5, 2.0] is sensible
-                 cont_traits_effect = [0., 0.], # range of effect of categorical traits on speciation and extinction (1 is no effect)
+                 cont_traits_effect = [0., 0.], # range of effect of continuous traits on speciation and extinction (0 is no effect)
                  n_cat_traits = [1, 2], # range of the number of categorical traits
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
@@ -122,7 +122,6 @@ class bdnn_simulator():
         te = list()
 
         root = int(root * self.scale)
-
         # Trace ancestor descendant relationship
         # First entry: ancestor (for the seeding specis, this is an index of themselfs)
         # Following entries: descendants
@@ -160,11 +159,6 @@ class bdnn_simulator():
                 lineage_rates[i][3] = M[root] * cat_trait_effect[y][1, int(cat_trait_yi)]
 
         # init continuous traits
-        if n_cont_traits > 0:
-            if n_cont_traits == 0:
-                cont_traits_varcov = np.sqrt(cont_traits_varcov + 0.0) # standard deviation to variance
-            cont_traits_varcov = dT * (cont_traits_varcov + 0.0)
-
         cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
         cont_traits[:] = np.nan
         if n_cont_traits > 0:
@@ -199,7 +193,7 @@ class bdnn_simulator():
             # time i.e. integers self.root * self.scale
             # t = 0 not simulated!
             t_abs = abs(t)
-            #print('t_abs', t_abs)
+            # print('t_abs', t_abs)
             l = L[t]
             m = M[t]
 
@@ -501,6 +495,7 @@ class bdnn_simulator():
         if n_cont_traits == 1:
             varcov = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), 1)
             varcov = np.array([varcov])
+            varcov = np.sqrt(varcov / self.scale)
         else:
             sigma2 = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), n_cont_traits)
             sigma2 = np.diag(sigma2)
@@ -511,6 +506,7 @@ class bdnn_simulator():
             cormat[np.tril_indices(n_cont_traits, k = -1)] = cor
             varcov = sigma2 @ cormat @ sigma2 # correlation to covariance for multivariate random
             varcov = self.nearestPD(varcov)
+            varcov = varcov / self.scale
 
         return varcov
 
@@ -534,21 +530,13 @@ class bdnn_simulator():
 
     def evolve_cont_traits(self, cont_traits, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov):
         if n_cont_traits == 1:
-            # Not possible to vectorize; sd needs to have the same size than mean
+            # Not possible to vectorize; sd needs to have the same size as the mean
             cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.normal(0.0, cont_traits_varcov[0,0], 1)
         elif n_cont_traits > 1:
             cont_traits = cont_traits + cont_traits_alpha * (cont_traits_Theta1 - cont_traits) + np.random.multivariate_normal(np.zeros(n_cont_traits), cont_traits_varcov, 1)
             cont_traits = cont_traits[0]
 
         return cont_traits
-
-
-    # def get_cont_trait_effect(self, root, sigma2, cont_trait_value, effect):
-    #     m = np.abs(root)
-    #     max_pdf = norm.pdf(0.0, 0.0, m * sigma2)
-    #     cont_trait_effect = ((norm.pdf(cont_trait_value, 0, m * sigma2) * -1) + max_pdf) * effect
-    #
-    #     return cont_trait_effect
 
 
     def get_cont_trait_effect(self, cont_trait_value, par):
@@ -563,10 +551,10 @@ class bdnn_simulator():
         bell_shape = np.random.choice([True, False], 2) # np.array([False, True]) works too
         effect_par[:,0] = eff
         effect_par[:,1] = np.sqrt(root * (dT * sigma2**2))
-        ub = np.zeros(2) - 1
-        ub[bell_shape] = 1
+        ub = np.zeros(2) - 1.0
+        ub[bell_shape] = 1.0
         effect_par[:, 2] = ub
-        max_pdf = norm.pdf(np.zeros(2), 0.0, effect_par[0,1])
+        max_pdf = norm.pdf(np.zeros(2), 0.0, effect_par[:,1])
         max_pdf[bell_shape] = 0.0
         effect_par[:, 3] = max_pdf
 

@@ -1,8 +1,10 @@
-import copy
-import sys
-import os
 import subprocess
+import sys
 import numpy as np
+
+sys.path.insert(0, r'/home/torsten/Work/Software/BDNNsim')
+#import bdnn_simulator as bdnnsim
+from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
@@ -12,9 +14,9 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
-                        root_r = [65., 65.],  # range root ages
-                        rangeL = [0.2, 0.8],  # range of birth rates
-                        rangeM = [0.05, 0.1],  # range of death rates
+                        root_r = [35., 35.],  # range root ages
+                        rangeL = [0.2, 0.3],  # range of birth rates
+                        rangeM = [0.1, 0.2],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
@@ -22,11 +24,9 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         poiM = 0,  # expected number of death rate shift
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
-                        # fixed_Ltt = np.array([[35.0, 0.6],[15.0, 0.1], [15.001, 0.6], [0.0, 0.01]]),
-                        # fixed_Mtt = np.array([[35.0, 0.1],[20.0, 0.1],[0.0, 0.7]]),
-                        n_cont_traits = [1, 1],  # number of continuous traits
+                        n_cont_traits = [2, 2],  # number of continuous traits
                         cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
-                        cont_traits_cor = [-1, 1],  # evolutionary correlation between continuous traits
+                        cont_traits_cor = [-1.0, 1.0],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
                         cont_traits_effect = [0.0, 0.0], # [0.001, 0.005],
@@ -37,38 +37,38 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cat_traits_diag = 0.9,
                         cat_traits_effect = np.array([[1., 1.],[1, 1]]),
                         cat_traits_effect_decr_incr = np.array([[True, False],[True, False]]),
-                        n_areas = [1, 1],
-                        dispersal = [0.005, 0.01],
-                        extirpation = [0.05, 0.2],
-                        sp_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
-                        sp_env_eff = [-0.02, -0.01],
-                        ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
-                        ex_env_eff = [-0.02, -0.01],
+                        # n_areas = [1, 1],
+                        # dispersal = [0.005, 0.01],
+                        # extirpation = [0.05, 0.2],
+                        # sp_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
+                        # sp_env_eff = [-0.02, -0.01],
+                        # ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
+                        # ex_env_eff = [-0.02, -0.01],
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-fossil_sim = fossil_simulator(range_q = [0.5, 3.0],
-                              range_alpha = [1.0, 3.0],
+fossil_sim = fossil_simulator(range_q = [0.1, 1.0],
+                              range_alpha = [1000.0, 1000.0],
                               poi_shifts = 0,
                               seed = rnd_seed)
 
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0,
-                                  name = 'sp_env')
+                                  name = 'Cont')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
 print(res_bd['lambda'])
-print(res_bd['tshift_lambda'])
-print(res_bd['mu'])
-print(res_bd['tshift_mu'])
+#print(res_bd['tshift_lambda'])
+#print(res_bd['mu'])
+#print(res_bd['tshift_mu'])
 #print(res_bd['mass_ext_time'])
-print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
-print(res_bd['linear_time_lambda'])
-print(res_bd['linear_time_mu'])
-print(res_bd['cat_traits_Q'])
-print(res_bd['cat_traits_effect'])
-#print(res_bd['cont_traits_effect'])
+#print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
+#print(res_bd['linear_time_lambda'])
+#print(res_bd['linear_time_mu'])
+#print(res_bd['cat_traits_Q'])
+#print(res_bd['cat_traits_effect'])
+print(res_bd['cont_traits_effect'])
 print(res_bd['lineage_rates'][:3,:])
 print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 print(np.unique(res_bd['lineage_rates'][1:,6], return_counts = True)[1])
