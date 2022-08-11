@@ -29,7 +29,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cont_traits_cor = [-1.0, 1.0],  # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        cont_traits_effect = [0.01, 0.05], # [0.01, 0.05],
+                        cont_traits_effect = [0.001, 0.005], # [0.01, 0.05],
                         n_cat_traits = [1, 1],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
