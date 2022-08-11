@@ -13,7 +13,7 @@ import pandas as pd
 import scipy.linalg
 import random
 import string
-# np.set_printoptions(suppress = True, precision = 3)
+np.set_printoptions(suppress = True, precision = 3)
 from collections.abc import Iterable
 #from .extract_properties import *
 SMALL_NUMBER = 1e-10
@@ -550,7 +550,7 @@ class bdnn_simulator():
         eff = np.random.uniform(np.min(self.cont_traits_effect), np.max(self.cont_traits_effect), 2)
         bell_shape = np.random.choice([True, False], 2) # np.array([False, True]) works too
         effect_par[:,0] = eff
-        effect_par[:,1] = np.sqrt(root * (dT * sigma2**2))
+        effect_par[:, 1] = np.sqrt(root * sigma2**2 * self.scale) # Only correct for 1 trait
         ub = np.zeros(2) - 1.0
         ub[bell_shape] = 1.0
         effect_par[:, 2] = ub
