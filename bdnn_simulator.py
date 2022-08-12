@@ -46,7 +46,7 @@ class bdnn_simulator():
                  # overwrittes poiL and range_linL
                  fixed_Ltt = None,
                  fixed_Mtt = None, # fix extinction rate through time (see fixed Mtt)
-                 n_cont_traits = [2, 5], # number of continuous traits
+                 n_cont_traits = [0, 0], # number of continuous traits
                  cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
                  cont_traits_Theta1 = [0, 0],  # morphological optima; 0 is no directional change from the ancestral values
@@ -55,7 +55,7 @@ class bdnn_simulator():
                  cont_traits_effect_ex = np.array([[[[0., 0.]]]]), # range of effect of continuous traits on extinction (0 is no effect)
                  cont_traits_effect_bellu_sp = np.array([[[[1, -1]]]]), # whether the effect causes a bell-shape (1) or a u-shape (-1) over the trait range
                  cont_traits_effect_bellu_ex = np.array([[[[1, -1]]]]), # whether the effect causes a bell-shape (1) or a u-shape (-1) over the trait range
-                 n_cat_traits = [1, 2], # range of the number of categorical traits
+                 n_cat_traits = [0, 0], # range of the number of categorical traits
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
                  cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
@@ -152,9 +152,13 @@ class bdnn_simulator():
         # init categorical traits
         cat_traits = np.empty((root_plus_1, n_cat_traits, self.s_species))
         cat_traits[:] = np.nan
+        # init continuous traits
+        cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
+        cont_traits[:] = np.nan
 
         for i in range(self.s_species):
             #cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
+            cat_trait_yi = 0
             if n_cat_traits > 0:
                 for y in range(n_cat_traits):
                     pi = self.get_stationary_distribution(cat_traits_Q[y])
@@ -165,24 +169,21 @@ class bdnn_simulator():
                     lineage_rates[i][(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_yi
                     # lineage_rates[i][2] = L[root] * cat_trait_effect[y][0, int(cat_trait_yi)]
                     # lineage_rates[i][3] = M[root] * cat_trait_effect[y][1, int(cat_trait_yi)]
-
-        # init continuous traits
-        cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
-        cont_traits[:] = np.nan
-        if n_cont_traits > 0:
-            for i in range(self.s_species):
+            if n_cont_traits > 0:
                 Theta0 = np.zeros(n_cont_traits)
                 cont_traits_i = self.evolve_cont_traits(Theta0, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov) # from past to present
                 cont_traits[-1, :, i] = cont_traits_i
                 lineage_rates[i][5:(5 + n_cont_traits)] = cont_traits_i
+                # print('lineage_rates[i]: ', lineage_rates[i])
+                # print('current state: ', lineage_rates[i][5 + n_cont_traits])
                 lineage_rates[i][2] = self.get_rate_by_cont_trait_transformation(lineage_rates[i][2],
                                                                                  cont_traits_i,
-                                                                                 cont_trait_effect_sp[0, :, 0, :],
+                                                                                 cont_trait_effect_sp[0, :, cat_trait_yi, :],
                                                                                  expected_sd_cont_traits,
                                                                                  n_cont_traits)
                 lineage_rates[i][3] = self.get_rate_by_cont_trait_transformation(lineage_rates[i][3],
                                                                                  cont_traits_i,
-                                                                                 cont_trait_effect_ex[0, :, 0, :],
+                                                                                 cont_trait_effect_ex[0, :, cat_trait_yi, :],
                                                                                  expected_sd_cont_traits,
                                                                                  n_cont_traits)
 
@@ -242,6 +243,7 @@ class bdnn_simulator():
                 m_j = m + 0.
 
                 # categorical trait evolution
+                cat_trait_j = 0
                 if n_cat_traits > 0:
                     for y in range(n_cat_traits):
                         cat_trait_j = cat_traits[t_abs + 1, y, j] # No change along branches
@@ -256,11 +258,11 @@ class bdnn_simulator():
                     cont_traits[t_abs, :, j] = cont_trait_j
                     l_j = self.get_rate_by_cont_trait_transformation(l_j,
                                                                      cont_trait_j,
-                                                                     cont_trait_effect_sp[0, :, 0, :],
+                                                                     cont_trait_effect_sp[0, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits, n_cont_traits)
                     m_j = self.get_rate_by_cont_trait_transformation(m_j,
                                                                      cont_trait_j,
-                                                                     cont_trait_effect_ex[0, :, 0, :],
+                                                                     cont_trait_effect_ex[0, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
 
@@ -290,6 +292,7 @@ class bdnn_simulator():
                     m_new = m + 0.0
 
                     # Inherit traits
+                    cat_trait_new = 0
                     if n_cat_traits > 0:
                         cat_traits_new_species = self.empty_traits(root_plus_1, n_cat_traits)
                         # cat_traits_new_species[t_abs,] = cat_traits[t_abs,:,j] # inherit state at speciation
@@ -297,13 +300,14 @@ class bdnn_simulator():
                             # Change of categorical trait at speciation
                             ancestral_cat_trait = cat_traits[t_abs, y, j]
                             cat_trait_new = self.evolve_cat_traits_clado(cat_traits_Q[y], ancestral_cat_trait, cat_states[y])
+                            cat_trait_new = int(cat_trait_new)
                             cat_traits_new_species[t_abs, y] = cat_trait_new
                             # trait state for the just originated lineage
                             lineage_rates_tmp[(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_new
                             # trait state of the ancestral lineage
                             lineage_rates_tmp[(5 + y + n_cont_traits + n_cat_traits):(6 + y + n_cont_traits + n_cat_traits)] = ancestral_cat_trait
-                            l_new = l_new * cat_trait_effect[y][0, int(cat_trait_new)]
-                            m_new = m_new * cat_trait_effect[y][1, int(cat_trait_new)]
+                            l_new = l_new * cat_trait_effect[y][0, cat_trait_new]
+                            m_new = m_new * cat_trait_effect[y][1, cat_trait_new]
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
                     if n_cont_traits > 0:
                         cont_traits_new_species = self.empty_traits(root_plus_1, n_cont_traits)
@@ -313,12 +317,12 @@ class bdnn_simulator():
                         lineage_rates_tmp[5:(5 + n_cont_traits)] = cont_traits_at_origin
                         l_new = self.get_rate_by_cont_trait_transformation(l_new,
                                                                            cont_traits_at_origin,
-                                                                           cont_trait_effect_sp[0, :, 0, :],
+                                                                           cont_trait_effect_sp[0, :, cat_trait_new, :],
                                                                            expected_sd_cont_traits,
                                                                            n_cont_traits)
                         m_new = self.get_rate_by_cont_trait_transformation(m_new,
                                                                            cont_traits_at_origin,
-                                                                           cont_trait_effect_ex[0, :, 0, :],
+                                                                           cont_trait_effect_ex[0, :, cat_trait_new, :],
                                                                            expected_sd_cont_traits, n_cont_traits)
 
                     if n_areas > 1:
@@ -401,8 +405,12 @@ class bdnn_simulator():
             cont_traits_alpha = self.make_cont_traits_alpha(n_cont_traits, root_scaled)
             n_cat_states_sp = 1
             n_cat_states_ex = 1
+            if n_cat_traits > 0:
+                if n_cat_traits > 1 and verbose:
+                    print('State-dependent effect of continuous traits set to the states of the first categorical trait')
+                n_cat_states_sp = len(cat_states[0])
+                n_cat_states_ex = len(cat_states[0])
             n_time_bins = 1
-            # Check whether bdnn works with 0 cat_traits or if there are always > 1 ! ! !
             cont_trait_effect_sp, expected_sd_cont_traits = self.get_cont_trait_effect_parameters(root,
                                                                                                   cont_traits_varcov,
                                                                                                   n_time_bins,
@@ -620,13 +628,13 @@ class bdnn_simulator():
         # Make sure that specified effects of the continuous traits and their u/bell-shape are having the correct shape
         if (cte.shape[0] < n_time_bins) or (cte.shape[1] < n_cont_traits) or (cte.shape[2] < n_cat_states):
             if verbose:
-                print('dimensions of continuous traits effects do not match number of traits or time strata.\n'
+                print('Dimensions of continuous traits effects do not match number of traits or time strata.\n'
                       'Using instead the range of the specified values.')
             cte_range = np.array([np.min(cte), np.max(cte)])
             cte = np.tile(cte_range, n_time_bins * n_cont_traits * n_cat_states).reshape((n_time_bins, n_cont_traits, n_cat_states, 2))
         if (bellu.shape[0] < n_time_bins) or (bellu.shape[1] < n_cont_traits) or (bellu.shape[2] < n_cat_states):
             if verbose:
-                print('dimensions of continuous traits  do not match number of traits or time strata.\n'
+                print('Dimensions of continuous traits do not match number of traits or time strata.\n'
                       'Using instead the range of the specified values.')
             bellu_range = np.array([np.min(bellu), np.max(bellu)])
             bellu = np.tile(bellu_range, n_time_bins * n_cont_traits * n_cat_states).reshape((n_time_bins, n_cont_traits, n_cat_states, 2))
