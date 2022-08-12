@@ -24,12 +24,13 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         poiM = 0,  # expected number of death rate shift
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
-                        n_cont_traits = [2, 2],  # number of continuous traits
-                        cont_traits_sigma = [0.3, 0.3],  # evolutionary rates for continuous traits
-                        cont_traits_cor = [0.0, 0.0],  # evolutionary correlation between continuous traits
+                        n_cont_traits = [1, 1], # number of continuous traits
+                        cont_traits_sigma = [0.3, 0.3], # evolutionary rates for continuous traits
+                        cont_traits_cor = [0.0, 0.0], # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        cont_traits_effect = [0.01, 0.05], # [0.01, 0.05],
+                        cont_traits_effect_sp = np.array([[[[0.1, 0.2]]]]), # np.array([[0.1, 0.5]]), np.array([[0.1, 0.5], [0.0, 0.0]])
+                        cont_traits_effect_ex = np.array([[[[0.0, 0.0]]]]),
                         n_cat_traits = [1, 1],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
@@ -68,10 +69,10 @@ print(res_bd['lambda'])
 #print(res_bd['linear_time_mu'])
 #print(res_bd['cat_traits_Q'])
 #print(res_bd['cat_traits_effect'])
-print(res_bd['cont_traits_effect'])
+print(res_bd['cont_traits_effect_sp'])
 print(res_bd['lineage_rates'][:3,:])
 print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
-print(np.unique(res_bd['lineage_rates'][1:,6], return_counts = True)[1])
+# print(np.unique(res_bd['lineage_rates'][1:,6], return_counts = True)[1])
 
 # np.savetxt('/home/torsten/Work/BDNN/Biogeography.txt', res_bd['geographic_range'][:,0,:], delimiter = '\t')
 # np.nanmax(res_bd['geographic_range'][:,0,:])
