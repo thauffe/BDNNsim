@@ -168,8 +168,8 @@ class bdnn_simulator():
                 cont_traits_i = self.evolve_cont_traits(Theta0, n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov) # from past to present
                 cont_traits[-1, :, i] = cont_traits_i
                 lineage_rates[i][5:(5 + n_cont_traits)] = cont_traits_i
-                lineage_rates[i][2] = self.get_rate_by_cont_trait_transformation(lineage_rates[i][2], cont_traits_i, cont_trait_effect[0, :], expected_sd_cont_traits, n_cont_traits)
-                lineage_rates[i][3] = self.get_rate_by_cont_trait_transformation(lineage_rates[i][3], cont_traits_i, cont_trait_effect[1, :], expected_sd_cont_traits, n_cont_traits)
+                lineage_rates[i][2] = self.get_rate_by_cont_trait_transformation(lineage_rates[i][2], cont_traits_i, cont_trait_effect[:, 0, :], expected_sd_cont_traits, n_cont_traits)
+                lineage_rates[i][3] = self.get_rate_by_cont_trait_transformation(lineage_rates[i][3], cont_traits_i, cont_trait_effect[:, 1, :], expected_sd_cont_traits, n_cont_traits)
 
         # init biogeography
         biogeo = np.empty((root_plus_1, 1, self.s_species))
@@ -239,8 +239,8 @@ class bdnn_simulator():
                 if n_cont_traits > 0:
                     cont_trait_j = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov)
                     cont_traits[t_abs, :, j] = cont_trait_j
-                    l_j = self.get_rate_by_cont_trait_transformation(l_j, cont_trait_j, cont_trait_effect[0,:], expected_sd_cont_traits, n_cont_traits)
-                    m_j = self.get_rate_by_cont_trait_transformation(m_j, cont_trait_j, cont_trait_effect[1,:], expected_sd_cont_traits, n_cont_traits)
+                    l_j = self.get_rate_by_cont_trait_transformation(l_j, cont_trait_j, cont_trait_effect[:, 0, :], expected_sd_cont_traits, n_cont_traits)
+                    m_j = self.get_rate_by_cont_trait_transformation(m_j, cont_trait_j, cont_trait_effect[:, 1, :], expected_sd_cont_traits, n_cont_traits)
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -289,8 +289,8 @@ class bdnn_simulator():
                         cont_traits_new_species[t_abs,:] = cont_traits_at_origin
                         cont_traits = np.dstack((cont_traits, cont_traits_new_species))
                         lineage_rates_tmp[5:(5 + n_cont_traits)] = cont_traits_at_origin
-                        l_new = self.get_rate_by_cont_trait_transformation(l_new, cont_traits_at_origin, cont_trait_effect[0,:], expected_sd_cont_traits, n_cont_traits)
-                        m_new = self.get_rate_by_cont_trait_transformation(m_new, cont_traits_at_origin, cont_trait_effect[1,:], expected_sd_cont_traits, n_cont_traits)
+                        l_new = self.get_rate_by_cont_trait_transformation(l_new, cont_traits_at_origin, cont_trait_effect[:, 0, :], expected_sd_cont_traits, n_cont_traits)
+                        m_new = self.get_rate_by_cont_trait_transformation(m_new, cont_traits_at_origin, cont_trait_effect[:, 1, :], expected_sd_cont_traits, n_cont_traits)
 
                     if n_areas > 1:
                         biogeo_new_species = self.empty_traits(root_plus_1, 1)
@@ -548,29 +548,32 @@ class bdnn_simulator():
         else:
             trait_pdf = multivariate_normal.pdf(cont_trait_value, mean = np.zeros(n_cont_traits), cov = expected_sd)
         # Scale according to trait effect
-        cont_trait_effect = ((trait_pdf - par[1]) / (par[2] - par[1]) ) * (2*par[0]) - par[0]
-        transf_r = np.exp(np.log(r) + cont_trait_effect)
+        cont_trait_effect = ((trait_pdf - par[:, 1]) / (par[:, 2] - par[:, 1])) * (2 * par[:, 0]) - par[:, 0]
+        cont_trait_effect = np.sum(cont_trait_effect)
+        # transf_r = np.exp(np.log(r) + cont_trait_effect)
+        transf_r = r * np.exp(cont_trait_effect)
 
         return transf_r
 
 
     def get_cont_trait_effect_parameters(self, root, sigma2, n_cont_traits):
-        effect_par = np.zeros((2, 3)) # rows: sp/ext cols: trait effect, min effect, max effect
-        effect_par[:, 0] = np.random.uniform(np.min(self.cont_traits_effect), np.max(self.cont_traits_effect), 2)
+        effect_par = np.zeros((n_cont_traits, 2, 3)) # 1st axis: traits; 2nd axis: sp/ext; 3rd axis: trait effect, min effect, max effect
+        eff = np.random.uniform(np.min(self.cont_traits_effect), np.max(self.cont_traits_effect), 2 * n_cont_traits)
+        effect_par[:, :, 0] = eff.reshape((n_cont_traits, 2))
         # Expected standard deviation of traits after time = root
         if n_cont_traits == 1:
             expected_sd = np.sqrt(root * sigma2**2 * self.scale) # expected SD of traits after time = root
-            effect_par[:, 2] = norm.pdf(np.zeros(2), 0.0, expected_sd)
+            effect_par[:, :, 2] = norm.pdf(0.0, 0.0, expected_sd)
         else:
             expected_sd = root * sigma2 * self.scale
-            effect_par[:, 2] = multivariate_normal.pdf(np.zeros(n_cont_traits), mean = np.zeros(n_cont_traits), cov = expected_sd)
-        bell_shape = np.random.choice([True, False], 2)
-        ub = np.zeros(2) - 1.0
+            effect_par[:, :, 2] = multivariate_normal.pdf(np.zeros(n_cont_traits), mean = np.zeros(n_cont_traits), cov = expected_sd)
+        bell_shape = np.random.choice([True, False], 2 * n_cont_traits)
+        ub = np.zeros(2 * n_cont_traits) - 1.0
         ub[bell_shape] = 1.0
-        effect_par[:, 2] = effect_par[:, 2] * ub
-        effect_par[:, 1] = np.zeros(2)
+        effect_par[:, :, 2] = effect_par[:, :, 2] * ub.reshape((n_cont_traits, 2))
+        effect_par[:, :, 1] = np.zeros(2 * n_cont_traits).reshape((n_cont_traits, 2))
         # Sort in a way that the min is smaller than the max
-        effect_par[:,1:] = np.sort(effect_par[:,1:], axis = 1)
+        effect_par[:,:,1:] = np.sort(effect_par[:,:,1:], axis = 2)
 
         return effect_par, expected_sd
 
