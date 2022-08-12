@@ -31,7 +31,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cont_traits_alpha = [0.0, 0.0],
                         cont_traits_effect_sp = np.array([[[[0.1, 0.2]]]]), # np.array([[0.1, 0.5]]), np.array([[0.1, 0.5], [0.0, 0.0]])
                         cont_traits_effect_ex = np.array([[[[0.0, 0.0]]]]),
-                        n_cat_traits = [1, 1],
+                        n_cat_traits = [0, 0],
                         n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,

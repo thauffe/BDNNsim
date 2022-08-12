@@ -141,7 +141,7 @@ class bdnn_simulator():
             ts.append(root)
             te.append(-0.0)
             anc_desc.append(np.array([i]))
-            lineage_rates_tmp = np.zeros(5 + n_cont_traits +  2 * n_cat_traits)
+            lineage_rates_tmp = np.zeros(5 + n_cont_traits + 2 * n_cat_traits)
             lineage_rates_tmp[:] = np.nan
             lineage_rates_tmp[:5] = np.array([root, -0.0, L[root], M[root], 0.0])
             lineage_rates.append(lineage_rates_tmp)
@@ -153,17 +153,18 @@ class bdnn_simulator():
         cat_traits = np.empty((root_plus_1, n_cat_traits, self.s_species))
         cat_traits[:] = np.nan
 
-        for y in range(n_cat_traits):
+        for i in range(self.s_species):
             #cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
-            pi = self.get_stationary_distribution(cat_traits_Q[y])
-            for i in range(self.s_species):
-                cat_trait_yi = int(np.random.choice(cat_states[y], 1, p = pi))
-                cat_traits[-1,y,i] = cat_trait_yi
-                lineage_rates[i][2] = lineage_rates[i][2] * cat_trait_effect[y][0, cat_trait_yi]
-                lineage_rates[i][3] = lineage_rates[i][3] * cat_trait_effect[y][1, cat_trait_yi]
-                lineage_rates[i][(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_yi
-                lineage_rates[i][2] = L[root] * cat_trait_effect[y][0, int(cat_trait_yi)]
-                lineage_rates[i][3] = M[root] * cat_trait_effect[y][1, int(cat_trait_yi)]
+            if n_cat_traits > 0:
+                for y in range(n_cat_traits):
+                    pi = self.get_stationary_distribution(cat_traits_Q[y])
+                    cat_trait_yi = int(np.random.choice(cat_states[y], 1, p = pi))
+                    cat_traits[-1,y,i] = cat_trait_yi
+                    lineage_rates[i][2] = lineage_rates[i][2] * cat_trait_effect[y][0, cat_trait_yi]
+                    lineage_rates[i][3] = lineage_rates[i][3] * cat_trait_effect[y][1, cat_trait_yi]
+                    lineage_rates[i][(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_yi
+                    # lineage_rates[i][2] = L[root] * cat_trait_effect[y][0, int(cat_trait_yi)]
+                    # lineage_rates[i][3] = M[root] * cat_trait_effect[y][1, int(cat_trait_yi)]
 
         # init continuous traits
         cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
@@ -241,13 +242,13 @@ class bdnn_simulator():
                 m_j = m + 0.
 
                 # categorical trait evolution
-                for y in range(n_cat_traits):
-                    #cat_trait_j = self.evolve_cat_traits_ana(cat_traits_Q[y], cat_traits[t_abs + 1, y, j], ran_vec_cat_trait[j], cat_states[y])
-                    cat_trait_j = cat_traits[t_abs + 1, y, j] # No change along branches
-                    cat_trait_j = int(cat_trait_j)
-                    cat_traits[t_abs, y, j] = cat_trait_j
-                    l_j = l_j * cat_trait_effect[y][0, cat_trait_j]
-                    m_j = m_j * cat_trait_effect[y][1, cat_trait_j]
+                if n_cat_traits > 0:
+                    for y in range(n_cat_traits):
+                        cat_trait_j = cat_traits[t_abs + 1, y, j] # No change along branches
+                        cat_trait_j = int(cat_trait_j)
+                        cat_traits[t_abs, y, j] = cat_trait_j
+                        l_j = l_j * cat_trait_effect[y][0, cat_trait_j]
+                        m_j = m_j * cat_trait_effect[y][1, cat_trait_j]
 
                 # continuous trait evolution
                 if n_cont_traits > 0:
