@@ -55,6 +55,8 @@ class bdnn_simulator():
                  cont_traits_effect_ex = np.array([[[[0., 0.]]]]), # range of effect of continuous traits on extinction (0 is no effect)
                  cont_traits_effect_bellu_sp = np.array([[[[1, -1]]]]), # whether the effect causes a bell-shape (1) or a u-shape (-1) over the trait range
                  cont_traits_effect_bellu_ex = np.array([[[[1, -1]]]]), # whether the effect causes a bell-shape (1) or a u-shape (-1) over the trait range
+                 cont_traits_effect_shift_sp = None, # List with shift times
+                 cont_traits_effect_shift_ex = None,  # List with shift times
                  n_cat_traits = [0, 0], # range of the number of categorical traits
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
@@ -106,6 +108,8 @@ class bdnn_simulator():
         self.cont_traits_effect_ex = cont_traits_effect_ex
         self.cont_traits_effect_bellu_sp = cont_traits_effect_bellu_sp
         self.cont_traits_effect_bellu_ex = cont_traits_effect_bellu_ex
+        self.cont_traits_effect_shift_sp = cont_traits_effect_shift_sp
+        self.cont_traits_effect_shift_ex = cont_traits_effect_shift_ex
         self.n_cat_traits = n_cat_traits
         self.n_cat_traits_states = n_cat_traits_states
         self.cat_traits_ordinal = cat_traits_ordinal
@@ -124,7 +128,7 @@ class bdnn_simulator():
             np.random.seed(seed)
 
 
-    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation):
+    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation):
         ts = list()
         te = list()
 
@@ -256,13 +260,15 @@ class bdnn_simulator():
                 if n_cont_traits > 0:
                     cont_trait_j = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov)
                     cont_traits[t_abs, :, j] = cont_trait_j
+                    cont_traits_bin = cont_traits_effect_shift_sp[t_abs]
                     l_j = self.get_rate_by_cont_trait_transformation(l_j,
                                                                      cont_trait_j,
-                                                                     cont_trait_effect_sp[0, :, cat_trait_j, :],
+                                                                     cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits, n_cont_traits)
+                    cont_traits_bin = cont_traits_effect_shift_ex[t_abs]
                     m_j = self.get_rate_by_cont_trait_transformation(m_j,
                                                                      cont_trait_j,
-                                                                     cont_trait_effect_ex[0, :, cat_trait_j, :],
+                                                                     cont_trait_effect_ex[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
 
@@ -315,14 +321,16 @@ class bdnn_simulator():
                         cont_traits_new_species[t_abs,:] = cont_traits_at_origin
                         cont_traits = np.dstack((cont_traits, cont_traits_new_species))
                         lineage_rates_tmp[5:(5 + n_cont_traits)] = cont_traits_at_origin
+                        cont_traits_bin = cont_traits_effect_shift_sp[t_abs]
                         l_new = self.get_rate_by_cont_trait_transformation(l_new,
                                                                            cont_traits_at_origin,
-                                                                           cont_trait_effect_sp[0, :, cat_trait_new, :],
+                                                                           cont_trait_effect_sp[cont_traits_bin, :, cat_trait_new, :],
                                                                            expected_sd_cont_traits,
                                                                            n_cont_traits)
+                        cont_traits_bin = cont_traits_effect_shift_ex[t_abs]
                         m_new = self.get_rate_by_cont_trait_transformation(m_new,
                                                                            cont_traits_at_origin,
-                                                                           cont_trait_effect_ex[0, :, cat_trait_new, :],
+                                                                           cont_trait_effect_ex[cont_traits_bin, :, cat_trait_new, :],
                                                                            expected_sd_cont_traits, n_cont_traits)
 
                     if n_areas > 1:
@@ -396,9 +404,11 @@ class bdnn_simulator():
         cont_traits_varcov = []
         cont_traits_Theta1 = []
         cont_traits_alpha = []
-        cont_trait_effect_sp = []
-        cont_trait_effect_ex = []
+        cont_traits_effect_sp = []
+        cont_traits_effect_ex = []
         expected_sd_cont_traits = []
+        cont_traits_effect_shift_sp = []
+        cont_traits_effect_shift_ex = []
         if n_cont_traits > 0:
             cont_traits_varcov = self.make_cont_traits_varcov(n_cont_traits)
             cont_traits_Theta1 = self.make_cont_traits_Theta1(n_cont_traits)
@@ -410,23 +420,26 @@ class bdnn_simulator():
                     print('State-dependent effect of continuous traits set to the states of the first categorical trait')
                 n_cat_states_sp = len(cat_states[0])
                 n_cat_states_ex = len(cat_states[0])
-            n_time_bins = 1
-            cont_trait_effect_sp, expected_sd_cont_traits = self.get_cont_trait_effect_parameters(root,
-                                                                                                  cont_traits_varcov,
-                                                                                                  n_time_bins,
-                                                                                                  n_cont_traits,
-                                                                                                  n_cat_states_sp,
-                                                                                                  self.cont_traits_effect_sp,
-                                                                                                  self.cont_traits_effect_bellu_sp,
-                                                                                                  verbose)
-            cont_trait_effect_ex, _ = self.get_cont_trait_effect_parameters(root,
-                                                                            cont_traits_varcov,
-                                                                            n_time_bins,
-                                                                            n_cont_traits,
-                                                                            n_cat_states_ex,
-                                                                            self.cont_traits_effect_ex,
-                                                                            self.cont_traits_effect_bellu_ex,
-                                                                            verbose)
+            cont_traits_effect_shift_sp = self.make_cont_trait_effect_time_vec(root_scaled, self.cont_traits_effect_shift_sp)
+            cont_traits_effect_shift_ex = self.make_cont_trait_effect_time_vec(root_scaled, self.cont_traits_effect_shift_ex)
+            n_time_bins_sp = len(np.unique(cont_traits_effect_shift_sp))
+            n_time_bins_ex = len(np.unique(cont_traits_effect_shift_ex))
+            cont_traits_effect_sp, expected_sd_cont_traits = self.get_cont_trait_effect_parameters(root,
+                                                                                                   cont_traits_varcov,
+                                                                                                   n_time_bins_sp,
+                                                                                                   n_cont_traits,
+                                                                                                   n_cat_states_sp,
+                                                                                                   self.cont_traits_effect_sp,
+                                                                                                   self.cont_traits_effect_bellu_sp,
+                                                                                                   verbose)
+            cont_traits_effect_ex, _ = self.get_cont_trait_effect_parameters(root,
+                                                                             cont_traits_varcov,
+                                                                             n_time_bins_ex,
+                                                                             n_cont_traits,
+                                                                             n_cat_states_ex,
+                                                                             self.cont_traits_effect_ex,
+                                                                             self.cont_traits_effect_bellu_ex,
+                                                                             verbose)
 
         # biogeography
         n_areas = np.random.choice(np.arange(min(self.n_areas), max(self.n_areas) + 1), 1)
@@ -441,7 +454,7 @@ class bdnn_simulator():
         env_eff_sp = np.random.uniform(np.min(self.sp_env_eff), np.max(self.sp_env_eff), 1)
         env_eff_ex = np.random.uniform(np.min(self.ex_env_eff), np.max(self.ex_env_eff), 1)
 
-        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex
+        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex
 
 
     def make_shifts_birth_death(self, root_scaled, poi_shifts, range_rate):
@@ -652,6 +665,21 @@ class bdnn_simulator():
                     effect_par[i, j, k, 1:] = np.sort(effect_par[i, j, k, 1:])
 
         return effect_par, expected_sd
+
+
+    def make_cont_trait_effect_time_vec(self, root_scaled, effect_shifts):
+        time_vec = np.zeros(int(root_scaled + 1), dtype = int)
+        if effect_shifts is not None:
+            # From the past (root_scaled) to the present (0)
+            idx_time_vec = np.arange(root_scaled + 1)[::-1]
+            effect_shifts = effect_shifts * self.scale
+            shift_time = np.concatenate((np.zeros(1), effect_shifts, np.array([root_scaled])))
+            shift_time = np.sort(shift_time)[::-1]
+            for i in range(len(shift_time) - 1):
+                idx = np.logical_and(idx_time_vec < shift_time[i], idx_time_vec >= shift_time[i + 1])
+                time_vec[idx] = i
+
+        return time_vec
 
 
     def evolve_cat_traits_ana(self, Q, s, ran, cat_states):
@@ -889,7 +917,7 @@ class bdnn_simulator():
         n_extant = 0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, verbose)
+            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, verbose)
 
             L_tt, linL = self.add_linear_time_effect(L_shifts, self.range_linL, self.fixed_Ltt)
             M_tt, linM = self.add_linear_time_effect(M_shifts, self.range_linM, self.fixed_Mtt)
@@ -908,7 +936,7 @@ class bdnn_simulator():
                 ex_env_binned = get_binned_continuous_variable(ex_env, time_vec, self.scale)
                 M_tt = M_tt * np.exp(env_eff_ex * ex_env_binned)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
