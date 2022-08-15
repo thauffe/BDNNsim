@@ -10,6 +10,12 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
 #rnd_seed = 54574560
 
+# 1st time; 2nd axis: n_cont_traits; 3rd axis: n_cat_traits; 4th axis: trait effect, min effect, max effect
+cont_traits_effect_sp = np.array([[[ [0.1, 0.1], [0.3, 0.3] ]]])
+cont_traits_effect_ex = np.array([[[ [0.05, 0.05], [0.3, 0.3] ]]])
+cont_traits_effect_bellu_sp = np.array([[[ [1, 1], [-1, -1] ]]])
+cont_traits_effect_bellu_ex = np.array([[[ [1, 1], [-1, -1] ]]])
+
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
@@ -29,10 +35,12 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cont_traits_cor = [0.0, 0.0], # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
-                        cont_traits_effect_sp = np.array([[[[0.1, 0.2]]]]), # np.array([[0.1, 0.5]]), np.array([[0.1, 0.5], [0.0, 0.0]])
-                        cont_traits_effect_ex = np.array([[[[0.0, 0.0]]]]),
+                        cont_traits_effect_sp = cont_traits_effect_sp, # np.array([[0.1, 0.5]]), np.array([[0.1, 0.5], [0.0, 0.0]])
+                        cont_traits_effect_ex = cont_traits_effect_ex,
+                        cont_traits_effect_bellu_sp = cont_traits_effect_bellu_sp,
+                        cont_traits_effect_bellu_ex = cont_traits_effect_bellu_ex,
                         n_cat_traits = [1, 1],
-                        n_cat_traits_states = [3, 3], # range number of states for categorical trait
+                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_diag = 0.9,
@@ -70,8 +78,9 @@ print(res_bd['lambda'])
 #print(res_bd['cat_traits_Q'])
 #print(res_bd['cat_traits_effect'])
 print(res_bd['cont_traits_effect_sp'])
-print(res_bd['lineage_rates'][:3,:])
-print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
+print(res_bd['cont_traits_effect_ex'])
+#print(res_bd['lineage_rates'][:3,:])
+#print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 # print(np.unique(res_bd['lineage_rates'][1:,6], return_counts = True)[1])
 
 # np.savetxt('/home/torsten/Work/BDNN/Biogeography.txt', res_bd['geographic_range'][:,0,:], delimiter = '\t')
