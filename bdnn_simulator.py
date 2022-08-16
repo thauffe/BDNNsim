@@ -271,11 +271,14 @@ class bdnn_simulator():
                                                                      cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits, n_cont_traits)
                     cont_traits_bin = cont_traits_effect_shift_ex[t_abs]
+                    # print('t: ', t_abs)
+                    # print('old mu: ', m_j * self.scale)
                     m_j = self.get_rate_by_cont_trait_transformation(m_j,
                                                                      cont_trait_j,
                                                                      cont_trait_effect_ex[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
+                    # print('updated mu: ', m_j * self.scale)
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -354,6 +357,9 @@ class bdnn_simulator():
                 elif ran > l_j and ran < (l_j + m_j):
                     te[j] = t
                     lineage_rates[j][1] = t
+                    lineage_rates[j][3] = m_j # Extinction rate at extinction time
+                    if n_cont_traits > 0:
+                        lineage_rates[j][5:(5 + n_cont_traits)] = cont_trait_j
 
             if t != -1:
                 lineage_weighted_lambda_tt[t_abs-1] = self.get_harmonic_mean(lineage_lambda)
