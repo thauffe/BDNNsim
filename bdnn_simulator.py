@@ -145,7 +145,7 @@ class bdnn_simulator():
             ts.append(root)
             te.append(-0.0)
             anc_desc.append(np.array([i]))
-            lineage_rates_tmp = np.zeros(5 + n_cont_traits + 2 * n_cat_traits)
+            lineage_rates_tmp = np.zeros(5 + 2 * n_cont_traits + 2 * n_cat_traits)
             lineage_rates_tmp[:] = np.nan
             lineage_rates_tmp[:5] = np.array([root, -0.0, L[root], M[root], 0.0])
             lineage_rates.append(lineage_rates_tmp)
@@ -170,7 +170,7 @@ class bdnn_simulator():
                     cat_traits[-1,y,i] = cat_trait_yi
                     lineage_rates[i][2] = lineage_rates[i][2] * cat_trait_effect[y][0, cat_trait_yi]
                     lineage_rates[i][3] = lineage_rates[i][3] * cat_trait_effect[y][1, cat_trait_yi]
-                    lineage_rates[i][(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_yi
+                    lineage_rates[i][(5 + 2 * n_cont_traits + y):(6 + 2 * n_cont_traits + y)] = cat_trait_yi
                     # lineage_rates[i][2] = L[root] * cat_trait_effect[y][0, int(cat_trait_yi)]
                     # lineage_rates[i][3] = M[root] * cat_trait_effect[y][1, int(cat_trait_yi)]
             if n_cont_traits > 0:
@@ -191,7 +191,7 @@ class bdnn_simulator():
                                                                                  expected_sd_cont_traits,
                                                                                  n_cont_traits)
 
-        # init biogeography
+                # init biogeography
         biogeo = np.empty((root_plus_1, 1, self.s_species))
         biogeo[:] = np.nan
         biogeo[-1,:,:] = np.random.choice(np.arange(n_areas + 1), self.s_species)
@@ -213,7 +213,7 @@ class bdnn_simulator():
             # time i.e. integers self.root * self.scale
             # t = 0 not simulated!
             t_abs = abs(t)
-            # print('t_abs', t_abs)
+            # print('t: ', t)
             l = L[t]
             m = M[t]
 
@@ -261,24 +261,16 @@ class bdnn_simulator():
                     cont_trait_j = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov)
                     cont_traits[t_abs, :, j] = cont_trait_j
                     cont_traits_bin = cont_traits_effect_shift_sp[t_abs]
-                    # if j == 0:
-                    #     # print('state: ', cat_trait_j)
-                    #     print('t: ', t_abs)
-                    #     print('cont_traits_bin: ', cont_traits_bin)
-                    #     print(cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :])
                     l_j = self.get_rate_by_cont_trait_transformation(l_j,
                                                                      cont_trait_j,
                                                                      cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits, n_cont_traits)
                     cont_traits_bin = cont_traits_effect_shift_ex[t_abs]
-                    # print('t: ', t_abs)
-                    # print('old mu: ', m_j * self.scale)
                     m_j = self.get_rate_by_cont_trait_transformation(m_j,
                                                                      cont_trait_j,
                                                                      cont_trait_effect_ex[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
-                    # print('updated mu: ', m_j * self.scale)
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -291,17 +283,19 @@ class bdnn_simulator():
                     #     m_j = m_j * DEC_clado_weight
 
                 ran = ran_vec[j]
+
                 # speciation
                 if ran < l_j:
                     te.append(-0.0)  # add species
                     ts.append(t)  # sp time
 
+                    # Keep track of ancestor-descendent relationship - double-check this!
                     desc = np.array([len(ts)])
                     anc_desc[j] = np.concatenate((anc_desc[j], desc))
                     anc = np.random.choice(anc_desc[j], 1)  # If a lineage already has multiple descendents
                     anc_desc.append(anc)
 
-                    lineage_rates_tmp = np.zeros(5 + n_cont_traits + 2 * n_cat_traits)
+                    lineage_rates_tmp = np.zeros(5 + 2 * n_cont_traits + 2 * n_cat_traits)
                     l_new = l + 0.0
                     m_new = m + 0.0
 
@@ -317,9 +311,9 @@ class bdnn_simulator():
                             cat_trait_new = int(cat_trait_new)
                             cat_traits_new_species[t_abs, y] = cat_trait_new
                             # trait state for the just originated lineage
-                            lineage_rates_tmp[(5 + y + n_cont_traits):(6 + y + n_cont_traits)] = cat_trait_new
+                            lineage_rates_tmp[(5 + 2 * n_cont_traits + y):(6 + 2 * n_cont_traits + y)] = cat_trait_new
                             # trait state of the ancestral lineage
-                            lineage_rates_tmp[(5 + y + n_cont_traits + n_cat_traits):(6 + y + n_cont_traits + n_cat_traits)] = ancestral_cat_trait
+                            lineage_rates_tmp[(5 + 2 * n_cont_traits + y + n_cat_traits):(6 + 2 * n_cont_traits + y + n_cat_traits)] = ancestral_cat_trait
                             l_new = l_new * cat_trait_effect[y][0, cat_trait_new]
                             m_new = m_new * cat_trait_effect[y][1, cat_trait_new]
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
@@ -340,7 +334,6 @@ class bdnn_simulator():
                                                                            cont_traits_at_origin,
                                                                            cont_trait_effect_ex[cont_traits_bin, :, cat_trait_new, :],
                                                                            expected_sd_cont_traits, n_cont_traits)
-
                     if n_areas > 1:
                         biogeo_new_species = self.empty_traits(root_plus_1, 1)
                         # biogeo_at_origin = biogeo[t_abs, :, j]
@@ -354,12 +347,13 @@ class bdnn_simulator():
                     lineage_rates.append(lineage_rates_tmp)
 
                 # extinction
-                elif ran > l_j and ran < (l_j + m_j):
-                    te[j] = t
-                    lineage_rates[j][1] = t
-                    lineage_rates[j][3] = m_j # Extinction rate at extinction time
+                if (ran > l_j and ran < (l_j + m_j) ) or t == -1:
+                    if t != -1:
+                        te[j] = t
+                        lineage_rates[j][1] = t
+                    lineage_rates[j][3] = m_j # Extinction rate at extinction time (or present for extant species)
                     if n_cont_traits > 0:
-                        lineage_rates[j][5:(5 + n_cont_traits)] = cont_trait_j
+                        lineage_rates[j][(5 + n_cont_traits):(5 + 2 * n_cont_traits)] = cont_trait_j
 
             if t != -1:
                 lineage_weighted_lambda_tt[t_abs-1] = self.get_harmonic_mean(lineage_lambda)
@@ -481,7 +475,7 @@ class bdnn_simulator():
         # Number of rate shifts expected according to a Poisson distribution
         n_shifts = np.random.poisson(poi_shifts)
         R = np.random.uniform(np.min(range_rate), np.max(range_rate), n_shifts + 1)
-        R = R  / self.scale
+        R = R / self.scale
         # random shift times
         shift_time_R = np.random.uniform(0, root_scaled, n_shifts)
         timesR = np.sort(np.concatenate((timesR_temp, shift_time_R), axis = 0))[::-1]
@@ -489,7 +483,7 @@ class bdnn_simulator():
         R_tt = np.zeros(root_scaled, dtype = 'float')
         idx_time_vec = np.arange(root_scaled)[::-1]
         for i in range(n_shifts + 1):
-            Ridx = np.logical_and(idx_time_vec <= timesR[i], idx_time_vec > timesR[i + 1])
+            Ridx = np.logical_and(idx_time_vec < timesR[i], idx_time_vec >= timesR[i + 1])
             R_tt[Ridx] = R[i]
 
         return R_tt, R, timesR
@@ -1303,7 +1297,9 @@ class write_PyRate_files():
         if res_bd['cont_traits'] is not None:
             n_cont_traits = res_bd['cont_traits'].shape[1]
             for y in range(n_cont_traits):
-                colnames.append('cont_trait_%s' % y)
+                colnames.append('cont_trait_ts_%s' % y)
+            for y in range(n_cont_traits):
+                colnames.append('cont_trait_te_%s' % y)
         if res_bd['cat_traits'] is not None:
             n_cat_traits = res_bd['cat_traits'].shape[1]
             for y in range(n_cat_traits):
