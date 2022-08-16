@@ -57,8 +57,8 @@ class bdnn_simulator():
                  cont_traits_effect_bellu_ex = np.array([[[[1, -1]]]]), # 4D array; whether the effect causes a bell-shape (1) or a u-shape (-1) over the trait range
                  cont_traits_effect_optimum_sp = np.array([[[[0., 0.]]]]), # 3D array
                  cont_traits_effect_optimum_ex = np.array([[[[0., 0.]]]]), # 3D array
-                 cont_traits_effect_shift_sp = None, # List with shift times
-                 cont_traits_effect_shift_ex = None,  # List with shift times
+                 cont_traits_effect_shift_sp = None, # 1D numpy array with shift times
+                 cont_traits_effect_shift_ex = None,  # 1D numpy array with shift times
                  n_cat_traits = [0, 0], # range of the number of categorical traits
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
                  cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
@@ -261,8 +261,11 @@ class bdnn_simulator():
                     cont_trait_j = self.evolve_cont_traits(cont_traits[t_abs + 1, :, j], n_cont_traits, cont_traits_alpha, cont_traits_Theta1, cont_traits_varcov)
                     cont_traits[t_abs, :, j] = cont_trait_j
                     cont_traits_bin = cont_traits_effect_shift_sp[t_abs]
-                    # print('state: ', cat_trait_j)
-                    # print(cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :])
+                    # if j == 0:
+                    #     # print('state: ', cat_trait_j)
+                    #     print('t: ', t_abs)
+                    #     print('cont_traits_bin: ', cont_traits_bin)
+                    #     print(cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :])
                     l_j = self.get_rate_by_cont_trait_transformation(l_j,
                                                                      cont_trait_j,
                                                                      cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :],
@@ -423,6 +426,8 @@ class bdnn_simulator():
                 n_cat_states_sp = len(cat_states[0])
                 n_cat_states_ex = len(cat_states[0])
             cont_traits_effect_shift_sp = self.make_cont_trait_effect_time_vec(root_scaled, self.cont_traits_effect_shift_sp)
+            # print('cont_traits_effect_shift_sp: ', cont_traits_effect_shift_sp)
+            # print(np.unique(cont_traits_effect_shift_sp, return_counts = True) )
             cont_traits_effect_shift_ex = self.make_cont_trait_effect_time_vec(root_scaled, self.cont_traits_effect_shift_ex)
             n_time_bins_sp = len(np.unique(cont_traits_effect_shift_sp))
             n_time_bins_ex = len(np.unique(cont_traits_effect_shift_ex))
@@ -709,7 +714,7 @@ class bdnn_simulator():
                 idx = np.logical_and(idx_time_vec < shift_time[i], idx_time_vec >= shift_time[i + 1])
                 time_vec[idx] = i
 
-        return time_vec
+        return time_vec[::-1]
 
 
     def evolve_cat_traits_ana(self, Q, s, ran, cat_states):
@@ -1002,6 +1007,8 @@ class bdnn_simulator():
                   'cont_traits_alpha': cont_traits_alpha,
                   'cont_traits_effect_sp': cont_traits_effect_sp,
                   'cont_traits_effect_ex': cont_traits_effect_ex,
+                  'cont_traits_effect_shift_sp': cont_traits_effect_shift_sp,
+                  'cont_traits_effect_shift_ex': cont_traits_effect_shift_ex,
                   'cat_traits_Q': cat_traits_Q,
                   'cat_traits_effect': cat_traits_effect,
                   'geographic_range': biogeo,
