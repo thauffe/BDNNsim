@@ -663,19 +663,22 @@ class bdnn_simulator():
             if verbose:
                 print('Dimensions of continuous traits effects do not match number of traits or time strata.\n'
                       'Using instead the range of the specified values.')
-            cte_range = np.array([np.min(cte), np.max(cte)])
+            #cte_range = np.array([np.min(cte), np.max(cte)])
+            cte_range = np.repeat(np.random.uniform(np.min(cte), np.max(cte), 1), 2)
             cte = np.tile(cte_range, n_time_bins * n_cont_traits * n_cat_states).reshape((n_time_bins, n_cont_traits, n_cat_states, 2))
         if (bellu.shape[0] < n_time_bins) or (bellu.shape[1] < n_cont_traits) or (bellu.shape[2] < n_cat_states):
             if verbose:
                 print('Dimensions of continuous traits bell/u-shape do not match number of traits or time strata.\n'
                       'Using instead the range of the specified values.')
-            bellu_range = np.array([np.min(bellu), np.max(bellu)])
+            #bellu_range = np.array([np.min(bellu), np.max(bellu)])
+            bellu_range = np.repeat(np.random.choice( np.array([np.min(bellu), np.max(bellu)]) , 1), 2)
             bellu = np.tile(bellu_range, n_time_bins * n_cont_traits * n_cat_states).reshape((n_time_bins, n_cont_traits, n_cat_states, 2))
         if (opt.shape[0] < n_time_bins) or (opt.shape[1] < n_cont_traits) or (opt.shape[2] < n_cat_states):
             if verbose:
                 print('Dimensions of continuous traits optimum do not match number of traits or time strata.\n'
                       'Using instead the range of the specified values.')
-            opt_range = np.array([np.min(opt), np.max(opt)])
+            #opt_range = np.array([np.min(opt), np.max(opt)])
+            opt_range = np.repeat(np.random.uniform(np.min(opt), np.max(opt), 1), 2)
             opt = np.tile(opt_range, n_time_bins * n_cont_traits * n_cat_states).reshape((n_time_bins, n_cont_traits, n_cat_states, 2))
         # Fill array for parameterizing continuous trait effects
         for i in range(n_time_bins):

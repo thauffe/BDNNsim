@@ -8,7 +8,6 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
-rnd_seed = 5061770 # Taxon 156 with weird trait == 0 at present in lineage_rates
 
 # State-independent effect of a single continuous traits
 ########################################################
@@ -16,12 +15,12 @@ n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 # 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_traits; 4th axis: trait effect, min effect, max effect
-cont_traits_effect_sp = np.array([[[ [0.3, 0.3] ]]])
-cont_traits_effect_ex = np.array([[[ [0.3, 0.3] ]]])
-cont_traits_effect_bellu_sp = np.array([[[ [1, 1] ]]])
-cont_traits_effect_bellu_ex = np.array([[[ [1, 1] ]]])
+cont_traits_effect_sp = np.array([[[ [0.5, 0.5] ]]])
+cont_traits_effect_ex = np.array([[[ [0.5, 0.5] ]]])
+cont_traits_effect_bellu_sp = np.array([[[ [-1, 1] ]]])
+cont_traits_effect_bellu_ex = np.array([[[ [-1, 1] ]]])
 cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0] ]]])
-cont_traits_effect_optimum_ex = np.array([[[ [2.0, 2.0] ]]])
+cont_traits_effect_optimum_ex = np.array([[[ [0.0, 0.0] ]]])
 cont_traits_effect_shift_sp = None
 cont_traits_effect_shift_ex = None
 
@@ -31,7 +30,7 @@ n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 # 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_traits; 4th axis: trait effect, min effect, max effect
-cont_traits_effect_sp = np.array([[[ [0.1, 0.1], [0.3, 0.3] ]]])
+cont_traits_effect_sp = np.array([[[ [0.2, 0.3], [0.1, 0.2] ]]])
 cont_traits_effect_ex = np.array([[[ [0.05, 0.05], [0.3, 0.3] ]]])
 cont_traits_effect_bellu_sp = np.array([[[ [1, 1], [-1, -1] ]]])
 cont_traits_effect_bellu_ex = np.array([[[ [1, 1], [-1, -1] ]]])
@@ -40,15 +39,39 @@ cont_traits_effect_optimum_ex = np.array([[[ [2.0, 2.0], [0.0, 0.0] ]]])
 cont_traits_effect_shift_sp = None
 cont_traits_effect_shift_ex = None
 
-# Time-dependence of a single continuous trait
-##############################################
+# Time-dependence of a single continuous trait (without categorical trait)
+##########################################################################
+n_cont_traits = [1, 1] # Range of number of continuous traits
+n_cat_traits = [0, 0] # Range of number of categorical traits
+n_cat_traits_states = [2, 2] # States for categorical traits
+cont_traits_effect_sp = np.array([ [[[0.2, 0.3]]],
+                                   [[[0.1, 0.2]]] ])
+cont_traits_effect_ex = np.array([ [[[0.03, 0.03]]],
+                                   [[[0.03, 0.03]]] ])
+cont_traits_effect_bellu_sp = np.array([ [[[1, 1]]],
+                                         [[[-1, -1]]] ])
+cont_traits_effect_bellu_ex = np.array([ [[[-1, -1]]],
+                                         [[[1, 1]]] ])
+cont_traits_effect_optimum_sp = np.array([ [[[0, 0]]],
+                                           [[[0, 0]]] ])
+cont_traits_effect_optimum_ex = np.array([ [[[0, 0]]],
+                                           [[[0, 0]]] ])
+cont_traits_effect_shift_sp = np.array([15.0])
+cont_traits_effect_shift_ex = np.array([15.0])
+
+# Time-dependence of a single continuous trait (with categorical trait)
+#######################################################################
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
-cont_traits_effect_sp = np.array([ [[[0.03, 0.03]]], [[[0.01, 0.01]]] ])
-cont_traits_effect_ex = np.array([ [[[0.03, 0.03]]], [[[0.03, 0.03]]] ])
-cont_traits_effect_bellu_sp = np.array([ [[[1, 1]]], [[[-1, -1]]] ])
-cont_traits_effect_bellu_ex = np.array([ [[[-1, -1]]], [[[1, 1]]] ])
+cont_traits_effect_sp = np.array([ [[ [0.2, 0.3], [0.2, 0.3] ]],
+                                   [[ [0.1, 0.2], [0.1, 0.2]] ] ])
+cont_traits_effect_ex = np.array([ [[ [0.1, 0.2], [0.1, 0.2] ]],
+                                   [[ [0.2, 0.3], [0.2, 0.3]] ] ])
+cont_traits_effect_bellu_sp = np.array([ [[ [ 1,  1], [-1, -1] ]],
+                                         [[ [-1, -1], [ 1,  1] ]] ])
+cont_traits_effect_bellu_ex = np.array([ [[ [-1, -1], [ 1,  1] ]],
+                                         [[ [ 1,  1], [-1, -1] ]] ])
 cont_traits_effect_optimum_sp = np.array([ [[[0, 0]]], [[[0, 0]]] ])
 cont_traits_effect_optimum_ex = np.array([ [[[0, 0]]], [[[0, 0]]] ])
 cont_traits_effect_shift_sp = np.array([15.0])
@@ -138,8 +161,6 @@ print(res_bd['cont_traits_effect_sp'])
 print(res_bd['cont_traits_effect_ex'])
 # print(res_bd['lineage_rates'][:3,:])
 #  print(res_bd['cont_traits'])
-a = res_bd['cont_traits'][:,:,156]
-a[np.isnan(a) == False]
 #print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 # print(np.unique(res_bd['lineage_rates'][1:,6], return_counts = True)[1])
 
