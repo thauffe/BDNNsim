@@ -1012,6 +1012,7 @@ class bdnn_simulator():
                   'cont_traits_effect_ex': cont_traits_effect_ex,
                   'cont_traits_effect_shift_sp': cont_traits_effect_shift_sp,
                   'cont_traits_effect_shift_ex': cont_traits_effect_shift_ex,
+                  'expected_sd_cont_traits': expected_sd_cont_traits,
                   'cat_traits_Q': cat_traits_Q,
                   'cat_traits_effect': cat_traits_effect,
                   'geographic_range': biogeo,
@@ -1316,6 +1317,44 @@ class write_PyRate_files():
         df.to_csv(file, header = True, sep = '\t', index = False, na_rep = 'NA')
 
 
+    def expand_grid(self, x, y, z):
+        xG, yG, zG = np.meshgrid(x, y, z)  # create the actual grid
+        xG = xG.flatten()  # make the grid 1d
+        yG = yG.flatten()
+        zG = zG.flatten()
+        gr = np.stack((xG, yG, zG), axis = 1)
+        return gr
+
+
+    def write_cont_trait_effects(self, res_bd, name_file):
+        cte_sp = res_bd['cont_traits_effect_sp']
+        cte_ex = res_bd['cont_traits_effect_ex']
+        # Probably there is something easier like cte_sp.flatten().reshape((, 5))
+        if len(cte_sp) > 0:
+            n_time_bins, n_cont_traits, n_cat_states, n_par = cte_sp.shape
+            time_bins = np.arange(n_time_bins)
+            cont_traits = np.arange(n_cont_traits)
+            cat_states = np.arange(n_cat_states)
+            gr = self.expand_grid(time_bins, cont_traits, cat_states)
+            n_comb = gr.shape[0]
+            # trait effect for all combinations of time bins, cont traits, and states
+            cte = np.zeros(2 * n_comb * (4 + n_par)).reshape((2 * n_comb, 4 + n_par))
+            cte[:n_comb, 1:4] = gr
+            cte[n_comb:, 1:4] = gr
+            cte[n_comb:, 0] = 1.0 # denotes extinction
+            for h in range(gr.shape[0]):
+                i, j, k = gr[h, :]
+                cte[h, 4:] = cte_sp[i, j, k,:]
+                cte[n_comb + h, 4:] = cte_ex[i, j, k, :]
+            cte_df = pd.DataFrame(data = cte,
+                                  columns = ['extinction', 'time_bin', 'trait', 'state',
+                                             'magnitude', 'bell_or_u', 'min_pdf', 'max_pdf', 'optimum'])
+            cont_trait_effect_name = "%s/%s/%s_cont_trait_effect.csv" % (self.output_wd, name_file, name_file)
+            cte_df.to_csv(cont_trait_effect_name, header = True, sep = '\t', index = False, na_rep = 'NA')
+            sd_traits_name = "%s/%s/%s_expected_sd_cont_traits.csv" % (self.output_wd, name_file, name_file)
+            np.savetxt(sd_traits_name, res_bd['expected_sd_cont_traits'], delimiter='\t')
+
+
     def bin_and_write_env(self, env_var, env_file_name):
         max_age_env = np.max(env_var[:, 0])
         time_vec = np.arange(0, max_age_env + self.delta_time, self.delta_time)
@@ -1385,6 +1424,8 @@ class write_PyRate_files():
         self.bin_and_write_env(res_bd['sp_env'], env_sp_name)
         env_ex_name = "%s/%s/%s_env_ex.csv" % (self.output_wd, name_file, name_file)
         self.bin_and_write_env(res_bd['ex_env'], env_ex_name)
+
+        self.write_cont_trait_effects(res_bd, name_file)
 
         return name_file
 
