@@ -10,16 +10,17 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
 
 
+
 # State-independent effect of a single continuous traits
 ########################################################
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 # 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_traits; 4th axis: trait effect, min effect, max effect
-cont_traits_effect_sp = np.array([[[ [2.0, 2.0] ]]])
-cont_traits_effect_ex = np.array([[[ [2.0, 2.0] ]]])
+cont_traits_effect_sp = np.array([[[ [3.0, 3.0] ]]])
+cont_traits_effect_ex = np.array([[[ [3.0, 3.0] ]]])
 cont_traits_effect_bellu_sp = np.array([[[ [1, 1] ]]])
-cont_traits_effect_bellu_ex = np.array([[[ [1, 1] ]]])
+cont_traits_effect_bellu_ex = np.array([[[ [-1, -1] ]]])
 cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0] ]]])
 cont_traits_effect_optimum_ex = np.array([[[ [0.0, 0.0] ]]])
 cont_traits_effect_shift_sp = None
@@ -31,8 +32,8 @@ n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 # 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_states; 4th axis: trait effect, min effect, max effect
-cont_traits_effect_sp = np.array([[[ [1.0, 1.0], [1.0, 1.0] ]]])
-cont_traits_effect_ex = np.array([[[ [1.0, 1.0], [1.0, 1.0] ]]])
+cont_traits_effect_sp = np.array([[[ [3.0, 3.0], [3.0, 3.0] ]]])
+cont_traits_effect_ex = np.array([[[ [3.0, 3.0], [3.0, 3.0] ]]])
 cont_traits_effect_bellu_sp = np.array([[[ [1, 1], [-1, -1] ]]])
 cont_traits_effect_bellu_ex = np.array([[[ [1, 1], [-1, -1] ]]])
 cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0], [0.0, 0.0] ]]])
@@ -65,14 +66,14 @@ cont_traits_effect_shift_ex = np.array([15.0])
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
-cont_traits_effect_sp = np.array([ [[ [1.0, 1.0], [1.0, 1.0] ]],
-                                   [[ [0.0, 0.0], [0.0, 0.0]] ] ])
-cont_traits_effect_ex = np.array([ [[ [1.0, 1.0], [1.0, 1.0] ]],
-                                   [[ [0.0, 0.0], [0.0, 0.0]] ] ])
+cont_traits_effect_sp = np.array([ [[ [0.00001, 0.00001], [0.00001, 0.00001] ]],
+                                   [[ [3.0, 3.0], [3.0, 3.0]] ] ])
+cont_traits_effect_ex = np.array([ [[ [0.00001, 0.00001], [0.00001, 0.00001] ]],
+                                   [[ [3.0, 3.0], [3.0, 3.0]] ] ])
 cont_traits_effect_bellu_sp = np.array([ [[ [ 1,  1], [ 1,  1] ]],
                                          [[ [ 1,  1], [ 1,  1] ]] ])
 cont_traits_effect_bellu_ex = np.array([ [[ [ 1,  1], [ 1,  1] ]],
-                                         [[ [ 1,  1], [ 1,  1] ]] ])
+                                         [[ [ -1,  -1], [ -1,  -1] ]] ])
 cont_traits_effect_optimum_sp = np.array([ [[[0, 0]]] ])
 cont_traits_effect_optimum_ex = np.array([ [[[0, 0]]] ])
 cont_traits_effect_shift_sp = np.array([15.0])
@@ -81,10 +82,12 @@ cont_traits_effect_shift_ex = np.array([15.0])
 # Time-dependence of a single continuous trait plus the influence of a categorical trait
 ########################################################################################
 n_cont_traits = [1, 1] # Range of number of continuous traits
-n_cat_traits = [0, 0] # Range of number of categorical traits
+n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
-cont_traits_effect_sp = np.array([ [[ [0.2, 0.3], [0.2, 0.3] ]],
-                                   [[ [0.1, 0.2], [0.1, 0.2] ]] ])
+cont_traits_effect_sp = np.array([ # Time bin 1
+                                   [[ [0.2, 0.3], [0.2, 0.3] ]],   # Trait 1 State 1 & 2
+                                   # Time bin 2
+                                   [[ [0.1, 0.2], [0.1, 0.2] ]] ]) # Trait 1 State 1 & 2
 cont_traits_effect_ex = np.array([ [[ [0.1, 0.2], [0.1, 0.2] ]],
                                    [[ [0.2, 0.3], [0.2, 0.3] ]] ])
 cont_traits_effect_bellu_sp = np.array([ [[ [ 1,  1], [-1, -1] ]],
@@ -141,11 +144,11 @@ n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 cont_traits_effect_sp = np.array([
                                  # Time bin 1
-                                 [ [[0.20, 0.20], [0.20, 0.20]],   # Trait 1 State 1 & 2
-                                   [[0.15, 0.15], [0.15, 0.15]] ], # Trait 2 State 1 & 2
+                                 [ [[0.30, 0.30], [0.30, 0.30]],   # Trait 1 State 1 & 2
+                                   [[0.00, 0.00], [0.00, 0.00]] ], # Trait 2 State 1 & 2
                                  # Time bin 2
-                                 [ [[0.10, 0.10], [0.10, 0.10]],   # Trait 1 State 1 & 2
-                                   [[0.05, 0.05], [0.05, 0.05]] ]  # Trait 2 State 1 & 2
+                                 [ [[0.15, 0.15], [0.15, 0.15]],   # Trait 1 State 1 & 2
+                                   [[0.03, 0.03], [0.03, 0.03]] ]  # Trait 2 State 1 & 2
                                  ])
 cont_traits_effect_ex = np.array([[[[0.0, 0.0]]]])
 cont_traits_effect_bellu_sp = np.array([
@@ -157,7 +160,14 @@ cont_traits_effect_bellu_sp = np.array([
                                    [[-1, -1], [ 1,  1]] ]  # Trait 2 State 1 & 2
                                  ])
 cont_traits_effect_bellu_ex = np.array([ [[[1, 1]]] ])
-cont_traits_effect_optimum_sp = np.array([ [[[0, 0]]] ])
+cont_traits_effect_optimum_sp = np.array([
+                                 # Time bin 1
+                                 [ [[ 0,  0], [ 2,  2]],   # Trait 1 State 1 & 2
+                                   [[ 0,  0], [ 2,  2]] ], # Trait 2 State 1 & 2
+                                 # Time bin 2
+                                 [ [[ 0,  0], [ 2,  2]],   # Trait 1 State 1 & 2
+                                   [[ 0,  0], [ 2,  2]] ]  # Trait 2 State 1 & 2
+                                 ])
 cont_traits_effect_optimum_ex = np.array([ [[[0, 0]]] ])
 cont_traits_effect_shift_sp = np.array([15.0])
 cont_traits_effect_shift_ex = np.array([15.0])
@@ -249,16 +259,23 @@ print(sim_fossil['alpha'])
 # Write input files for PyRate analysis
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 
-PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                              '/home/torsten/Work/BDNN/%s/%s.py' % (name_file, name_file),
                              #sampl,
                              #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
-                             '-A 4',
+                             '-A', '4',
+                             '-mHPP',
+                             #'-mG',
                              #'-FBDrange 3',
-                             '-mG', '-n 200001', '-s 5000', '-p 100000'])
+                             '-n', '20001', '-s', '1000', '-p', '10000'])
 
-PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                              '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b 10'])
+RJMCMC_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
+                              '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b', '10'])
+
+
+
+
+
 
 
 write_FBD = write_FBD_files(output_wd = '/home/torsten/Work/BDNN',

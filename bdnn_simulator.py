@@ -51,8 +51,8 @@ class bdnn_simulator():
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
                  cont_traits_Theta1 = [0, 0],  # morphological optima; 0 is no directional change from the ancestral values
                  cont_traits_alpha = [0, 0],  # strength of attraction towards Theta1; 0 is pure Brownian motion; [0.5, 2.0] is sensible
-                 cont_traits_effect_sp = np.array([[[[0., 0.]]]]), # 4D array; range of effect of continuous traits on speciation (0 is no effect)
-                 cont_traits_effect_ex = np.array([[[[0., 0.]]]]), # 4D array; range of effect of continuous traits on extinction (0 is no effect)
+                 cont_traits_effect_sp = np.array([[[[SMALL_NUMBER, SMALL_NUMBER]]]]), # 4D array; range of effect of continuous traits on speciation (0 is no effect)
+                 cont_traits_effect_ex = np.array([[[[SMALL_NUMBER, SMALL_NUMBER]]]]), # 4D array; range of effect of continuous traits on extinction (0 is no effect)
                  cont_traits_effect_bellu_sp = np.array([[[[1, -1]]]]), # 4D array; whether the effect causes a bell-shape (1) or a u-shape (-1) over the trait range
                  cont_traits_effect_bellu_ex = np.array([[[[1, -1]]]]), # 4D array; whether the effect causes a bell-shape (1) or a u-shape (-1) over the trait range
                  cont_traits_effect_optimum_sp = np.array([[[[0., 0.]]]]), # 3D array
@@ -631,18 +631,24 @@ class bdnn_simulator():
         if n_cont_traits == 1:
             # print('cont_trait_value:' , cont_trait_value)
             # print('expected_sd[0]: ', expected_sd[0])
-            trait_pdf = norm.pdf(cont_trait_value, par[0, 4], expected_sd[0])[0]
+            trait_pdf = norm.pdf(cont_trait_value, par[0, 4], par[:, 0] * expected_sd[0])[0]
         else:
+            # How to scale the multivariate SD by the effect? Only the diagonals and then make it positive definite again?
             trait_pdf = multivariate_normal.pdf(cont_trait_value,
                                                 mean = par[:, 4],
                                                 cov = expected_sd)
-        # Scale according to trait effect
-        # ((trait_pdf - MinPDF) / (MaxPDF - MinPDF) ) * (2 * Effect) - Effect
-        cont_trait_effect = ((par[:, 1] * trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])) * (2 * par[:, 0]) - par[:, 0]
-        cont_trait_effect = np.sum(cont_trait_effect)
-        transf_r = r * np.exp(cont_trait_effect)
+        # Scale according to trait effect: ((bellu * trait_pdf - MinPDF) / (MaxPDF - MinPDF) ) * (2 * Effect) - Effect
+        # cont_trait_effect = ((par[:, 1] * trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])) * (2 * par[:, 0]) - par[:, 0]
+        # cont_trait_effect = np.sum(cont_trait_effect)
+        # transf_r = r * np.exp(cont_trait_effect)
+        scaled_trait_pdf = (trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])
+        # rate * +/- f(delta, v)
+        r_ushape = 0
+        if par[:, 1] == -1:
+            r_ushape = r
+        transf_r = r * par[:, 1] * scaled_trait_pdf + r_ushape
 
-        return transf_r
+        return transf_r[0]
 
 
     def get_cont_trait_effect_parameters(self, root, sigma2, n_time_bins, n_cont_traits, n_cat_states, cte, bellu, opt, verbose):
@@ -659,6 +665,7 @@ class bdnn_simulator():
         # print('n_time_bins: ', n_time_bins, opt.shape[0])
         # print('n_cont_traits: ', n_cont_traits, opt.shape[1])
         # print('n_cat_states: ', n_cat_states, opt.shape[2])
+        cte = 1.0 / cte
         if (cte.shape[0] < n_time_bins) or (cte.shape[1] < n_cont_traits) or (cte.shape[2] < n_cat_states):
             if verbose:
                 print('Dimensions of continuous traits effects do not match number of traits or time strata.\n'
@@ -686,21 +693,22 @@ class bdnn_simulator():
                 opt_tmp = opt[i, :, k, :]
                 opt_tmp = np.sort(opt_tmp, axis = 1)
                 effect_par[i, :, k, 4] = np.random.uniform(opt_tmp[:, 0], opt_tmp[:, 1], n_cont_traits)
-                if n_cont_traits == 1:
-                    effect_par[i, :, k, 3] = norm.pdf(effect_par[i, :, k, 4], effect_par[i, :, k, 4], expected_sd)[0]
-                else:
-                    effect_par[i, :, k, 3] = multivariate_normal.pdf(effect_par[i, :, k, 4],
-                                                                     mean = effect_par[i, :, k, 4],
-                                                                     cov = expected_sd)
                 for j in range(n_cont_traits):
                     # Magnitude of the effect
                     cte_tmp = cte[i, j, k, :]
                     effect_par[i, j, k, 0] = np.random.uniform(np.min(cte_tmp), np.max(cte_tmp), 1)
                     # Whether effect has a bell (1) or u-shape (-1)
                     effect_par[i, j, k, 1] = np.random.choice(bellu[i, j, k, :], 1)
-                    effect_par[i, j, k, 3] = effect_par[i, j, k, 3] * effect_par[i, j, k, 1]
                     # Sort in so that the min is smaller than the max
-                    effect_par[i, j, k, 2:4] = np.sort(effect_par[i, j, k, 2:4])
+                    #effect_par[i, j, k, 3] = effect_par[i, j, k, 3] * effect_par[i, j, k, 1]
+                    #effect_par[i, j, k, 2:4] = np.sort(effect_par[i, j, k, 2:4])
+                if n_cont_traits == 1:
+                    effect_par[i, :, k, 3] = norm.pdf(effect_par[i, :, k, 4], effect_par[i, :, k, 4], effect_par[i, :, k, 0] * expected_sd)[0]
+                else:
+                    # How to scale the multivariate SD by the effect? Only the diagonals and then make it positive definite again?
+                    effect_par[i, :, k, 3] = multivariate_normal.pdf(effect_par[i, :, k, 4],
+                                                                     mean = effect_par[i, :, k, 4],
+                                                                     cov = expected_sd)
 
         return effect_par, expected_sd
 
