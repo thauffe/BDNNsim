@@ -13,14 +13,16 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
 # State-independent effect of a single continuous traits
 ########################################################
+rangeL = [0.5, 0.5]
+rangeM = [0.45, 0.45]
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 # 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_traits; 4th axis: trait effect, min effect, max effect
-cont_traits_effect_sp = np.array([[[ [3.0, 3.0] ]]])
-cont_traits_effect_ex = np.array([[[ [3.0, 3.0] ]]])
+cont_traits_effect_sp = np.array([[[ [4.0, 4.0] ]]])
+cont_traits_effect_ex = np.array([[[ [4.0, 4.0] ]]])
 cont_traits_effect_bellu_sp = np.array([[[ [1, 1] ]]])
-cont_traits_effect_bellu_ex = np.array([[[ [-1, -1] ]]])
+cont_traits_effect_bellu_ex = np.array([[[ [1, 1] ]]])
 cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0] ]]])
 cont_traits_effect_optimum_ex = np.array([[[ [0.0, 0.0] ]]])
 cont_traits_effect_shift_sp = None
@@ -85,11 +87,13 @@ n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 cont_traits_effect_sp = np.array([ # Time bin 1
-                                   [[ [0.2, 0.3], [0.2, 0.3] ]],   # Trait 1 State 1 & 2
+                                   [[ [1.0, 2.0], [1.0, 2.0] ]],   # Trait 1 State 1 & 2
                                    # Time bin 2
-                                   [[ [0.1, 0.2], [0.1, 0.2] ]] ]) # Trait 1 State 1 & 2
-cont_traits_effect_ex = np.array([ [[ [0.1, 0.2], [0.1, 0.2] ]],
-                                   [[ [0.2, 0.3], [0.2, 0.3] ]] ])
+                                   [[ [0.5, 1.0], [0.5, 1.0] ]] ]) # Trait 1 State 1 & 2
+cont_traits_effect_ex = np.array([ # Time bin 1
+                                   [[ [0.5, 1.0], [0.5, 1.0] ]],   # Trait 1 State 1 & 2
+                                   # Time bin 2
+                                   [[ [1.0, 2.0], [1.0, 2.0] ]] ]) # Trait 1 State 1 & 2
 cont_traits_effect_bellu_sp = np.array([ [[ [ 1,  1], [-1, -1] ]],
                                          [[ [-1, -1], [ 1,  1] ]] ])
 cont_traits_effect_bellu_ex = np.array([ [[ [-1, -1], [ 1,  1] ]],
@@ -178,8 +182,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [35., 35.],  # range root ages
-                        rangeL = [0.2, 0.3],  # range of birth rates
-                        rangeM = [0.1, 0.2],  # range of death rates
+                        rangeL = rangeL,  # range of birth rates
+                        rangeM = rangeM,  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
@@ -242,7 +246,8 @@ print(res_bd['cont_traits_effect_sp'])
 print(res_bd['cont_traits_effect_ex'])
 print(res_bd['expected_sd_cont_traits'])
 # print(res_bd['lineage_rates'][:3,:])
-#  print(res_bd['cont_traits'])
+# print(res_bd['cont_traits'])
+# np.savetxt('/home/torsten/Work/BDNN/cont_traits.txt', res_bd['cont_traits'][:,0,:], delimiter='\t')
 #print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 print(np.unique(res_bd['lineage_rates'][1:,8], return_counts = True)[1])
 

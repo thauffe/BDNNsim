@@ -47,6 +47,7 @@ class bdnn_simulator():
                  fixed_Ltt = None,
                  fixed_Mtt = None, # fix extinction rate through time (see fixed Mtt)
                  n_cont_traits = [0, 0], # number of continuous traits
+                 cont_traits_sigma_clado = [0.0, 0.0], # evolutionary rates for continuous traits at speciation event vv
                  cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
                  cont_traits_cor = [-1, 1], # evolutionary correlation between continuous traits
                  cont_traits_Theta1 = [0, 0],  # morphological optima; 0 is no directional change from the ancestral values
@@ -98,6 +99,7 @@ class bdnn_simulator():
         self.fixed_Ltt = fixed_Ltt
         self.fixed_Mtt = fixed_Mtt
         self.n_cont_traits = n_cont_traits
+        self.cont_traits_sigma_clado = cont_traits_sigma_clado
         self.cont_traits_sigma = cont_traits_sigma
         self.cont_traits_cor = cont_traits_cor
         self.cont_traits_Theta1 = cont_traits_Theta1
@@ -128,7 +130,7 @@ class bdnn_simulator():
             np.random.seed(seed)
 
 
-    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation):
+    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation):
         ts = list()
         te = list()
 
@@ -319,7 +321,12 @@ class bdnn_simulator():
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
                     if n_cont_traits > 0:
                         cont_traits_new_species = self.empty_traits(root_plus_1, n_cont_traits)
-                        cont_traits_at_origin = cont_traits[t_abs, :, j]
+                        # cont_traits_at_origin = cont_traits[t_abs, :, j]
+                        cont_traits_at_origin = self.evolve_cont_traits(cont_traits[t_abs, :, j],
+                                                                        n_cont_traits,
+                                                                        cont_traits_alpha,
+                                                                        cont_traits_Theta1,
+                                                                        cont_traits_varcov_clado)
                         cont_traits_new_species[t_abs,:] = cont_traits_at_origin
                         cont_traits = np.dstack((cont_traits, cont_traits_new_species))
                         lineage_rates_tmp[5:(5 + n_cont_traits)] = cont_traits_at_origin
@@ -415,9 +422,11 @@ class bdnn_simulator():
         cont_traits_effect_shift_sp = []
         cont_traits_effect_shift_ex = []
         if n_cont_traits > 0:
-            cont_traits_varcov = self.make_cont_traits_varcov(n_cont_traits)
+            cont_traits_cor = self.make_cor_cont_traits(n_cont_traits)
+            cont_traits_varcov = self.make_cont_traits_varcov(n_cont_traits, self.cont_traits_sigma, cont_traits_cor, self.scale)
             cont_traits_Theta1 = self.make_cont_traits_Theta1(n_cont_traits)
             cont_traits_alpha = self.make_cont_traits_alpha(n_cont_traits, root_scaled)
+            cont_traits_varcov_clado = self.make_cont_traits_varcov(n_cont_traits, self.cont_traits_sigma_clado, cont_traits_cor, 1.0)
             n_cat_states_sp = 1
             n_cat_states_ex = 1
             if n_cat_traits > 0:
@@ -467,7 +476,7 @@ class bdnn_simulator():
         env_eff_sp = np.random.uniform(np.min(self.sp_env_eff), np.max(self.sp_env_eff), 1)
         env_eff_ex = np.random.uniform(np.min(self.ex_env_eff), np.max(self.ex_env_eff), 1)
 
-        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex
+        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex
 
 
     def make_shifts_birth_death(self, root_scaled, poi_shifts, range_rate):
@@ -533,6 +542,7 @@ class bdnn_simulator():
 
         return tr
 
+
     def nearestPD(self, A):
         """Find the nearest positive-definite matrix to input
         https://stackoverflow.com/questions/43238173/python-convert-matrix-to-positive-semi-definite
@@ -574,22 +584,27 @@ class bdnn_simulator():
             return False
 
 
-    def make_cont_traits_varcov(self, n_cont_traits):
+    def make_cor_cont_traits(self, n_cont_traits):
+        n_cor = int(n_cont_traits * (n_cont_traits - 1) / 2)
+        cor = np.random.uniform(np.min(self.cont_traits_cor), np.max(self.cont_traits_cor), n_cor)
+
+        return cor
+
+
+    def make_cont_traits_varcov(self, n_cont_traits, s2, cor, scale):
         if n_cont_traits == 1:
-            varcov = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), 1)
+            varcov = np.random.uniform(np.min(s2), np.max(s2), 1)
             varcov = np.array([varcov])
-            varcov = np.sqrt(varcov / self.scale)
+            varcov = np.sqrt(varcov / scale)
         else:
-            sigma2 = np.random.uniform(np.min(self.cont_traits_sigma), np.max(self.cont_traits_sigma), n_cont_traits)
+            sigma2 = np.random.uniform(np.min(s2), np.max(s2), n_cont_traits)
             sigma2 = np.diag(sigma2)
-            n_cor = int(n_cont_traits * (n_cont_traits - 1) / 2)
-            cor = np.random.uniform(np.min(self.cont_traits_cor), np.max(self.cont_traits_cor), n_cor)
             cormat = np.ones([n_cont_traits**2]).reshape((n_cont_traits, n_cont_traits))
             cormat[np.triu_indices(n_cont_traits, k = 1)] = cor
             cormat[np.tril_indices(n_cont_traits, k = -1)] = cor
             varcov = sigma2 @ cormat @ sigma2 # correlation to covariance for multivariate random
             varcov = self.nearestPD(varcov)
-            varcov = varcov / self.scale
+            varcov = varcov / scale
 
         return varcov
 
@@ -963,7 +978,7 @@ class bdnn_simulator():
         n_extant = 0
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, verbose)
+            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, verbose)
 
             L_tt, linL = self.add_linear_time_effect(L_shifts, self.range_linL, self.fixed_Ltt)
             M_tt, linM = self.add_linear_time_effect(M_shifts, self.range_linM, self.fixed_Mtt)
@@ -982,7 +997,7 @@ class bdnn_simulator():
                 ex_env_binned = get_binned_continuous_variable(ex_env, time_vec, self.scale)
                 M_tt = M_tt * np.exp(env_eff_ex * ex_env_binned)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
