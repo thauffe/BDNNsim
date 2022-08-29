@@ -1240,10 +1240,19 @@ class write_PyRate_files():
 
 
     def center_and_scale_unitvar(self, cont_traits):
-        cont_traits -= np.mean(cont_traits, axis = 0)
-        cont_traits /= np.std(cont_traits, axis = 0)
+        n = cont_traits.shape[1]
+        cont_traits_mean_sd = np.zeros((2, n))
+        cont_traits_mean_sd[0,:] = np.mean(cont_traits, axis = 0)
+        cont_traits_mean_sd[1,:] = np.std(cont_traits, axis = 0)
+        cont_traits -= cont_traits_mean_sd[0,:]
+        cont_traits /= cont_traits_mean_sd[1,:]
+        colnames = []
+        for i in range(n):
+            colnames.append('cont_trait_%s' % i)
+        mean_sd = pd.DataFrame(data = cont_traits_mean_sd, columns = colnames)
+        mean_sd.index = ['mean', 'sd']
 
-        return cont_traits
+        return cont_traits, mean_sd
 
 
     def get_majority_cat_trait_per_taxon(self, sim_fossil, res_bd):
@@ -1319,7 +1328,7 @@ class write_PyRate_files():
         taxon_names = sim_fossil['taxon_names']
         lineage_rate = res_bd['lineage_rates']
         lineage_rate = lineage_rate[taxa_sampled,:]
-        names_df = pd.DataFrame(data = taxon_names, columns=['scientificName'])
+        names_df = pd.DataFrame(data = taxon_names, columns = ['scientificName'])
         colnames = ['ts', 'te', 'speciation', 'extinction', 'ancestral_speciation']
         if res_bd['cont_traits'] is not None:
             n_cont_traits = res_bd['cont_traits'].shape[1]
@@ -1413,9 +1422,11 @@ class write_PyRate_files():
         if res_bd['cont_traits'].shape[1] > 0:
             #mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon(sim_fossil, res_bd)
             mean_cont_traits_taxon = self.get_mean_cont_traits_per_taxon_from_sampling_events(sim_fossil, res_bd)
-            mean_cont_traits_taxon = self.center_and_scale_unitvar(mean_cont_traits_taxon)
+            mean_cont_traits_taxon, backscale_cont_traits = self.center_and_scale_unitvar(mean_cont_traits_taxon)
             for i in range(mean_cont_traits_taxon.shape[1]):
                 traits['cont_trait_%s' % i] = mean_cont_traits_taxon[:,i]
+            backscale_file = "%s/%s/%s_backscale_cont_traits.csv" % (self.output_wd, name_file, name_file)
+            backscale_cont_traits.to_csv(backscale_file, header = True, sep = '\t', index = True)
 
         if res_bd['cat_traits'].shape[1] > 0:
             maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)

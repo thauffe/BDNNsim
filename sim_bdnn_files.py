@@ -14,13 +14,13 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 # State-independent effect of a single continuous traits
 ########################################################
 rangeL = [0.5, 0.5]
-rangeM = [0.45, 0.45]
+rangeM = [0.4, 0.4]
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 # 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_traits; 4th axis: trait effect, min effect, max effect
-cont_traits_effect_sp = np.array([[[ [4.0, 4.0] ]]])
-cont_traits_effect_ex = np.array([[[ [4.0, 4.0] ]]])
+cont_traits_effect_sp = np.array([[[ [0.8, 0.8] ]]])
+cont_traits_effect_ex = np.array([[[ [0.8, 0.8] ]]])
 cont_traits_effect_bellu_sp = np.array([[[ [1, 1] ]]])
 cont_traits_effect_bellu_ex = np.array([[[ [1, 1] ]]])
 cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0] ]]])
@@ -34,8 +34,8 @@ n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
 # 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_states; 4th axis: trait effect, min effect, max effect
-cont_traits_effect_sp = np.array([[[ [3.0, 3.0], [3.0, 3.0] ]]])
-cont_traits_effect_ex = np.array([[[ [3.0, 3.0], [3.0, 3.0] ]]])
+cont_traits_effect_sp = np.array([[[ [0.8, 0.8], [0.8, 0.8] ]]])
+cont_traits_effect_ex = np.array([[[ [0.8, 0.8], [0.8, 0.8] ]]])
 cont_traits_effect_bellu_sp = np.array([[[ [1, 1], [-1, -1] ]]])
 cont_traits_effect_bellu_ex = np.array([[[ [1, 1], [-1, -1] ]]])
 cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0], [0.0, 0.0] ]]])
@@ -48,13 +48,13 @@ cont_traits_effect_shift_ex = None
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [0, 0] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
-cont_traits_effect_sp = np.array([ [[[0.2, 0.3]]],
-                                   [[[0.1, 0.2]]] ])
-cont_traits_effect_ex = np.array([ [[[0.03, 0.03]]],
-                                   [[[0.03, 0.03]]] ])
+cont_traits_effect_sp = np.array([ [[[0.8, 0.8]]],
+                                   [[[0.8, 0.8]]] ])
+cont_traits_effect_ex = np.array([ [[[0.8, 0.8]]],
+                                   [[[0.8, 0.8]]] ])
 cont_traits_effect_bellu_sp = np.array([ [[[1, 1]]],
-                                         [[[-1, -1]]] ])
-cont_traits_effect_bellu_ex = np.array([ [[[-1, -1]]],
+                                         [[[1, 1]]] ])
+cont_traits_effect_bellu_ex = np.array([ [[[1, 1]]],
                                          [[[1, 1]]] ])
 cont_traits_effect_optimum_sp = np.array([ [[[0, 0]]],
                                            [[[0, 0]]] ])
@@ -94,10 +94,10 @@ cont_traits_effect_ex = np.array([ # Time bin 1
                                    [[ [0.5, 1.0], [0.5, 1.0] ]],   # Trait 1 State 1 & 2
                                    # Time bin 2
                                    [[ [1.0, 2.0], [1.0, 2.0] ]] ]) # Trait 1 State 1 & 2
-cont_traits_effect_bellu_sp = np.array([ [[ [ 1,  1], [-1, -1] ]],
-                                         [[ [-1, -1], [ 1,  1] ]] ])
-cont_traits_effect_bellu_ex = np.array([ [[ [-1, -1], [ 1,  1] ]],
-                                         [[ [ 1,  1], [-1, -1] ]] ])
+cont_traits_effect_bellu_sp = np.array([ [[ [ 1,  1], [1, 1] ]],
+                                         [[ [1, 1], [ 1,  1] ]] ])
+cont_traits_effect_bellu_ex = np.array([ [[ [1, 1], [ 1,  1] ]],
+                                         [[ [ 1,  1], [1, 1] ]] ])
 cont_traits_effect_optimum_sp = np.array([ [[[0, 0]]] ])
 cont_traits_effect_optimum_ex = np.array([ [[[0, 0]]] ])
 cont_traits_effect_shift_sp = np.array([15.0])
@@ -192,7 +192,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         range_linL = [0.0, 0.0],
                         range_linM = [0.0, 0.0],
                         n_cont_traits = n_cont_traits, # number of continuous traits
-                        cont_traits_sigma = [0.3, 0.3], # evolutionary rates for continuous traits
+                        cont_traits_sigma_clado = [0.2, 0.2],
+                        cont_traits_sigma = [0.02, 0.02], # evolutionary rates for continuous traits
                         cont_traits_cor = [0.0, 0.0], # evolutionary correlation between continuous traits
                         cont_traits_Theta1 = [0.0, 0.0], # morphological optima; 0 is no directional change from the ancestral values
                         cont_traits_alpha = [0.0, 0.0],
