@@ -69,8 +69,10 @@ class bdnn_simulator():
                  # effects can be fixed with e.g. np.array([[2.3., 2.3.],[1.5.,1.5.]]) and cat_traits_effect_decr_incr = np.array([[True, True],[False, False]])
                  # effect of n_cat_traits_states > 2 can be fixed with n_cat_traits_states = [3, 3] AND np.array([[1.5., 2.3.],[0.2.,1.5.]]) (no need for cat_traits_effect_decr_incr)
                  # or in case of 4 states with n_cat_traits_states = [4, 4] AND np.array([[1.5., 2.3., 0.6],[0.2.,1.5., 1.9]])
-                 cat_traits_effect = np.array([[1., 1.],[1.,1.]]),
-                 cat_traits_effect_decr_incr = np.array([[True, False],[True, False]]), # should categorical effect cause a decrease (True) or increase (False) in speciation (1st row) and extinction (2nd row)?
+                 cat_traits_effect = np.array([[1., 1.],
+                                               [1.,1.]]),
+                 cat_traits_effect_decr_incr = np.array([[True, False],
+                                                         [True, False]]), # should categorical effect cause a decrease (True) or increase (False) in speciation (1st row) and extinction (2nd row)?
                  n_areas = [0, 0], # number of biogeographic areas (minimum of 2)
                  dispersal = [0.1, 0.3], # range for the rate of area expansion
                  extirpation = [0.05, 0.1], # range for the rate of area loss
@@ -266,13 +268,15 @@ class bdnn_simulator():
                     l_j = self.get_rate_by_cont_trait_transformation(l_j,
                                                                      cont_trait_j,
                                                                      cont_trait_effect_sp[cont_traits_bin, :, cat_trait_j, :],
-                                                                     expected_sd_cont_traits, n_cont_traits)
+                                                                     expected_sd_cont_traits,
+                                                                     n_cont_traits)
                     cont_traits_bin = cont_traits_effect_shift_ex[t_abs]
                     m_j = self.get_rate_by_cont_trait_transformation(m_j,
                                                                      cont_trait_j,
                                                                      cont_trait_effect_ex[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
+                    #print('cont t j l_j m_j: ', t_abs / self.scale, j, l_j * self.scale, m_j * self.scale)
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -359,6 +363,7 @@ class bdnn_simulator():
                         te[j] = t
                         lineage_rates[j][1] = t
                     lineage_rates[j][3] = m_j # Extinction rate at extinction time (or present for extant species)
+                    print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
                     if n_cont_traits > 0:
                         lineage_rates[j][(5 + n_cont_traits):(5 + 2 * n_cont_traits)] = cont_trait_j
 
@@ -643,27 +648,30 @@ class bdnn_simulator():
         # print('par: ', par)
         # print('expected_sd: ', expected_sd)
         # print('n_cont_traits: ', n_cont_traits)
-        if n_cont_traits == 1:
-            # print('cont_trait_value:' , cont_trait_value)
-            # print('expected_sd[0]: ', expected_sd[0])
-            trait_pdf = norm.pdf(cont_trait_value, par[0, 4], par[:, 0] * expected_sd[0])[0]
+        if np.all(par[:, 0] > 10000.0):
+            return r
         else:
-            # How to scale the multivariate SD by the effect? Only the diagonals and then make it positive definite again?
-            trait_pdf = multivariate_normal.pdf(cont_trait_value,
-                                                mean = par[:, 4],
-                                                cov = expected_sd)
-        # Scale according to trait effect: ((bellu * trait_pdf - MinPDF) / (MaxPDF - MinPDF) ) * (2 * Effect) - Effect
-        # cont_trait_effect = ((par[:, 1] * trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])) * (2 * par[:, 0]) - par[:, 0]
-        # cont_trait_effect = np.sum(cont_trait_effect)
-        # transf_r = r * np.exp(cont_trait_effect)
-        scaled_trait_pdf = (trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])
-        # rate * +/- f(delta, v)
-        r_ushape = 0
-        if par[:, 1] == -1:
-            r_ushape = r
-        transf_r = r * par[:, 1] * scaled_trait_pdf + r_ushape
+            if n_cont_traits == 1:
+                # print('cont_trait_value:' , cont_trait_value)
+                # print('expected_sd[0]: ', expected_sd[0])
+                trait_pdf = norm.pdf(cont_trait_value, par[0, 4], par[:, 0] * expected_sd[0])[0]
+            else:
+                # How to scale the multivariate SD by the effect? Only the diagonals and then make it positive definite again?
+                trait_pdf = multivariate_normal.pdf(cont_trait_value,
+                                                    mean = par[:, 4],
+                                                    cov = expected_sd)
+            # Scale according to trait effect: ((bellu * trait_pdf - MinPDF) / (MaxPDF - MinPDF) ) * (2 * Effect) - Effect
+            # cont_trait_effect = ((par[:, 1] * trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])) * (2 * par[:, 0]) - par[:, 0]
+            # cont_trait_effect = np.sum(cont_trait_effect)
+            # transf_r = r * np.exp(cont_trait_effect)
+            scaled_trait_pdf = (trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])
+            # rate * +/- f(delta, v)
+            r_ushape = 0
+            if par[:, 1] == -1:
+                r_ushape = r
+            transf_r = r * par[:, 1] * scaled_trait_pdf + r_ushape
 
-        return transf_r[0]
+            return transf_r[0]
 
 
     def get_cont_trait_effect_parameters(self, root, sigma2, n_time_bins, n_cont_traits, n_cat_states, cte, bellu, opt, verbose):

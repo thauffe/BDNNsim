@@ -233,6 +233,7 @@ write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
+#print(res_bd['ts_te'])
 #print(res_bd['lambda'])
 #print(res_bd['tshift_lambda'])
 #print(res_bd['mu'])
