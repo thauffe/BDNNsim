@@ -177,10 +177,30 @@ cont_traits_effect_shift_sp = np.array([15.0])
 cont_traits_effect_shift_ex = np.array([15.0])
 
 
+# Diversity-dependent speciation
+################################
+rangeL = [0.5, 0.5]
+rangeM = [0.01, 0.01]
+n_cont_traits = [1, 1] # Range of number of continuous traits
+n_cat_traits = [1, 1] # Range of number of categorical traits
+n_cat_traits_states = [2, 2] # States for categorical traits
+# 4 dimensions: 1st axis: time; 2nd axis: n_cont_traits; 3rd axis: n_cat_traits; 4th axis: trait effect, min effect, max effect
+cont_traits_effect_sp = np.array([[[ [SMALL_NUMBER, SMALL_NUMBER] ]]])
+cont_traits_effect_ex = np.array([[[ [SMALL_NUMBER, SMALL_NUMBER] ]]])
+cont_traits_effect_bellu_sp = np.array([[[ [1, 1] ]]])
+cont_traits_effect_bellu_ex = np.array([[[ [1, 1] ]]])
+cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0] ]]])
+cont_traits_effect_optimum_ex = np.array([[[ [0.0, 0.0] ]]])
+cont_traits_effect_shift_sp = None
+cont_traits_effect_shift_ex = None
+
+
+
+
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
-                        minExtant_SP = 2, # minimum number of extant lineages
+                        minExtant_SP = 0, # minimum number of extant lineages
                         root_r = [35., 35.],  # range root ages
                         rangeL = rangeL,  # range of birth rates
                         rangeM = rangeM,  # range of death rates
@@ -219,9 +239,11 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # sp_env_eff = [-0.02, -0.01],
                         # ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
                         # ex_env_eff = [-0.02, -0.01],
+                        K_lam = 100.0,
+                        K_mu = 2000.0,
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-fossil_sim = fossil_simulator(range_q = [0.1, 1.0],
+fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
                               range_alpha = [1000.0, 1000.0],
                               poi_shifts = 0,
                               seed = rnd_seed)
@@ -229,7 +251,7 @@ fossil_sim = fossil_simulator(range_q = [0.1, 1.0],
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0,
-                                  name = 'Cont')
+                                  name = 'DivDep')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -265,6 +287,7 @@ print(sim_fossil['alpha'])
 
 # Write input files for PyRate analysis
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
+
 
 RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                              '/home/torsten/Work/BDNN/%s/%s.py' % (name_file, name_file),

@@ -80,6 +80,8 @@ class bdnn_simulator():
                  sp_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
                  ex_env_file = None,  # Path to environmental file influencing speciation
                  ex_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
+                 K_lam = None,
+                 K_mu = None,
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -128,6 +130,8 @@ class bdnn_simulator():
         self.sp_env_eff = sp_env_eff
         self.ex_env_file = ex_env_file
         self.ex_env_eff = ex_env_eff
+        self.K_lam = K_lam,
+        self.K_mu = K_mu,
         if seed:
             np.random.seed(seed)
 
@@ -138,7 +142,7 @@ class bdnn_simulator():
 
         root = int(root * self.scale)
         # Trace ancestor descendant relationship
-        # First entry: ancestor (for the seeding specis, this is an index of themselfs)
+        # First entry: ancestor (for the seeding species, this is an index of themselfs)
         # Following entries: descendants
         anc_desc = []
 
@@ -257,6 +261,10 @@ class bdnn_simulator():
                         cat_trait_j = cat_traits[t_abs + 1, y, j] # No change along branches
                         cat_trait_j = int(cat_trait_j)
                         cat_traits[t_abs, y, j] = cat_trait_j
+                        # print('l_j before transformation:', l_j)
+                        # print('cat_trait_j:', cat_trait_j)
+                        # print('cat_trait_effect:', cat_trait_effect[y][0, cat_trait_j])
+                        # print('l_j after transformation:', l_j * cat_trait_effect[y][0, cat_trait_j])
                         l_j = l_j * cat_trait_effect[y][0, cat_trait_j]
                         m_j = m_j * cat_trait_effect[y][1, cat_trait_j]
 
@@ -277,6 +285,12 @@ class bdnn_simulator():
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
                     #print('cont t j l_j m_j: ', t_abs / self.scale, j, l_j * self.scale, m_j * self.scale)
+                if self.K_lam[0] is not None:
+                    # print("l_j before DD:", l_j)
+                    l_j = self.get_divdep_lam(l_j, no_extant_lineages)
+                    # print("l_j after DD:", l_j)
+                if self.K_mu[0] is not None:
+                    m_j = self.get_divdep_mu(m_j, no_extant_lineages)
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -363,7 +377,7 @@ class bdnn_simulator():
                         te[j] = t
                         lineage_rates[j][1] = t
                     lineage_rates[j][3] = m_j # Extinction rate at extinction time (or present for extant species)
-                    print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
+                    # print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
                     if n_cont_traits > 0:
                         lineage_rates[j][(5 + n_cont_traits):(5 + 2 * n_cont_traits)] = cont_trait_j
 
@@ -529,6 +543,22 @@ class bdnn_simulator():
             rtt[idx] = rate_idx
 
         return rtt, fixed_rtt2[:,1], fixed_rtt2[1:,0]
+
+
+    def get_divdep_lam(self, lam, N):
+        divdep_lam = lam * (1 - (N / self.K_lam[0]))
+        if divdep_lam < 0.0:
+            divdep_lam = 0.0
+
+        return divdep_lam
+
+
+    def get_divdep_mu(self, mu, N):
+        divdep_mu = mu / (1 - (N / self.K_mu[0]))
+        if divdep_mu < 0.0:
+            divdep_mu = mu / (1 - ((N - 1e-5) / N))
+
+        return divdep_mu
 
 
     def get_harmonic_mean(self, v):
