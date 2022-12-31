@@ -297,7 +297,7 @@ RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
                              '-mHPP',
                              #'-mG',
                              #'-FBDrange 3',
-                             '-n', '20001', '-s', '1000', '-p', '10000'])
+                             '-n', '50001', '-s', '5000', '-p', '5000'])
 
 RJMCMC_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                               '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b', '10'])

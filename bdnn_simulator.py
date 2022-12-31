@@ -73,6 +73,7 @@ class bdnn_simulator():
                                                [1.,1.]]),
                  cat_traits_effect_decr_incr = np.array([[True, False],
                                                          [True, False]]), # should categorical effect cause a decrease (True) or increase (False) in speciation (1st row) and extinction (2nd row)?
+                 cat_traits_min_freq = [0], # list of length 1 or equal to n_cat_traits, minimum frequency of state
                  n_areas = [0, 0], # number of biogeographic areas (minimum of 2)
                  dispersal = [0.1, 0.3], # range for the rate of area expansion
                  extirpation = [0.05, 0.1], # range for the rate of area loss
@@ -123,6 +124,7 @@ class bdnn_simulator():
         self.cat_traits_diag = cat_traits_diag
         self.cat_traits_effect = cat_traits_effect
         self.cat_traits_effect_decr_incr = cat_traits_effect_decr_incr
+        self.cat_traits_min_freq = cat_traits_min_freq
         self.n_areas = n_areas
         self.dispersal = dispersal
         self.extirpation = extirpation
@@ -1010,11 +1012,33 @@ class bdnn_simulator():
         return div_rates
 
 
+    def check_proportion_cat_traits(self, n_cat_traits, cat_traits):
+        proportion_ok = False
+        if n_cat_traits == 0:
+            proportion_ok = True
+        else:
+            cat_traits_min_freq = self.cat_traits_min_freq
+            if len(cat_traits_min_freq) < n_cat_traits:
+                cat_traits_min_freq = np.reapeat(cat_traits_min_freq[0], n_cat_traits)
+            ct = np.nanmean(cat_traits, axis = 0)
+            min_freq = np.zeros(n_cat_traits)
+            for i in range(n_cat_traits):
+                counts = np.unique(ct[i, :], return_counts = True)[1]
+                min_freq[i] = np.min(counts / np.sum(counts))
+            if np.all(min_freq > cat_traits_min_freq):
+                proportion_ok = True
+            print('proportion_ok:', min_freq, proportion_ok)
+
+        return proportion_ok
+
+
+
     def run_simulation(self, verbose = False):
         LOtrue = []
         n_extinct = 0
         n_extant = 0
-        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP:
+        prop_cat_traits_ok = False
+        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, verbose)
 
@@ -1036,6 +1060,8 @@ class bdnn_simulator():
                 M_tt = M_tt * np.exp(env_eff_ex * ex_env_binned)
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
+            prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
+            #prop_cat_traits_ok = prop_cat_traits_ok == False # convert False to True to continue while loop
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
