@@ -45,7 +45,7 @@ class bdnn_simulator():
                  # np.array([[35., 0.4], [20., 0.1], [0.0, 0.1]])
                  # overwrittes poiL and range_linL
                  fixed_Ltt = None,
-                 fixed_Mtt = None, # fix extinction rate through time (see fixed Mtt)
+                 fixed_Mtt = None, # fix extinction rate through time (see fixed Ltt)
                  n_cont_traits = [0, 0], # number of continuous traits
                  cont_traits_sigma_clado = [0.0, 0.0], # evolutionary rates for continuous traits at speciation event vv
                  cont_traits_sigma = [0.1, 0.5], # evolutionary rates for continuous traits
@@ -81,8 +81,16 @@ class bdnn_simulator():
                  sp_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
                  ex_env_file = None,  # Path to environmental file influencing speciation
                  ex_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
-                 K_lam = None,
-                 K_mu = None,
+                 K_lam = None, # carrying capacity K
+                 K_mu = None, # carrying capacity K
+                 # fix carrying capacity K through time
+                 # numpy 2D array with time in the 1st column and rate in the 2nd
+                 # np.array([[35., 200.], [20.001, 200.], [20., 110.], [10.001, 110.], [10., 80.], [0.0, 80.]])
+                 # decline until 20 Ma and then constant
+                 # np.array([[35., 100.], [20., 50.], [0.0, 50.]])
+                 # overwrittes K_lam
+                 fixed_K_lam = None,
+                 fixed_K_mu = None,
                  seed = 0):
         self.s_species = s_species
         self.rangeSP = rangeSP
@@ -134,6 +142,8 @@ class bdnn_simulator():
         self.ex_env_eff = ex_env_eff
         self.K_lam = K_lam,
         self.K_mu = K_mu,
+        self.fixed_K_lam = fixed_K_lam,
+        self.fixed_K_mu = fixed_K_mu,
         if seed:
             np.random.seed(seed)
 
@@ -287,12 +297,12 @@ class bdnn_simulator():
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
                     #print('cont t j l_j m_j: ', t_abs / self.scale, j, l_j * self.scale, m_j * self.scale)
-                if self.K_lam[0] is not None:
+                if self.K_lam[0] is not None or self.fixed_K_lam[0] is not None:
                     # print("l_j before DD:", l_j)
-                    l_j = self.get_divdep_lam(l_j, no_extant_lineages)
+                    l_j = self.get_divdep_lam(l_j, no_extant_lineages, t_abs)
                     # print("l_j after DD:", l_j)
-                if self.K_mu[0] is not None:
-                    m_j = self.get_divdep_mu(m_j, no_extant_lineages)
+                if self.K_mu[0] is not None or self.fixed_K_mu[0] is not None:
+                    m_j = self.get_divdep_mu(m_j, no_extant_lineages, t_abs)
 
                 lineage_lambda[j] = l_j
                 lineage_mu[j] = m_j
@@ -547,16 +557,28 @@ class bdnn_simulator():
         return rtt, fixed_rtt2[:,1], fixed_rtt2[1:,0]
 
 
-    def get_divdep_lam(self, lam, N):
-        divdep_lam = lam * (1 - (N / self.K_lam[0]))
+    def get_divdep_lam(self, lam, N, t):
+        if self.fixed_K_lam[0] is None:
+            K = self.K_lam[0]
+        else:
+            tt = t / self.scale
+            idx_K = np.digitize(tt, self.fixed_K_lam[0][:, 0])
+            K = self.fixed_K_lam[0][idx_K, 1]
+        divdep_lam = lam * (1 - (N / K))
         if divdep_lam < 0.0:
             divdep_lam = 0.0
 
         return divdep_lam
 
 
-    def get_divdep_mu(self, mu, N):
-        divdep_mu = mu / (1 - (N / self.K_mu[0]))
+    def get_divdep_mu(self, mu, N, t):
+        if self.fixed_K_mu[0] is None:
+            K = self.K_mu[0]
+        else:
+            tt = t / self.scale
+            idx_K = np.digitize(tt, self.fixed_K_mu[0][:, 0])
+            K = self.fixed_K_mu[0][idx_K, 1]
+        divdep_mu = mu / (1 - (N / K))
         if divdep_mu < 0.0:
             divdep_mu = mu / (1 - ((N - 1e-5) / N))
 
@@ -1027,10 +1049,8 @@ class bdnn_simulator():
                 min_freq[i] = np.min(counts / np.sum(counts))
             if np.all(min_freq > cat_traits_min_freq):
                 proportion_ok = True
-            print('proportion_ok:', min_freq, proportion_ok)
 
         return proportion_ok
-
 
 
     def run_simulation(self, verbose = False):
@@ -1061,7 +1081,6 @@ class bdnn_simulator():
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
-            #prop_cat_traits_ok = prop_cat_traits_ok == False # convert False to True to continue while loop
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])

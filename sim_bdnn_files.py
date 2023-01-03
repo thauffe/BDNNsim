@@ -3,7 +3,6 @@ import sys
 import numpy as np
 
 sys.path.insert(0, r'/home/torsten/Work/Software/BDNNsim')
-#import bdnn_simulator as bdnnsim
 from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
@@ -179,7 +178,7 @@ cont_traits_effect_shift_ex = np.array([15.0])
 
 # Diversity-dependent speciation
 ################################
-rangeL = [0.5, 0.5]
+rangeL = [0.2, 0.2]
 rangeM = [0.01, 0.01]
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
@@ -200,7 +199,7 @@ cont_traits_effect_shift_ex = None
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
-                        minExtant_SP = 0, # minimum number of extant lineages
+                        minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [35., 35.],  # range root ages
                         rangeL = rangeL,  # range of birth rates
                         rangeM = rangeM,  # range of death rates
@@ -239,8 +238,9 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # sp_env_eff = [-0.02, -0.01],
                         # ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
                         # ex_env_eff = [-0.02, -0.01],
-                        K_lam = 100.0,
-                        K_mu = 2000.0,
+                        #K_lam = 100.0,
+                        K_mu = 100.0,
+                        #fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
@@ -291,13 +291,9 @@ name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 
 RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                              '/home/torsten/Work/BDNN/%s/%s.py' % (name_file, name_file),
-                             #sampl,
-                             #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
                              '-A', '4',
                              '-mHPP',
-                             #'-mG',
-                             #'-FBDrange 3',
-                             '-n', '50001', '-s', '5000', '-p', '5000'])
+                             '-n', '50001', '-s', '5000', '-p', '1000'])
 
 RJMCMC_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                               '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b', '10'])
