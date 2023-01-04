@@ -1041,7 +1041,7 @@ class bdnn_simulator():
         else:
             cat_traits_min_freq = self.cat_traits_min_freq
             if len(cat_traits_min_freq) < n_cat_traits:
-                cat_traits_min_freq = np.reapeat(cat_traits_min_freq[0], n_cat_traits)
+                cat_traits_min_freq = np.repeat(cat_traits_min_freq[0], n_cat_traits)
             ct = np.nanmean(cat_traits, axis = 0)
             min_freq = np.zeros(n_cat_traits)
             for i in range(n_cat_traits):
