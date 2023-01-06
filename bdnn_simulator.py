@@ -148,7 +148,7 @@ class bdnn_simulator():
             np.random.seed(seed)
 
 
-    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation):
+    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex):
         ts = list()
         te = list()
 
@@ -187,7 +187,7 @@ class bdnn_simulator():
                 for y in range(n_cat_traits):
                     pi = self.get_stationary_distribution(cat_traits_Q[y])
                     cat_trait_yi = int(np.random.choice(cat_states[y], 1, p = pi))
-                    cat_traits[-1,y,i] = cat_trait_yi
+                    cat_traits[-1, y, i] = cat_trait_yi
                     lineage_rates[i][2] = lineage_rates[i][2] * cat_trait_effect[y][0, cat_trait_yi]
                     lineage_rates[i][3] = lineage_rates[i][3] * cat_trait_effect[y][1, cat_trait_yi]
                     lineage_rates[i][(5 + 2 * n_cont_traits + y):(6 + 2 * n_cont_traits + y)] = cat_trait_yi
@@ -237,6 +237,12 @@ class bdnn_simulator():
             l = L[t]
             m = M[t]
 
+            # environmental effect
+            if self.sp_env_file is not None:
+                l = float(l * np.exp(env_eff_sp * env_sp[t_abs]))
+            if self.ex_env_file is not None:
+                m = float(m * np.exp(env_eff_ex * env_ex[t_abs]))
+
             TE = len(te)
             if TE > self.maxSP:
                 #print(t_abs)
@@ -273,10 +279,6 @@ class bdnn_simulator():
                         cat_trait_j = cat_traits[t_abs + 1, y, j] # No change along branches
                         cat_trait_j = int(cat_trait_j)
                         cat_traits[t_abs, y, j] = cat_trait_j
-                        # print('l_j before transformation:', l_j)
-                        # print('cat_trait_j:', cat_trait_j)
-                        # print('cat_trait_effect:', cat_trait_effect[y][0, cat_trait_j])
-                        # print('l_j after transformation:', l_j * cat_trait_effect[y][0, cat_trait_j])
                         l_j = l_j * cat_trait_effect[y][0, cat_trait_j]
                         m_j = m_j * cat_trait_effect[y][1, cat_trait_j]
 
@@ -296,11 +298,8 @@ class bdnn_simulator():
                                                                      cont_trait_effect_ex[cont_traits_bin, :, cat_trait_j, :],
                                                                      expected_sd_cont_traits,
                                                                      n_cont_traits)
-                    #print('cont t j l_j m_j: ', t_abs / self.scale, j, l_j * self.scale, m_j * self.scale)
                 if self.K_lam[0] is not None or self.fixed_K_lam[0] is not None:
-                    # print("l_j before DD:", l_j)
                     l_j = self.get_divdep_lam(l_j, no_extant_lineages, t_abs)
-                    # print("l_j after DD:", l_j)
                 if self.K_mu[0] is not None or self.fixed_K_mu[0] is not None:
                     m_j = self.get_divdep_mu(m_j, no_extant_lineages, t_abs)
 
@@ -422,6 +421,9 @@ class bdnn_simulator():
         else:
             M_shifts, M, timesM = self.make_fixed_bd_through_time(root_scaled, self.fixed_Mtt)
 
+        L_shifts, linL = self.add_linear_time_effect(L_shifts, self.range_linL, self.fixed_Ltt)
+        M_shifts, linM = self.add_linear_time_effect(M_shifts, self.range_linM, self.fixed_Mtt)
+
         # categorical traits
         n_cat_traits = np.random.choice(np.arange(min(self.n_cat_traits), max(self.n_cat_traits) + 1), 1)
         n_cat_traits = int(n_cat_traits)
@@ -504,10 +506,26 @@ class bdnn_simulator():
             extirpation = np.random.uniform(np.min(self.extirpation), np.max(self.extirpation), 1)
 
         # environmental effects
-        env_eff_sp = np.random.uniform(np.min(self.sp_env_eff), np.max(self.sp_env_eff), 1)
-        env_eff_ex = np.random.uniform(np.min(self.ex_env_eff), np.max(self.ex_env_eff), 1)
+        sp_env_eff = np.random.uniform(np.min(self.sp_env_eff), np.max(self.sp_env_eff), 1)
+        ex_env_eff = np.random.uniform(np.min(self.ex_env_eff), np.max(self.ex_env_eff), 1)
 
-        return dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex
+        sp_env_ts = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis=1)
+        sp_env_binned = None
+        if self.sp_env_file is not None:
+            sp_env_ts = np.loadtxt(self.sp_env_file, skiprows=1)
+            time_vec = np.arange(int(np.abs(root) * self.scale) + 2)
+            sp_env_binned = get_binned_continuous_variable(sp_env_ts, time_vec, self.scale)
+            sp_env_binned = sp_env_binned[::-1]
+
+        ex_env_ts = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis=1)
+        ex_env_binned = None
+        if self.ex_env_file is not None:
+            ex_env_ts = np.loadtxt(self.ex_env_file, skiprows=1)
+            time_vec = np.arange(int(np.abs(root) * self.scale) + 2)
+            ex_env_binned = get_binned_continuous_variable(ex_env_ts, time_vec, self.scale)
+            ex_env_binned = ex_env_binned[::-1]
+
+        return dT, L_shifts, M_shifts, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, sp_env_eff, ex_env_eff, sp_env_binned, ex_env_binned, sp_env_ts, ex_env_ts
 
 
     def make_shifts_birth_death(self, root_scaled, poi_shifts, range_rate):
@@ -711,9 +729,11 @@ class bdnn_simulator():
                 trait_pdf = norm.pdf(cont_trait_value, par[0, 4], par[:, 0] * expected_sd[0])[0]
             else:
                 # How to scale the multivariate SD by the effect? Only the diagonals and then make it positive definite again?
+                cov_tmp = par[:, 0] * expected_sd
+                cov_tmp = self.nearestPD(cov_tmp)
                 trait_pdf = multivariate_normal.pdf(cont_trait_value,
                                                     mean = par[:, 4],
-                                                    cov = expected_sd)
+                                                    cov = cov_tmp)
             # Scale according to trait effect: ((bellu * trait_pdf - MinPDF) / (MaxPDF - MinPDF) ) * (2 * Effect) - Effect
             # cont_trait_effect = ((par[:, 1] * trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])) * (2 * par[:, 0]) - par[:, 0]
             # cont_trait_effect = np.sum(cont_trait_effect)
@@ -721,9 +741,10 @@ class bdnn_simulator():
             scaled_trait_pdf = (trait_pdf - par[:, 2]) / (par[:, 3] - par[:, 2])
             # rate * +/- f(delta, v)
             r_ushape = 0
-            if par[:, 1] == -1:
+            # What to do when there is more than one continuous trait?
+            if par[0, 1] == -1:
                 r_ushape = r
-            transf_r = r * par[:, 1] * scaled_trait_pdf + r_ushape
+            transf_r = r * par[0, 1] * scaled_trait_pdf + r_ushape
 
             return transf_r[0]
 
@@ -1060,26 +1081,9 @@ class bdnn_simulator():
         prop_cat_traits_ok = False
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            dT, L_shifts, M_shifts, L, M, timesL, timesM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, verbose)
+            dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex, env_sp_ts, env_ex_ts = self.get_random_settings(root, verbose)
 
-            L_tt, linL = self.add_linear_time_effect(L_shifts, self.range_linL, self.fixed_Ltt)
-            M_tt, linM = self.add_linear_time_effect(M_shifts, self.range_linM, self.fixed_Mtt)
-
-            # environmental effect
-            sp_env = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis = 1)
-            if self.sp_env_file is not None:
-                sp_env = np.loadtxt(self.sp_env_file, skiprows = 1)
-                time_vec = np.arange( int(np.abs(root) * self.scale) + 1 )
-                sp_env_binned = get_binned_continuous_variable(sp_env, time_vec, self.scale)
-                L_tt = L_tt * np.exp(env_eff_sp * sp_env_binned)
-            ex_env = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis=1)
-            if self.ex_env_file is not None:
-                ex_env = np.loadtxt(self.ex_env_file, skiprows = 1)
-                time_vec = np.arange(int(np.abs(root) * self.scale) + 1)
-                ex_env_binned = get_binned_continuous_variable(ex_env, time_vec, self.scale)
-                M_tt = M_tt * np.exp(env_eff_ex * ex_env_binned)
-
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
@@ -1124,9 +1128,9 @@ class bdnn_simulator():
                   'geographic_range': biogeo,
                   'range_states': areas_comb,
                   'env_eff_sp': env_eff_sp,
-                  'sp_env': sp_env,
+                  'env_sp': env_sp_ts,
                   'env_eff_ex': env_eff_ex,
-                  'ex_env': ex_env}
+                  'env_ex': env_ex_ts}
         if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
@@ -1473,6 +1477,7 @@ class write_PyRate_files():
     def bin_and_write_env(self, env_var, env_file_name):
         max_age_env = np.max(env_var[:, 0])
         time_vec = np.arange(0, max_age_env + self.delta_time, self.delta_time)
+        # Will this still wok after changing get_binned_continuous_variable?
         binned_env = get_binned_continuous_variable(env_var, time_vec, 1.0)
         binned_env = np.stack((time_vec[:-1], binned_env), axis = 1)
         np.savetxt(env_file_name, binned_env, delimiter = '\t')
@@ -1538,9 +1543,9 @@ class write_PyRate_files():
         self.write_true_tste(res_bd, sim_fossil, name_file)
 
         env_sp_name = "%s/%s/%s_env_sp.csv" % (self.output_wd, name_file, name_file)
-        self.bin_and_write_env(res_bd['sp_env'], env_sp_name)
+        self.bin_and_write_env(res_bd['env_sp'], env_sp_name)
         env_ex_name = "%s/%s/%s_env_ex.csv" % (self.output_wd, name_file, name_file)
-        self.bin_and_write_env(res_bd['ex_env'], env_ex_name)
+        self.bin_and_write_env(res_bd['env_ex'], env_ex_name)
 
         self.write_cont_trait_effects(res_bd, name_file)
 
@@ -1549,18 +1554,30 @@ class write_PyRate_files():
 
 # Bin environmental variable into time time-bins.
 # Needed to simulate diversification and to write files for analyses.
+# def get_binned_continuous_variable(env_var, time_vec, scaletime):
+#     times = env_var[:, 0]
+#     times = times * scaletime
+#     values = env_var[:, 1]
+#     mean_var = np.zeros(len(time_vec) - 1)
+#     mean_var[:] = np.nan
+#     for i in range(1, len(time_vec)):
+#         t_min = time_vec[i - 1]
+#         t_max = time_vec[i]
+#         in_range_M = (times <= t_max).nonzero()[0]
+#         in_range_m = (times >= t_min).nonzero()[0]
+#         mean_var[i - 1] = np.mean(values[np.intersect1d(in_range_m, in_range_M)])
+#
+#     return mean_var
+
+
 def get_binned_continuous_variable(env_var, time_vec, scaletime):
-    times = env_var[:, 0]
-    times = times * scaletime
+    times = env_var[:, 0] * scaletime
     values = env_var[:, 1]
+    bins = np.digitize(times, time_vec)
     mean_var = np.zeros(len(time_vec) - 1)
     mean_var[:] = np.nan
-    for i in range(len(time_vec) - 1):
-        t_min = time_vec[i]
-        t_max = time_vec[i + 1]
-        in_range_M = (times <= t_max).nonzero()[0]
-        in_range_m = (times >= t_min).nonzero()[0]
-        mean_var[i] = np.mean(values[np.intersect1d(in_range_m, in_range_M)])
+    for i in range(1, len(time_vec)):
+        mean_var[i - 1] = np.mean(values[bins == i])
 
     return mean_var
 

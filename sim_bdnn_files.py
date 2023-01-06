@@ -104,11 +104,13 @@ cont_traits_effect_shift_ex = np.array([15.0])
 
 # Two continuous traits
 #######################
+rangeL = [0.5, 0.5]
+rangeM = [0.4, 0.4]
 n_cont_traits = [2, 2] # Range of number of continuous traits
 n_cat_traits = [0, 0] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
-cont_traits_effect_sp = np.array([[ [[0.2, 0.2]], [[0.1, 0.1]] ]])
-cont_traits_effect_ex = np.array([[ [[0.2, 0.2]], [[0.1, 0.1]] ]])
+cont_traits_effect_sp = np.array([[ [[0.8, 0.8]], [[0.1, 0.1]] ]])
+cont_traits_effect_ex = np.array([[ [[0.8, 0.8]], [[0.1, 0.1]] ]])
 cont_traits_effect_bellu_sp = np.array([[ [[1, 1]], [[1, 1]] ]])
 cont_traits_effect_bellu_ex = np.array([[ [[1, 1]], [[1, 1]] ]])
 cont_traits_effect_optimum_sp = np.array([[ [[0.0, 0.0]], [[0.0, 0.0]] ]])
@@ -179,7 +181,7 @@ cont_traits_effect_shift_ex = np.array([15.0])
 # Diversity-dependent speciation
 ################################
 rangeL = [0.2, 0.2]
-rangeM = [0.01, 0.01]
+rangeM = [0.1, 0.1]
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
@@ -234,12 +236,12 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # n_areas = [1, 1],
                         # dispersal = [0.005, 0.01],
                         # extirpation = [0.05, 0.2],
-                        # sp_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
-                        # sp_env_eff = [-0.02, -0.01],
-                        # ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
-                        # ex_env_eff = [-0.02, -0.01],
+                        sp_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
+                        sp_env_eff = [-0.08, -0.05],
+                        ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
+                        ex_env_eff = [-0.05, -0.03],
                         #K_lam = 100.0,
-                        K_mu = 100.0,
+                        #K_mu = 100.0,
                         #fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
