@@ -240,6 +240,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         sp_env_eff = [-0.08, -0.05],
                         ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
                         ex_env_eff = [-0.05, -0.03],
+                        env_effect_cat_trait = [[1, -1],[-1, 1]],
                         #K_lam = 100.0,
                         #K_mu = 100.0,
                         #fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),

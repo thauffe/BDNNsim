@@ -81,6 +81,11 @@ class bdnn_simulator():
                  sp_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
                  ex_env_file = None,  # Path to environmental file influencing speciation
                  ex_env_eff = [0.0, 0.0],  # range environmental effect on speciation rate
+                 # List with multiplier for the states of the first categorical traits for environmental effect
+                 # e.g. for three states [[0.0, 1.0, -0.5], [None]]
+                 # state0 no environmental effect, state1 1 * sp_env_eff, state2 -0.5 * sp_env_eff
+                 # No modification of environmental effect on extinction
+                 env_effect_cat_trait = [None, None],
                  K_lam = None, # carrying capacity K
                  K_mu = None, # carrying capacity K
                  # fix carrying capacity K through time
@@ -140,6 +145,7 @@ class bdnn_simulator():
         self.sp_env_eff = sp_env_eff
         self.ex_env_file = ex_env_file
         self.ex_env_eff = ex_env_eff
+        self.env_effect_cat_trait = env_effect_cat_trait
         self.K_lam = K_lam,
         self.K_mu = K_mu,
         self.fixed_K_lam = fixed_K_lam,
@@ -237,12 +243,6 @@ class bdnn_simulator():
             l = L[t]
             m = M[t]
 
-            # environmental effect
-            if self.sp_env_file is not None:
-                l = float(l * np.exp(env_eff_sp * env_sp[t_abs]))
-            if self.ex_env_file is not None:
-                m = float(m * np.exp(env_eff_ex * env_ex[t_abs]))
-
             TE = len(te)
             if TE > self.maxSP:
                 #print(t_abs)
@@ -271,6 +271,22 @@ class bdnn_simulator():
             for j in te_extant:  # extant lineages
                 l_j = l + 0.
                 m_j = m + 0.
+
+                # environmental effect
+                if self.sp_env_file is not None:
+                    eff_sp = env_eff_sp
+                    if n_cat_traits > 0 and self.env_effect_cat_trait[1] is not None:
+                        cat_trait_j = int(cat_traits[t_abs + 1, 0, j])
+                        eff_sp = eff_sp * self.env_effect_cat_trait[0][cat_trait_j]
+                    eff_sp = np.exp(eff_sp * env_sp[t_abs])
+                    l_j = float(l_j * eff_sp)
+                if self.ex_env_file is not None:
+                    eff_ex = env_eff_ex
+                    if n_cat_traits > 0 and self.env_effect_cat_trait[1] is not None:
+                        cat_trait_j = int(cat_traits[t_abs + 1, 0, j])
+                        eff_ex = env_eff_ex * self.env_effect_cat_trait[1][cat_trait_j]
+                    eff_ex = np.exp(eff_ex * env_ex[t_abs])
+                    m_j = float(m_j * eff_ex)
 
                 # categorical trait evolution
                 cat_trait_j = 0
