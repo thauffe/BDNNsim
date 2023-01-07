@@ -406,7 +406,7 @@ class bdnn_simulator():
         return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb
 
 
-    def get_random_settings(self, root, verbose):
+    def get_random_settings(self, root, sp_env_ts, ex_env_ts, verbose):
         root = np.abs(root)
         root_scaled = int(root * self.scale)
         dT = root / root_scaled
@@ -509,23 +509,19 @@ class bdnn_simulator():
         sp_env_eff = np.random.uniform(np.min(self.sp_env_eff), np.max(self.sp_env_eff), 1)
         ex_env_eff = np.random.uniform(np.min(self.ex_env_eff), np.max(self.ex_env_eff), 1)
 
-        sp_env_ts = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis=1)
-        sp_env_binned = None
         if self.sp_env_file is not None:
-            sp_env_ts = np.loadtxt(self.sp_env_file, skiprows=1)
             time_vec = np.arange(int(np.abs(root) * self.scale) + 2)
             sp_env_binned = get_binned_continuous_variable(sp_env_ts, time_vec, self.scale)
-            sp_env_binned = sp_env_binned[::-1]
+        else:
+            sp_env_binned = None
 
-        ex_env_ts = np.stack((np.linspace(0, 1.2 * np.abs(root), 1000), np.zeros(1000)), axis=1)
-        ex_env_binned = None
         if self.ex_env_file is not None:
-            ex_env_ts = np.loadtxt(self.ex_env_file, skiprows=1)
             time_vec = np.arange(int(np.abs(root) * self.scale) + 2)
             ex_env_binned = get_binned_continuous_variable(ex_env_ts, time_vec, self.scale)
-            ex_env_binned = ex_env_binned[::-1]
+        else:
+            ex_env_binned = None
 
-        return dT, L_shifts, M_shifts, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, sp_env_eff, ex_env_eff, sp_env_binned, ex_env_binned, sp_env_ts, ex_env_ts
+        return dT, L_shifts, M_shifts, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, sp_env_eff, ex_env_eff, sp_env_binned, ex_env_binned
 
 
     def make_shifts_birth_death(self, root_scaled, poi_shifts, range_rate):
@@ -1079,9 +1075,15 @@ class bdnn_simulator():
         n_extinct = 0
         n_extant = 0
         prop_cat_traits_ok = False
+        sp_env_ts = None
+        if self.sp_env_file is not None:
+            sp_env_ts = np.loadtxt(self.sp_env_file, skiprows=1)
+        ex_env_ts = None
+        if self.ex_env_file is not None:
+            ex_env_ts = np.loadtxt(self.ex_env_file, skiprows=1)
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex, env_sp_ts, env_ex_ts = self.get_random_settings(root, verbose)
+            dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
@@ -1128,9 +1130,11 @@ class bdnn_simulator():
                   'geographic_range': biogeo,
                   'range_states': areas_comb,
                   'env_eff_sp': env_eff_sp,
-                  'env_sp': env_sp_ts,
-                  'env_eff_ex': env_eff_ex,
-                  'env_ex': env_ex_ts}
+                  'env_eff_ex': env_eff_ex}
+        if env_sp is not None:
+            res_bd['env_sp'] = sp_env_ts
+        if env_ex is not None:
+            res_bd['env_ex'] = ex_env_ts
         if verbose:
             print("N. species", len(LOtrue))
             ltt = ""
@@ -1477,7 +1481,6 @@ class write_PyRate_files():
     def bin_and_write_env(self, env_var, env_file_name):
         max_age_env = np.max(env_var[:, 0])
         time_vec = np.arange(0, max_age_env + self.delta_time, self.delta_time)
-        # Will this still wok after changing get_binned_continuous_variable?
         binned_env = get_binned_continuous_variable(env_var, time_vec, 1.0)
         binned_env = np.stack((time_vec[:-1], binned_env), axis = 1)
         np.savetxt(env_file_name, binned_env, delimiter = '\t')
@@ -1542,10 +1545,13 @@ class write_PyRate_files():
 
         self.write_true_tste(res_bd, sim_fossil, name_file)
 
-        env_sp_name = "%s/%s/%s_env_sp.csv" % (self.output_wd, name_file, name_file)
-        self.bin_and_write_env(res_bd['env_sp'], env_sp_name)
-        env_ex_name = "%s/%s/%s_env_ex.csv" % (self.output_wd, name_file, name_file)
-        self.bin_and_write_env(res_bd['env_ex'], env_ex_name)
+        key_names = list(res_bd.keys())
+        if 'env_sp' in key_names:
+            env_sp_name = "%s/%s/%s_env_sp.csv" % (self.output_wd, name_file, name_file)
+            self.bin_and_write_env(res_bd['env_sp'], env_sp_name)
+        if 'env_ex' in key_names:
+            env_ex_name = "%s/%s/%s_env_ex.csv" % (self.output_wd, name_file, name_file)
+            self.bin_and_write_env(res_bd['env_ex'], env_ex_name)
 
         self.write_cont_trait_effects(res_bd, name_file)
 
