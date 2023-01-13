@@ -180,8 +180,8 @@ cont_traits_effect_shift_ex = np.array([15.0])
 
 # Diversity-dependent speciation
 ################################
-rangeL = [0.2, 0.2]
-rangeM = [0.1, 0.1]
+rangeL = [0.5, 0.5]
+rangeM = [0.4, 0.4]
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
@@ -228,6 +228,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cont_traits_effect_shift_ex = cont_traits_effect_shift_ex,
                         n_cat_traits = n_cat_traits,
                         n_cat_traits_states = n_cat_traits_states, # range number of states for categorical trait
+                        cat_traits_min_freq = [0.3],
                         cat_traits_ordinal = [False, False],
                         cat_traits_dir = 2,
                         cat_traits_diag = 0.9,
@@ -236,11 +237,11 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # n_areas = [1, 1],
                         # dispersal = [0.005, 0.01],
                         # extirpation = [0.05, 0.2],
-                        sp_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
-                        sp_env_eff = [-0.08, -0.05],
-                        ex_env_file = '/home/torsten/Work/BDNN/temp_Westerhold.txt',
-                        ex_env_eff = [-0.05, -0.03],
-                        env_effect_cat_trait = [[1, -1],[-1, 1]],
+                        sp_env_file = '/home/torsten/Work/BDNN/temp.txt',
+                        sp_env_eff = [1.2, 1.2], # [-0.08, -0.05],
+                        ex_env_file = '/home/torsten/Work/BDNN/temp.txt',
+                        ex_env_eff = [1.2, 1.2],
+                        env_effect_cat_trait = [[1, -1],[1, -1]],
                         #K_lam = 100.0,
                         #K_mu = 100.0,
                         #fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
@@ -265,6 +266,7 @@ res_bd = bd_sim.run_simulation(verbose = True)
 #print(res_bd['tshift_mu'])
 #print(res_bd['mass_ext_time'])
 #print(res_bd['true_rates_through_time'][['speciation', 'extinction']])
+print(res_bd['true_rates_through_time'][['time', 'trait_weighted_speciation', 'trait_weighted_extinction']])
 #print(res_bd['linear_time_lambda'])
 #print(res_bd['linear_time_mu'])
 #print(res_bd['cat_traits_Q'])

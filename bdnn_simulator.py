@@ -14,7 +14,7 @@ import pandas as pd
 import scipy.linalg
 import random
 import string
-np.set_printoptions(suppress = True, precision = 3)
+# np.set_printoptions(suppress = True, precision = 3)
 from collections.abc import Iterable
 #from .extract_properties import *
 SMALL_NUMBER = 1e-10
@@ -154,7 +154,7 @@ class bdnn_simulator():
             np.random.seed(seed)
 
 
-    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex):
+    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex):
         ts = list()
         te = list()
 
@@ -243,6 +243,9 @@ class bdnn_simulator():
             l = L[t]
             m = M[t]
 
+            #eff_sp = np.exp(env_eff_sp * env_sp[t_abs])
+            #print(t_abs, env_sp[t_abs], l, env_eff_sp, 100 * (l * eff_sp))
+
             TE = len(te)
             if TE > self.maxSP:
                 #print(t_abs)
@@ -275,18 +278,22 @@ class bdnn_simulator():
                 # environmental effect
                 if self.sp_env_file is not None:
                     eff_sp = env_eff_sp
-                    if n_cat_traits > 0 and self.env_effect_cat_trait[1] is not None:
+                    cat_trait_j = 0
+                    if n_cat_traits > 0 and self.env_effect_cat_trait[0] is not None:
                         cat_trait_j = int(cat_traits[t_abs + 1, 0, j])
-                        eff_sp = eff_sp * self.env_effect_cat_trait[0][cat_trait_j]
-                    eff_sp = np.exp(eff_sp * env_sp[t_abs])
-                    l_j = float(l_j * eff_sp)
+                    #     eff_sp = eff_sp * self.env_effect_cat_trait[0][cat_trait_j]
+                    # eff_sp = np.exp(eff_sp * env_sp[t_abs])
+                    # l_j = float(l_j * eff_sp)
+                    l_j = self.get_rate_by_env_transformation(l_j, t_abs, eff_sp, rate_type = 'l', cate_state = cat_trait_j)
                 if self.ex_env_file is not None:
                     eff_ex = env_eff_ex
+                    cat_trait_j = 0
                     if n_cat_traits > 0 and self.env_effect_cat_trait[1] is not None:
                         cat_trait_j = int(cat_traits[t_abs + 1, 0, j])
-                        eff_ex = env_eff_ex * self.env_effect_cat_trait[1][cat_trait_j]
-                    eff_ex = np.exp(eff_ex * env_ex[t_abs])
-                    m_j = float(m_j * eff_ex)
+                    #     eff_ex = env_eff_ex * self.env_effect_cat_trait[1][cat_trait_j]
+                    # eff_ex = np.exp(eff_ex * env_ex[t_abs])
+                    # m_j = float(m_j * eff_ex)
+                    m_j = self.get_rate_by_env_transformation(m_j, t_abs, eff_ex, rate_type = 'm', cate_state = cat_trait_j)
 
                 # categorical trait evolution
                 cat_trait_j = 0
@@ -522,22 +529,27 @@ class bdnn_simulator():
             extirpation = np.random.uniform(np.min(self.extirpation), np.max(self.extirpation), 1)
 
         # environmental effects
-        sp_env_eff = np.random.uniform(np.min(self.sp_env_eff), np.max(self.sp_env_eff), 1)
-        ex_env_eff = np.random.uniform(np.min(self.ex_env_eff), np.max(self.ex_env_eff), 1)
+        sp_env_eff = np.random.uniform( 1.0 / np.min(self.sp_env_eff), 1.0 / np.max(self.sp_env_eff), 1)
+        ex_env_eff = np.random.uniform(1.0 / np.min(self.ex_env_eff), 1.0 / np.max(self.ex_env_eff), 1)
 
         if self.sp_env_file is not None:
             time_vec = np.arange(int(np.abs(root) * self.scale) + 2)
-            sp_env_binned = get_binned_continuous_variable(sp_env_ts, time_vec, self.scale)
+            # What if temporal resolution of the environment is coarser than time_vec?
+            self._env_sp_binned = get_binned_continuous_variable(sp_env_ts, time_vec, self.scale)
+            self._env_sp_mean = np.mean(self._env_sp_binned)
+            self._env_sp_std = np.std(self._env_sp_binned)
         else:
             sp_env_binned = None
 
         if self.ex_env_file is not None:
             time_vec = np.arange(int(np.abs(root) * self.scale) + 2)
-            ex_env_binned = get_binned_continuous_variable(ex_env_ts, time_vec, self.scale)
+            self._env_ex_binned = get_binned_continuous_variable(ex_env_ts, time_vec, self.scale)
+            self._env_ex_mean = np.mean(self._env_ex_binned)
+            self._env_ex_std = np.std(self._env_ex_binned)
         else:
             ex_env_binned = None
 
-        return dT, L_shifts, M_shifts, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, sp_env_eff, ex_env_eff, sp_env_binned, ex_env_binned
+        return dT, L_shifts, M_shifts, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, sp_env_eff, ex_env_eff
 
 
     def make_shifts_birth_death(self, root_scaled, poi_shifts, range_rate):
@@ -1086,6 +1098,28 @@ class bdnn_simulator():
         return proportion_ok
 
 
+    def get_rate_by_env_transformation(self, r, t, env_eff, rate_type = 'l', cate_state = 0):
+        if rate_type == 'l':
+            env = self._env_sp_binned
+            env_mean = self._env_sp_mean
+            env_sd = self._env_sp_std
+        else:
+            env = self._env_ex_binned
+            env_mean = self._env_ex_mean
+            env_sd = self._env_ex_std
+        sd = env_sd * np.abs(env_eff)
+        max_pdf = norm.pdf(env_mean, env_mean, sd)
+        env_pdf = norm.pdf(env[t], env_mean, sd)
+        env_pdf_scaled = env_pdf / max_pdf
+        r_env_transf = r * env_pdf_scaled
+        if env_eff < 0.0:
+            r_env_transf = -1 * r_env_transf + r
+        if cate_state == 1:
+            r_env_transf = -1 * r_env_transf + r
+
+        return float(r_env_transf)
+
+
     def run_simulation(self, verbose = False):
         LOtrue = []
         n_extinct = 0
@@ -1099,9 +1133,9 @@ class bdnn_simulator():
             ex_env_ts = np.loadtxt(self.ex_env_file, skiprows=1)
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
-            dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
+            dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex, env_sp, env_ex)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
@@ -1145,11 +1179,11 @@ class bdnn_simulator():
                   'cat_traits_effect': cat_traits_effect,
                   'geographic_range': biogeo,
                   'range_states': areas_comb,
-                  'env_eff_sp': env_eff_sp,
-                  'env_eff_ex': env_eff_ex}
-        if env_sp is not None:
+                  'env_eff_sp': 1.0 / env_eff_sp,
+                  'env_eff_ex': 1.0 / env_eff_ex}
+        if self.sp_env_file is not None:
             res_bd['env_sp'] = sp_env_ts
-        if env_ex is not None:
+        if self.ex_env_file is not None:
             res_bd['env_ex'] = ex_env_ts
         if verbose:
             print("N. species", len(LOtrue))
