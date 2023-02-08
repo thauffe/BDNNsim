@@ -261,7 +261,7 @@ class bdnn_simulator():
             no_extant_lineages = len(te_extant)  # the number of currently extant species
             mass_extinction_prob = self.p_mass_extinction/self.scale
             if (no < mass_extinction_prob and no_extant_lineages > 10) or np.isin(t_abs, self.fixed_times_mass_ext * self.scale):  # mass extinction condition
-                print("Mass extinction", t_abs / self.scale)
+                # print("Mass extinction", t_abs / self.scale)
                 # increased loss of species: increased ext probability for this time bin
                 m = np.random.uniform(self.magnitude_mass_ext[0], self.magnitude_mass_ext[1])
                 mass_ext_time.append(t)
