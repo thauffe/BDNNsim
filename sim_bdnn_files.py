@@ -238,7 +238,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # dispersal = [0.005, 0.01],
                         # extirpation = [0.05, 0.2],
                         sp_env_file = '/home/torsten/Work/BDNN/temp.txt',
-                        sp_env_eff = [1.2, 1.2], # [-0.08, -0.05],
+                        sp_env_eff = [1.2, 1.2],
                         ex_env_file = '/home/torsten/Work/BDNN/temp.txt',
                         ex_env_eff = [1.2, 1.2],
                         env_effect_cat_trait = [[1, -1],[1, -1]],
@@ -255,7 +255,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0,
-                                  name = 'DivDep')
+                                  name = 'MassExt')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -298,6 +298,7 @@ RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
                              '/home/torsten/Work/BDNN/%s/%s.py' % (name_file, name_file),
                              '-A', '4',
                              '-mHPP',
+                             '-min_dt', '0.1',
                              '-n', '50001', '-s', '5000', '-p', '1000'])
 
 RJMCMC_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
