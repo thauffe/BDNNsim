@@ -255,7 +255,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
 
 write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
                                   delta_time = 1.0,
-                                  name = 'MassExt')
+                                  name = 'EnvDep')
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -302,7 +302,7 @@ RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
                              '-n', '50001', '-s', '5000', '-p', '1000'])
 
 RJMCMC_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-                              '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b', '10'])
+                              '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b', '0.1'])
 
 
 

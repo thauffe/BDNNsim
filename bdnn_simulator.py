@@ -395,6 +395,21 @@ class bdnn_simulator():
                                                                            cont_traits_at_origin,
                                                                            cont_trait_effect_ex[cont_traits_bin, :, cat_trait_new, :],
                                                                            expected_sd_cont_traits, n_cont_traits)
+                        # environmental effect
+                        if self.sp_env_file is not None:
+                            eff_sp = env_eff_sp
+                            cat_trait_j = 0
+                            if n_cat_traits > 0 and self.env_effect_cat_trait[0] is not None:
+                                cat_trait_j = cat_trait_new
+                            l_new = self.get_rate_by_env_transformation(l_new, t_abs, eff_sp, rate_type = 'l',
+                                                                        cate_state = cat_trait_j)
+                        if self.ex_env_file is not None:
+                            eff_ex = env_eff_ex
+                            cat_trait_j = 0
+                            if n_cat_traits > 0 and self.env_effect_cat_trait[1] is not None:
+                                cat_trait_j = cat_trait_new
+                            m_new = self.get_rate_by_env_transformation(m_new, t_abs, eff_ex, rate_type = 'm',
+                                                                        cate_state = cat_trait_j)
                     if n_areas > 1:
                         biogeo_new_species = self.empty_traits(root_plus_1, 1)
                         # biogeo_at_origin = biogeo[t_abs, :, j]
