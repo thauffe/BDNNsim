@@ -187,6 +187,8 @@ class bdnn_simulator():
         # init continuous traits
         cont_traits = np.empty((root_plus_1, n_cont_traits, self.s_species))
         cont_traits[:] = np.nan
+        # init lineage-specific rates through time
+        lineage_rates_through_time = np.empty((root_plus_1, 2, self.s_species))
 
         for i in range(self.s_species):
             #cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
@@ -219,7 +221,7 @@ class bdnn_simulator():
                                                                                  expected_sd_cont_traits,
                                                                                  n_cont_traits)
 
-                # init biogeography
+        # init biogeography
         biogeo = np.empty((root_plus_1, 1, self.s_species))
         biogeo[:] = np.nan
         biogeo[-1,:,:] = np.random.choice(np.arange(n_areas + 1), self.s_species)
@@ -416,6 +418,12 @@ class bdnn_simulator():
 
                     lineage_rates_tmp[:5] = np.array([t, -0.0, l_new, m_new, l_j])
                     lineage_rates.append(lineage_rates_tmp)
+                    # add new species to lineage-specific rates through time
+                    lineage_rates_through_time_new_species = self.empty_traits(root_plus_1, 2)
+                    lineage_rates_through_time_new_species[t_abs, 0] = l_new
+                    lineage_rates_through_time_new_species[t_abs, 1] = m_new
+                    lineage_rates_through_time = np.dstack((lineage_rates_through_time,
+                                                            lineage_rates_through_time_new_species))
 
                 # extinction
                 if (ran > l_j and ran < (l_j + m_j) ) or t == -1:
@@ -426,6 +434,10 @@ class bdnn_simulator():
                     # print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
                     if n_cont_traits > 0:
                         lineage_rates[j][(5 + n_cont_traits):(5 + 2 * n_cont_traits)] = cont_trait_j
+
+                # trace lineage-specific rates through time
+                lineage_rates_through_time[t_abs, 0, j] = l_j
+                lineage_rates_through_time[t_abs, 1, j] = m_j
 
             if t != -1:
                 lineage_weighted_lambda_tt[t_abs-1] = self.get_harmonic_mean(lineage_lambda)
@@ -438,7 +450,7 @@ class bdnn_simulator():
         lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
         lineage_rates[:, 4] = lineage_rates[:, 4] * self.scale
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time
 
 
     def get_random_settings(self, root, sp_env_ts, ex_env_ts, verbose):
@@ -1149,7 +1161,7 @@ class bdnn_simulator():
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
@@ -1194,7 +1206,8 @@ class bdnn_simulator():
                   'geographic_range': biogeo,
                   'range_states': areas_comb,
                   'env_eff_sp': 1.0 / env_eff_sp,
-                  'env_eff_ex': 1.0 / env_eff_ex}
+                  'env_eff_ex': 1.0 / env_eff_ex,
+                  'lineage_rates_through_time': lineage_rates_through_time * self.scale}
         if self.sp_env_file is not None:
             res_bd['env_sp'] = sp_env_ts
         if self.ex_env_file is not None:
