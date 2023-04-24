@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, r'/home/torsten/Work/Software/BDNNsim')
 from bdnn_simulator import *
@@ -180,8 +181,8 @@ cont_traits_effect_shift_ex = np.array([15.0])
 
 # Diversity-dependent speciation
 ################################
-rangeL = [0.5, 0.5]
-rangeM = [0.4, 0.4]
+rangeL = [1.0, 1.0]
+rangeM = [0.1, 0.1]
 n_cont_traits = [1, 1] # Range of number of continuous traits
 n_cat_traits = [1, 1] # Range of number of categorical traits
 n_cat_traits_states = [2, 2] # States for categorical traits
@@ -237,14 +238,14 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # n_areas = [1, 1],
                         # dispersal = [0.005, 0.01],
                         # extirpation = [0.05, 0.2],
-                        sp_env_file = '/home/torsten/Work/BDNN/temp.txt',
-                        sp_env_eff = [1.2, 1.2],
-                        ex_env_file = '/home/torsten/Work/BDNN/temp.txt',
-                        ex_env_eff = [1.2, 1.2],
-                        env_effect_cat_trait = [[1, -1],[1, -1]],
-                        #K_lam = 100.0,
-                        #K_mu = 100.0,
-                        #fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
+                        # sp_env_file = '/home/torsten/Work/BDNN/temp.txt',
+                        # sp_env_eff = [1.2, 1.2],
+                        # ex_env_file = '/home/torsten/Work/BDNN/temp.txt',
+                        # ex_env_eff = [1.2, 1.2],
+                        # env_effect_cat_trait = [[1, -1],[1, -1]],
+                        #K_lam = 40.0,
+                        #K_mu = 60.0,
+                        fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
@@ -252,13 +253,15 @@ fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
                               poi_shifts = 0,
                               seed = rnd_seed)
 
-
-write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/BDNN',
+output_wd = '/home/torsten/Work/BDNN'
+name = 'DivDep'
+write_PyRate = write_PyRate_files(output_wd = output_wd,
                                   delta_time = 1.0,
-                                  name = 'EnvDep')
+                                  name = name)
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
+print(res_bd['anc_desc'])
 #print(res_bd['ts_te'])
 #print(res_bd['lambda'])
 #print(res_bd['tshift_lambda'])
@@ -276,7 +279,12 @@ print(res_bd['cont_traits_effect_ex'])
 print(res_bd['expected_sd_cont_traits'])
 # print(res_bd['lineage_rates'][:3,:])
 # print(res_bd['cont_traits'])
-# np.savetxt('/home/torsten/Work/BDNN/cont_traits.txt', res_bd['cont_traits'][:,0,:], delimiter='\t')
+cont_traits_df = pd.DataFrame(res_bd['cont_traits'][:,0,:], columns = res_bd['anc_desc'])
+cat_traits_df = pd.DataFrame(res_bd['cat_traits'][:,0,:], columns = res_bd['anc_desc'])
+cont_traits_file = os.path.join(output_wd, name + '_cont_traits_through_time.csv')
+cont_traits_df.to_csv(cont_traits_file, header = True, sep = '\t', index = True, na_rep = 'NA')
+cat_traits_file = os.path.join(output_wd, name + '_cat_traits_through_time.csv')
+cat_traits_df.to_csv(cat_traits_file, header = True, sep = '\t', index = True, na_rep = 'NA')
 #print(np.min(res_bd['lineage_rates'][:,2]), np.max(res_bd['lineage_rates'][:,2]))
 print(np.unique(res_bd['lineage_rates'][1:,8], return_counts = True)[1])
 

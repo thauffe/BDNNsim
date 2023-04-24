@@ -172,7 +172,7 @@ class bdnn_simulator():
         for i in range(self.s_species):
             ts.append(root)
             te.append(-0.0)
-            anc_desc.append(np.array([i]))
+            anc_desc.append(str(i))
             lineage_rates_tmp = np.zeros(5 + 2 * n_cont_traits + 2 * n_cat_traits)
             lineage_rates_tmp[:] = np.nan
             lineage_rates_tmp[:5] = np.array([root, -0.0, L[root], M[root], 0.0])
@@ -344,12 +344,7 @@ class bdnn_simulator():
                 if ran < l_j:
                     te.append(-0.0)  # add species
                     ts.append(t)  # sp time
-
-                    # Keep track of ancestor-descendent relationship - double-check this!
-                    desc = np.array([len(ts)])
-                    anc_desc[j] = np.concatenate((anc_desc[j], desc))
-                    anc = np.random.choice(anc_desc[j], 1)  # If a lineage already has multiple descendents
-                    anc_desc.append(anc)
+                    anc_desc.append(str(len(ts) - 1) + '_' +  str(j))
 
                     lineage_rates_tmp = np.zeros(5 + 2 * n_cont_traits + 2 * n_cat_traits)
                     l_new = l + 0.0
