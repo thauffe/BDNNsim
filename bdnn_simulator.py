@@ -189,6 +189,7 @@ class bdnn_simulator():
         cont_traits[:] = np.nan
         # init lineage-specific rates through time
         lineage_rates_through_time = np.empty((root_plus_1, 2, self.s_species))
+        lineage_rates_through_time[:] = np.nan
 
         for i in range(self.s_species):
             #cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
