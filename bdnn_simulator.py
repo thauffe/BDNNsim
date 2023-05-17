@@ -159,6 +159,7 @@ class bdnn_simulator():
     def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex):
         ts = list()
         te = list()
+        nwk = list()
 
         root = int(root * self.scale)
         # Trace ancestor descendant relationship
@@ -178,7 +179,13 @@ class bdnn_simulator():
             lineage_rates_tmp[:5] = np.array([root, -0.0, L[root], M[root], 0.0])
             lineage_rates.append(lineage_rates_tmp)
 
-        # init continuous traits (if there are any to simulate)
+        # init newick string (not working with > 1 self.s_species)
+        nwk_str = 'No newick string with more than one starting species'
+        if self.s_species == 1:
+            nwk.append('sp0:%s' % self.format_age_for_newick(0.0))
+            nwk_str = nwk[0] + ';'
+
+            # init continuous traits (if there are any to simulate)
         root_plus_1 = np.abs(root) + 2
 
         # init categorical traits
@@ -425,9 +432,15 @@ class bdnn_simulator():
                     lineage_rates_through_time_new_species[t_abs, 1] = m_new
                     lineage_rates_through_time = np.dstack((lineage_rates_through_time,
                                                             lineage_rates_through_time_new_species))
+                    # modify nwk list
+                    if self.s_species == 1:
+                        nwk_j_before = nwk[j]
+                        nwk[j] = self.update_nwk(nwk_j_before, anagenetic = False)
+                        nwk.append('sp' + str(len(ts) - 1) + ':' + self.format_age_for_newick(0.0))
+                        nwk_str = self.add_speciation_to_nwk_str(nwk_str, nwk_j_before, str(len(ts) - 1))
 
                 # extinction
-                if (ran > l_j and ran < (l_j + m_j) ) or t == -1:
+                elif (ran > l_j and ran < (l_j + m_j) ) or t == -1:
                     if t != -1:
                         te[j] = t
                         lineage_rates[j][1] = t
@@ -435,6 +448,17 @@ class bdnn_simulator():
                     # print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
                     if n_cont_traits > 0:
                         lineage_rates[j][(5 + n_cont_traits):(5 + 2 * n_cont_traits)] = cont_trait_j
+
+                # no speciation or extinction
+                else:
+                    if self.s_species == 1:
+                        nwk_j_before = nwk[j]
+                        nwk_j_after = self.update_nwk(nwk_j_before)
+                        nwk[j] = nwk_j_after
+                        nwk_str_new = nwk_str.replace(nwk_j_before, nwk_j_after)
+                        del nwk_str
+                        nwk_str = nwk_str_new
+                        #print(nwk_str)
 
                 # trace lineage-specific rates through time
                 lineage_rates_through_time[t_abs, 0, j] = l_j
@@ -451,7 +475,7 @@ class bdnn_simulator():
         lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
         lineage_rates[:, 4] = lineage_rates[:, 4] * self.scale
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str
 
 
     def get_random_settings(self, root, sp_env_ts, ex_env_ts, verbose):
@@ -1147,6 +1171,39 @@ class bdnn_simulator():
         return float(r_env_transf)
 
 
+    def format_age_for_newick(self, age):
+        frac_age, int_age = np.modf(age)
+        int_age= str(int(int_age))
+        frac_age = np.round(frac_age, self.nwk_decimal_digits)
+        frac_age = str(frac_age).replace('0.', '')
+        age_nwk = int_age.zfill(self.nwk_leading_digits) + '.' + frac_age.ljust(self.nwk_decimal_digits, '0')
+
+        return age_nwk
+
+
+    def update_nwk(self, nwkj, anagenetic = True):
+        sp_name = nwkj[:(len(nwkj)-self.nwk_digits) ]
+        new_age = 0.0
+        if anagenetic:
+            age = float(nwkj[-self.nwk_digits: ])
+            new_age = age + 10 / self.scale
+        new_age = self.format_age_for_newick(new_age)
+        new_nwk = sp_name + new_age
+
+        return new_nwk
+
+
+    def add_speciation_to_nwk_str(self, nwk_str, nwkj, new_sp_idx):
+        sp_name = nwkj[:(len(nwkj) - self.nwk_digits)]
+        age = nwkj[-self.nwk_digits:]
+        new_age = self.format_age_for_newick(0.0)
+        replace_str = '(sp' + new_sp_idx + ':' + new_age + ',' + sp_name + new_age + '):' + age
+        nwk_str_new = nwk_str.replace(nwkj, replace_str)
+        del nwk_str
+
+        return nwk_str_new
+
+
     def run_simulation(self, verbose = False):
         LOtrue = []
         n_extinct = 0
@@ -1161,8 +1218,11 @@ class bdnn_simulator():
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
+            self.nwk_leading_digits = len(str(int(np.abs(root))))
+            self.nwk_decimal_digits = len(str(int(self.scale / 10)))
+            self.nwk_digits = self.nwk_leading_digits + self.nwk_decimal_digits + 1
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
@@ -1208,7 +1268,8 @@ class bdnn_simulator():
                   'range_states': areas_comb,
                   'env_eff_sp': 1.0 / env_eff_sp,
                   'env_eff_ex': 1.0 / env_eff_ex,
-                  'lineage_rates_through_time': lineage_rates_through_time * self.scale}
+                  'lineage_rates_through_time': lineage_rates_through_time * self.scale,
+                  'newick_string': nwk_str}
         if self.sp_env_file is not None:
             res_bd['env_sp'] = sp_env_ts
         if self.ex_env_file is not None:
