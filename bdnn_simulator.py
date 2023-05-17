@@ -1226,7 +1226,7 @@ class bdnn_simulator():
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
-            n_extant = len(LOtrue[LOtrue == 0.0])
+            n_extant = len(LOtrue[LOtrue == 0.0]) #
 
             if verbose:
                 print('N. species', len(LOtrue))
