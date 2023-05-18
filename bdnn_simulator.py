@@ -1186,7 +1186,7 @@ class bdnn_simulator():
         new_age = 0.0
         if anagenetic:
             age = float(nwkj[-self.nwk_digits: ])
-            new_age = age + 10 / self.scale
+            new_age = age + 1.0 / self.scale
         new_age = self.format_age_for_newick(new_age)
         new_nwk = sp_name + new_age
 
@@ -1219,14 +1219,14 @@ class bdnn_simulator():
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
             self.nwk_leading_digits = len(str(int(np.abs(root))))
-            self.nwk_decimal_digits = len(str(int(self.scale / 10)))
+            self.nwk_decimal_digits = len(str(int(self.scale)))
             self.nwk_digits = self.nwk_leading_digits + self.nwk_decimal_digits + 1
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
-            n_extant = len(LOtrue[LOtrue == 0.0]) #
+            n_extant = len(LOtrue[LOtrue == 0.0])
 
             if verbose:
                 print('N. species', len(LOtrue))
