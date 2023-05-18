@@ -14,6 +14,7 @@ import pandas as pd
 import scipy.linalg
 import random
 import string
+import dendropy
 # np.set_printoptions(suppress = True, precision = 3)
 from collections.abc import Iterable
 #from .extract_properties import *
@@ -182,7 +183,7 @@ class bdnn_simulator():
         # init newick string (not working with > 1 self.s_species)
         nwk_str = 'No newick string with more than one starting species'
         if self.s_species == 1:
-            nwk.append('sp0:%s' % self.format_age_for_newick(0.0))
+            nwk.append('T0:%s' % self.format_age_for_newick(0.0))
             nwk_str = nwk[0] + ';'
 
             # init continuous traits (if there are any to simulate)
@@ -436,7 +437,7 @@ class bdnn_simulator():
                     if self.s_species == 1:
                         nwk_j_before = nwk[j]
                         nwk[j] = self.update_nwk(nwk_j_before, anagenetic = False)
-                        nwk.append('sp' + str(len(ts) - 1) + ':' + self.format_age_for_newick(0.0))
+                        nwk.append('T' + str(len(ts) - 1) + ':' + self.format_age_for_newick(0.0))
                         nwk_str = self.add_speciation_to_nwk_str(nwk_str, nwk_j_before, str(len(ts) - 1))
 
                 # extinction
@@ -1197,11 +1198,27 @@ class bdnn_simulator():
         sp_name = nwkj[:(len(nwkj) - self.nwk_digits)]
         age = nwkj[-self.nwk_digits:]
         new_age = self.format_age_for_newick(0.0)
-        replace_str = '(sp' + new_sp_idx + ':' + new_age + ',' + sp_name + new_age + '):' + age
+        replace_str = '(T' + new_sp_idx + ':' + new_age + ',' + sp_name + new_age + '):' + age
         nwk_str_new = nwk_str.replace(nwkj, replace_str)
         del nwk_str
 
         return nwk_str_new
+
+
+    def nwk_str_to_tree(self, nwk_str, ts_te, root):
+        root_abs = np.abs(root)
+        print('root_abs:', root_abs)
+        # What if all species go extinct before the present?
+        tree = dendropy.Tree.get_from_string(nwk_str, 'newick')
+        for leaf in tree.leaf_node_iter():
+            species_name = str(leaf.taxon)
+            species_idx = int(species_name.replace("T", "").replace("'", ""))
+            root_dist = leaf.distance_from_root()
+            if ts_te[species_idx, 1] == 0.0:
+                delta_tip_height = root_abs - root_dist
+                leaf.edge_length = leaf.edge_length + delta_tip_height
+
+        return tree
 
 
     def run_simulation(self, verbose = False):
@@ -1239,6 +1256,10 @@ class bdnn_simulator():
         mass_ext_time = np.abs(np.array([mass_ext_time])) / self.scale
         mass_ext_mag = np.array([mass_ext_mag])
 
+        tree = 'No tree when there is more than one starting species'
+        if self.s_species == 1:
+            tree = self.nwk_str_to_tree(nwk_str, ts_te, root)
+
         res_bd = {'lambda': L * self.scale,
                   'tshift_lambda': timesL / self.scale,
                   'mu': M * self.scale,
@@ -1269,7 +1290,7 @@ class bdnn_simulator():
                   'env_eff_sp': 1.0 / env_eff_sp,
                   'env_eff_ex': 1.0 / env_eff_ex,
                   'lineage_rates_through_time': lineage_rates_through_time * self.scale,
-                  'newick_string': nwk_str}
+                  'tree': tree}
         if self.sp_env_file is not None:
             res_bd['env_sp'] = sp_env_ts
         if self.ex_env_file is not None:
@@ -3568,4 +3589,3 @@ def write_occurrence_table(fossils, output_wd, name_file):
         print(error)
     occ_file = "%s/%s/%s_fossil_occurrences.csv" % (output_wd, name_file, name_file)
     occ_df.to_csv(occ_file, header = True, sep = '\t', index = False, na_rep = 'NA')
-

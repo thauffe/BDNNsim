@@ -280,7 +280,13 @@ print(res_bd['expected_sd_cont_traits'])
 # print(res_bd['lineage_rates'][:3,:])
 # print(res_bd['cont_traits'])
 # print(res_bd['lineage_rates_through_time'][:,0,:])
+
 print(res_bd['newick_string'])
+# # Write tree to file
+tree = res_bd['tree']
+tree.write(path = '/home/torsten/Work/BDNN/Phylogeny/Phylo.tre', schema = 'newick')
+
+
 lam_lineage_tt_df = pd.DataFrame(res_bd['lineage_rates_through_time'][:, 0, :], columns = res_bd['anc_desc'])
 mu_lineage_tt_df = pd.DataFrame(res_bd['lineage_rates_through_time'][:, 1, :], columns = res_bd['anc_desc'])
 lam_lineage_tt_file = os.path.join(output_wd, name + '_lam_lineage_through_time.csv')
