@@ -281,7 +281,6 @@ print(res_bd['expected_sd_cont_traits'])
 # print(res_bd['cont_traits'])
 # print(res_bd['lineage_rates_through_time'][:,0,:])
 
-print(res_bd['newick_string'])
 # # Write tree to file
 tree = res_bd['tree']
 tree.write(path = '/home/torsten/Work/BDNN/Phylogeny/Phylo.tre', schema = 'newick')

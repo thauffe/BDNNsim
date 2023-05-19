@@ -1209,14 +1209,21 @@ class bdnn_simulator():
         root_abs = np.abs(root)
         print('root_abs:', root_abs)
         # What if all species go extinct before the present?
-        tree = dendropy.Tree.get_from_string(nwk_str, 'newick')
-        for leaf in tree.leaf_node_iter():
-            species_name = str(leaf.taxon)
-            species_idx = int(species_name.replace("T", "").replace("'", ""))
-            root_dist = leaf.distance_from_root()
-            if ts_te[species_idx, 1] == 0.0:
-                delta_tip_height = root_abs - root_dist
-                leaf.edge_length = leaf.edge_length + delta_tip_height
+        nwk_str_root = '[&R] ' + nwk_str
+        tree = dendropy.Tree.get_from_string(nwk_str_root, 'newick')
+        latest_extinction = np.min(ts_te[:, 1])
+        # At least one extant species
+        if latest_extinction == 0.0:
+            for leaf in tree.leaf_node_iter():
+                species_name = str(leaf.taxon)
+                species_idx = int(species_name.replace("T", "").replace("'", ""))
+                root_dist = leaf.distance_from_root()
+                if ts_te[species_idx, 1] == 0.0:
+                    delta_tip_height = root_abs - root_dist
+                    leaf.edge_length = leaf.edge_length + delta_tip_height
+        # All species are extinct - this is not possible to specify with a newick string
+        else:
+            pass
 
         return tree
 
