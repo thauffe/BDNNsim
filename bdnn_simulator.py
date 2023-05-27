@@ -175,7 +175,7 @@ class bdnn_simulator():
             ts.append(root)
             te.append(-0.0)
             anc_desc.append(str(i))
-            lineage_rates_tmp = np.zeros(5 + 2 * n_cont_traits + 2 * n_cat_traits)
+            lineage_rates_tmp = np.zeros(5 + 3 * n_cont_traits + 2 * n_cat_traits)
             lineage_rates_tmp[:] = np.nan
             lineage_rates_tmp[:5] = np.array([root, -0.0, L[root], M[root], 0.0])
             lineage_rates.append(lineage_rates_tmp)
@@ -209,7 +209,7 @@ class bdnn_simulator():
                     cat_traits[-1, y, i] = cat_trait_yi
                     lineage_rates[i][2] = lineage_rates[i][2] * cat_trait_effect[y][0, cat_trait_yi]
                     lineage_rates[i][3] = lineage_rates[i][3] * cat_trait_effect[y][1, cat_trait_yi]
-                    lineage_rates[i][(5 + 2 * n_cont_traits + y):(6 + 2 * n_cont_traits + y)] = cat_trait_yi
+                    lineage_rates[i][(5 + 3 * n_cont_traits + y):(6 + 3 * n_cont_traits + y)] = cat_trait_yi
                     # lineage_rates[i][2] = L[root] * cat_trait_effect[y][0, int(cat_trait_yi)]
                     # lineage_rates[i][3] = M[root] * cat_trait_effect[y][1, int(cat_trait_yi)]
             if n_cont_traits > 0:
@@ -357,7 +357,7 @@ class bdnn_simulator():
                     ts.append(t)  # sp time
                     anc_desc.append(str(len(ts) - 1) + '_' +  str(j))
 
-                    lineage_rates_tmp = np.zeros(5 + 2 * n_cont_traits + 2 * n_cat_traits)
+                    lineage_rates_tmp = np.zeros(5 + 3 * n_cont_traits + 2 * n_cat_traits)
                     l_new = l + 0.0
                     m_new = m + 0.0
 
@@ -373,9 +373,9 @@ class bdnn_simulator():
                             cat_trait_new = int(cat_trait_new)
                             cat_traits_new_species[t_abs, y] = cat_trait_new
                             # trait state for the just originated lineage
-                            lineage_rates_tmp[(5 + 2 * n_cont_traits + y):(6 + 2 * n_cont_traits + y)] = cat_trait_new
+                            lineage_rates_tmp[(5 + 3 * n_cont_traits + y):(6 + 3 * n_cont_traits + y)] = cat_trait_new
                             # trait state of the ancestral lineage
-                            lineage_rates_tmp[(5 + 2 * n_cont_traits + y + n_cat_traits):(6 + 2 * n_cont_traits + y + n_cat_traits)] = ancestral_cat_trait
+                            lineage_rates_tmp[(5 + 3 * n_cont_traits + y + n_cat_traits):(6 + 3 * n_cont_traits + y + n_cat_traits)] = ancestral_cat_trait
                             l_new = l_new * cat_trait_effect[y][0, cat_trait_new]
                             m_new = m_new * cat_trait_effect[y][1, cat_trait_new]
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
@@ -389,7 +389,8 @@ class bdnn_simulator():
                                                                         cont_traits_varcov_clado)
                         cont_traits_new_species[t_abs,:] = cont_traits_at_origin
                         cont_traits = np.dstack((cont_traits, cont_traits_new_species))
-                        lineage_rates_tmp[5:(5 + n_cont_traits)] = cont_traits_at_origin
+                        lineage_rates_tmp[5:(5 + n_cont_traits)] = cont_traits[t_abs, :, j]
+                        lineage_rates_tmp[(5 + n_cont_traits):(5 + 2 * n_cont_traits)] = cont_traits_at_origin
                         cont_traits_bin = cont_traits_effect_shift_sp[t_abs]
                         l_new = self.get_rate_by_cont_trait_transformation(l_new,
                                                                            cont_traits_at_origin,
@@ -448,7 +449,7 @@ class bdnn_simulator():
                     lineage_rates[j][3] = m_j # Extinction rate at extinction time (or present for extant species)
                     # print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
                     if n_cont_traits > 0:
-                        lineage_rates[j][(5 + n_cont_traits):(5 + 2 * n_cont_traits)] = cont_trait_j
+                        lineage_rates[j][(5 + 2 * n_cont_traits):(5 + 3 * n_cont_traits)] = cont_trait_j
 
                 # no speciation or extinction
                 else:
@@ -1590,6 +1591,8 @@ class write_PyRate_files():
         colnames = ['ts', 'te', 'speciation', 'extinction', 'ancestral_speciation']
         if res_bd['cont_traits'] is not None:
             n_cont_traits = res_bd['cont_traits'].shape[1]
+            for y in range(n_cont_traits):
+                colnames.append('cont_trait_anc_%s' % y)
             for y in range(n_cont_traits):
                 colnames.append('cont_trait_ts_%s' % y)
             for y in range(n_cont_traits):
