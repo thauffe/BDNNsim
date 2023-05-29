@@ -883,7 +883,8 @@ class bdnn_simulator():
                     # How to scale the multivariate SD by the effect? Only the diagonals and then make it positive definite again?
                     effect_par[i, :, k, 3] = multivariate_normal.pdf(effect_par[i, :, k, 4],
                                                                      mean = effect_par[i, :, k, 4],
-                                                                     cov = expected_sd)
+                                                                     cov = expected_sd,
+                                                                     allow_singular = True)
 
         return effect_par, expected_sd
 
