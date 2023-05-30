@@ -18,28 +18,26 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         minExtant_SP = 0, # minimum number of extant lineages
-                        #maxExtant_SP = 0,
                         root_r = [60., 60.],  # range root ages
                         rangeL = [0.1, 0.3],  # range of birth rates
                         rangeM = [0.05, 0.2],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
-                        poiL = 3,  # expected number of birth rate shifts
-                        poiM = 3,  # expected number of death rate shift
-                        range_linL = [0.0, 0.0],
-                        range_linM = [0.0, 0.0],
+                        cont_traits_sigma_clado = [0.1, 0.1],
+                        # poiL = 3,  # expected number of birth rate shifts
+                        # poiM = 3,  # expected number of death rate shift
+                        # range_linL = [0.0, 0.0],
+                        # range_linM = [0.0, 0.0],
                         # Shifts
                         fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
                         fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
-                        # fixed_Ltt = np.array([[60., 0.10], [45.001, 0.10], [45., 1.0], [43.001, 1.0], [43., 0.1], [37.001, 0.1], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
-                        # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [22.001, 0.1], [22., 1.0], [20.001, 1.0], [20., 0.1], [0.0, 0.1]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.4], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.4]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-scenario = 'Shifts_10'
+scenario = 'Shifts_11'
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)

@@ -525,6 +525,7 @@ class bdnn_simulator():
         cont_traits_varcov = []
         cont_traits_Theta1 = []
         cont_traits_alpha = []
+        cont_traits_varcov_clado = []
         cont_traits_effect_sp = []
         cont_traits_effect_ex = []
         expected_sd_cont_traits = []
