@@ -1210,7 +1210,6 @@ class bdnn_simulator():
 
     def nwk_str_to_tree(self, nwk_str, ts_te, root):
         root_abs = np.abs(root)
-        print('root_abs:', root_abs)
         # What if all species go extinct before the present?
         nwk_str_root = '[&R] ' + nwk_str
         tree = dendropy.Tree.get_from_string(nwk_str_root, 'newick')
@@ -3603,9 +3602,27 @@ def write_occurrence_table(fossils, output_wd, name_file):
     occ_df.to_csv(occ_file, header = True, sep = '\t', index = False, na_rep = 'NA')
 
 
+def prune_extinct(tree, tol = 1e-7):
+    mrca_age = tree.max_distance_from_root()
+    root_length = tree.internal_edges()[0].length
+    root_age = mrca_age + root_length
+    extant = []
+    for leaf in tree.leaf_node_iter():
+        species_name = str(leaf.taxon)
+        root_dist = leaf.distance_from_root()
+        delta_time_present = root_age - root_dist
+        if delta_time_present < tol:
+            extant.append(species_name.replace("'", ""))
+    labels = set(extant)
+    tree_ex = tree.extract_tree_with_taxa_labels(labels = labels)
+
+    return tree_ex
+
+
 class write_FBD_tree():
     def __init__(self,
                  fossils = None,
+                 res_bd = None,
                  output_wd = '',
                  name_file = '',
                  interval_size = 1.0,
@@ -3615,6 +3632,7 @@ class write_FBD_tree():
                  padding = [np.inf, 0.0],
                  fix_fake_bin = False):
         self.fossils = fossils
+        self.res_bd = res_bd
         self.output_wd = output_wd
         self.name_file = name_file
         self.interval_size = interval_size
@@ -3624,17 +3642,17 @@ class write_FBD_tree():
         self.padding = padding
         self.fix_fake_bin = fix_fake_bin
 
-    def prune_tree_by_fossil(self, res_bd):
-        tree = res_bd['tree']
+    def prune_tree_by_fossil(self):
+        tree = self.res_bd['tree']
         labels = set(self.fossils['taxon_names'])
         self.tree_pruned = tree.extract_tree_with_taxa_labels(labels = labels)
 
 
-    def trim_tree_by_lad(self, res_bd):
-        self.prune_tree_by_fossil(res_bd)
+    def trim_tree_by_lad(self):
+        self.prune_tree_by_fossil()
         taxon_names = self.fossils['taxon_names']
         occ = self.fossils['fossil_occurrences']
-        ts_te = res_bd['ts_te']
+        ts_te = self.res_bd['ts_te']
         #youngest_sim_age = np.min(ts_te[:, 1])
         self.tree_trimmed = self.tree_pruned.clone()
         for leaf in self.tree_trimmed.leaf_node_iter():
@@ -3653,8 +3671,8 @@ class write_FBD_tree():
         taxon_names = self.fossils['taxon_names']
         n_lineages = len(taxon_names)
         ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
-        ranges['min'] = np.zeros(n_lineages)
-        ranges['max'] = np.zeros(n_lineages)
+        ranges['min_age'] = np.zeros(n_lineages)
+        ranges['max_age'] = np.zeros(n_lineages)
         occ = self.fossils['fossil_occurrences']
         for i in range(n_lineages):
             occ_i = occ[i]
@@ -3664,7 +3682,8 @@ class write_FBD_tree():
         return ranges
 
 
-    def ():
+    def write_ranges(self):
+        # Rewrite this later to put the range into /data directory
         ranges = self.get_ranges()
-        ranges_file = "%s/%s/%s/%s/%s_ranges.csv" % (self.output_wd, self.name_file, 'FBD', 'data', self.name_file)
+        ranges_file = "%s/%s/ranges.csv" % (self.output_wd, self.name_file)
         ranges.to_csv(ranges_file, header=True, sep='\t', index=False)
