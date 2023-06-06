@@ -3601,3 +3601,70 @@ def write_occurrence_table(fossils, output_wd, name_file):
         print(error)
     occ_file = "%s/%s/%s_fossil_occurrences.csv" % (output_wd, name_file, name_file)
     occ_df.to_csv(occ_file, header = True, sep = '\t', index = False, na_rep = 'NA')
+
+
+class write_FBD_tree():
+    def __init__(self,
+                 fossils = None,
+                 output_wd = '',
+                 name_file = '',
+                 interval_size = 1.0,
+                 FBD_rate_prior = 'HSMRF',
+                 translate = None, # move occurrence by time X (only useful if lineages are extinct)
+                 interval_ages = None,
+                 padding = [np.inf, 0.0],
+                 fix_fake_bin = False):
+        self.fossils = fossils
+        self.output_wd = output_wd
+        self.name_file = name_file
+        self.interval_size = interval_size
+        self.FBD_rate_prior = FBD_rate_prior
+        self.translate = translate
+        self.interval_ages = interval_ages
+        self.padding = padding
+        self.fix_fake_bin = fix_fake_bin
+
+    def prune_tree_by_fossil(self, res_bd):
+        tree = res_bd['tree']
+        labels = set(self.fossils['taxon_names'])
+        self.tree_pruned = tree.extract_tree_with_taxa_labels(labels = labels)
+
+
+    def trim_tree_by_lad(self, res_bd):
+        self.prune_tree_by_fossil(res_bd)
+        taxon_names = self.fossils['taxon_names']
+        occ = self.fossils['fossil_occurrences']
+        ts_te = res_bd['ts_te']
+        #youngest_sim_age = np.min(ts_te[:, 1])
+        self.tree_trimmed = self.tree_pruned.clone()
+        for leaf in self.tree_trimmed.leaf_node_iter():
+            leaf_name = str(leaf.taxon)
+            #ts_te_idx = int(''.join(filter(str.isdigit, leaf_name)))
+            ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
+            te_leaf = ts_te[ts_te_idx, 1]
+            if te_leaf != 0.0:
+                leaf_name = leaf_name.replace("'", "")
+                occ_idx = taxon_names.index(leaf_name)
+                lad_leaf = np.min(occ[occ_idx])
+                shorten_branch = lad_leaf - te_leaf
+                leaf.edge_length = leaf.edge_length - shorten_branch
+
+    def get_ranges(self):
+        taxon_names = self.fossils['taxon_names']
+        n_lineages = len(taxon_names)
+        ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
+        ranges['min'] = np.zeros(n_lineages)
+        ranges['max'] = np.zeros(n_lineages)
+        occ = self.fossils['fossil_occurrences']
+        for i in range(n_lineages):
+            occ_i = occ[i]
+            ranges.iloc[i, 1] = np.min(occ_i)
+            ranges.iloc[i, 2] = np.max(occ_i)
+
+        return ranges
+
+
+    def ():
+        ranges = self.get_ranges()
+        ranges_file = "%s/%s/%s/%s/%s_ranges.csv" % (self.output_wd, self.name_file, 'FBD', 'data', self.name_file)
+        ranges.to_csv(ranges_file, header=True, sep='\t', index=False)

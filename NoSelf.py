@@ -12,12 +12,13 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
 
-# rnd_seed = 89651236
+# rnd_seed = 94649591
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
-                        minExtant_SP = 0, # minimum number of extant lineages
+                        #maxExtant_SP = 0, # minimum number of extant lineages
+                        minExtant_SP = 1,
                         root_r = [60., 60.],  # range root ages
                         rangeL = [0.1, 0.3],  # range of birth rates
                         rangeM = [0.05, 0.2],  # range of death rates
@@ -31,13 +32,14 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # range_linM = [0.0, 0.0],
                         # Shifts
                         fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
-                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
+                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.2], [0.0, 0.2]]),
                         # Linear change
-                        # fixed_Ltt = np.array([[60., 0.4], [0.0, 0.01]]),
-                        # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.4]]),
+                        # fixed_Ltt = np.array([[60., 0.25], [0.0, 0.01]]),
+                        # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.25]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-scenario = 'Shifts_11'
+scenario = 'Shifts_15'
+# scenario = 'Linear_01'
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
@@ -203,3 +205,12 @@ write_FBD_fix = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simul
                                 padding = keep_in_interval[0,:],
                                 fix_fake_bin = True)
 write_FBD_fix.run_FBD_writter(trunc_fossil)
+
+
+# Writting tree-based FBD analysis
+FBD_tree = write_FBD_tree(fossils = sim_fossil,
+                          output_wd = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny',
+                          name_file = '',)
+FBD_tree.trim_tree_by_lad(res_bd)
+FBD_tree.tree_pruned.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/PhyloPruned.tre', schema = 'newick')
+FBD_tree.tree_trimmed.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/PhyloTrimmed.tre', schema = 'newick')
