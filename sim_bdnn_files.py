@@ -254,7 +254,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
                               seed = rnd_seed)
 
 output_wd = '/home/torsten/Work/BDNN'
-name = 'DivDep'
+name = 'Humans'
 write_PyRate = write_PyRate_files(output_wd = output_wd,
                                   delta_time = 1.0,
                                   name = name)

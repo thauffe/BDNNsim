@@ -5,6 +5,7 @@ from numpy import linalg as la
 from scipy.stats import mode
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
+from scipy.interpolate import interp1d
 from itertools import combinations
 from functools import reduce
 from operator import iconcat
@@ -28,6 +29,7 @@ class bdnn_simulator():
                  minEX_SP = 0,  # minimum number of extinct lineages allowed
                  minExtant_SP = 0, # minimum number of extant lineages
                  maxExtant_SP = np.inf,  # maximum number of extant lineages
+                 timewindow_rangeSP = None, # time window for which the min/max size of the data set should be checked e.g. np.array([20., 10.])
                  root_r = [30., 100],  # range root ages
                  rangeL = [0.2, 0.5], # range speciation rate
                  rangeM = [0.2, 0.5], # range extinction rate
@@ -72,7 +74,7 @@ class bdnn_simulator():
                  # effect of n_cat_traits_states > 2 can be fixed with n_cat_traits_states = [3, 3] AND np.array([[1.5., 2.3.],[0.2.,1.5.]]) (no need for cat_traits_effect_decr_incr)
                  # or in case of 4 states with n_cat_traits_states = [4, 4] AND np.array([[1.5., 2.3., 0.6],[0.2.,1.5., 1.9]])
                  cat_traits_effect = np.array([[1., 1.],
-                                               [1.,1.]]),
+                                               [1., 1.]]),
                  cat_traits_effect_decr_incr = np.array([[True, False],
                                                          [True, False]]), # should categorical effect cause a decrease (True) or increase (False) in speciation (1st row) and extinction (2nd row)?
                  cat_traits_min_freq = [0], # list of length 1 or equal to n_cat_traits, minimum frequency of state
@@ -106,6 +108,9 @@ class bdnn_simulator():
         self.minEX_SP = minEX_SP
         self.minExtant_SP = minExtant_SP
         self.maxExtant_SP = maxExtant_SP
+        self.timewindow_rangeSP = timewindow_rangeSP
+        self.minSP_timewindow = copy.deepcopy(self.minSP)
+        self.maxSP_timewindow = copy.deepcopy(self.maxSP)
         self.root_r = root_r
         self.rangeL = rangeL
         self.rangeM = rangeM
@@ -256,13 +261,13 @@ class bdnn_simulator():
             l = L[t]
             m = M[t]
 
-            #eff_sp = np.exp(env_eff_sp * env_sp[t_abs])
-            #print(t_abs, env_sp[t_abs], l, env_eff_sp, 100 * (l * eff_sp))
-
             TE = len(te)
-            if TE > self.maxSP:
-                #print(t_abs)
+            if self.timewindow_rangeSP is None:
+                if TE > self.maxSP:
+                    break
+            elif TE > self.maxSP_timewindow and t_abs <= self.timewindow_rangeSP[0] and t_abs >= self.timewindow_rangeSP[1]:
                 break
+
             ran_vec = np.random.random(TE)
             te_extant = np.where(np.array(te) == 0)[0]
             ran_vec_cat_trait = np.random.random(TE)
@@ -1230,7 +1235,36 @@ class bdnn_simulator():
         return tree
 
 
+    def get_LTT(self, FA, LA, root):
+        change_diversity_LA = np.repeat(-1, len(LA))
+        change_diversity_LA[LA == 0.0] = 0
+        change_diversity_FA = np.repeat(1, len(FA))
+        change_diversity = np.concatenate((change_diversity_FA, change_diversity_LA))
+        times_change = np.concatenate((FA, LA))
+        times_order = np.argsort(times_change)[::-1]
+        times_change = times_change[times_order]
+        change_diversity = change_diversity[times_order]
+        diversity = np.cumsum(change_diversity)
+        interp1d_func = interp1d(times_change, diversity, kind = 'nearest', bounds_error = False, fill_value = (0.0, 0.0))
+        timevec = np.linspace(-root, 0.0, int(-root * self.scale))
+        interpolated_diversity = interp1d_func(timevec)
+
+        return np.array([timevec, interpolated_diversity]).T
+
+
+    def check_diversity_in_timewindow(self, FA, LA):
+        timewindow = self.timewindow_rangeSP / self.scale
+        FAbefore_LAin = np.logical_and(FA >= timewindow[0], LA >= timewindow[1])
+        FAin_LAafter = np.logical_and(FA <= timewindow[0], LA >= timewindow[1])
+        FAin_LAin = np.logical_and(FA <= timewindow[0], LA >= timewindow[1])
+        diversity_in_window = np.sum(np.any((FAbefore_LAin, FAin_LAafter, FAin_LAin), axis = 0))
+        diversity_in_rangeSP = diversity_in_window <= self.maxSP_timewindow and diversity_in_window >= self.minSP_timewindow
+
+        return diversity_in_rangeSP, diversity_in_window
+
+
     def run_simulation(self, verbose = False):
+        FAtrue = []
         LOtrue = []
         n_extinct = 0
         n_extant = 0
@@ -1241,7 +1275,13 @@ class bdnn_simulator():
         ex_env_ts = None
         if self.ex_env_file is not None:
             ex_env_ts = np.loadtxt(self.ex_env_file, skiprows=1)
-        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False:
+        rangeSP_OK_in_timewindow = True
+        if self.timewindow_rangeSP is not None:
+            rangeSP_OK_in_timewindow = False
+            self.timewindow_rangeSP = np.sort(self.timewindow_rangeSP)[::-1] * self.scale
+            self.minSP = 0.0
+            self.maxSP = np.inf
+        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False or rangeSP_OK_in_timewindow == False:
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
             self.nwk_leading_digits = len(str(int(np.abs(root))))
@@ -1254,13 +1294,19 @@ class bdnn_simulator():
             n_extinct = len(LOtrue[LOtrue > 0.0])
             n_extant = len(LOtrue[LOtrue == 0.0])
 
+            if self.timewindow_rangeSP is not None:
+                rangeSP_OK_in_timewindow, diversity_in_window = self.check_diversity_in_timewindow(FAtrue, LOtrue)
+
             if verbose:
                 print('N. species', len(LOtrue))
+                if self.timewindow_rangeSP is not None:
+                    print('N. species in timewindow', diversity_in_window)
                 print('N. extant species', n_extant)
                 print('Range speciation rate', np.round(np.nanmin(lineage_weighted_lambda_tt[1:-1]), 3), np.round(np.nanmax(lineage_weighted_lambda_tt[1:-1]), 3))
                 print('Range extinction rate', np.round(np.nanmin(lineage_weighted_mu_tt[1:-1]), 3), np.round(np.nanmax(lineage_weighted_mu_tt[1:-1]), 3))
 
         ts_te = np.array([FAtrue, LOtrue]).T
+        LTTtrue = self.get_LTT(FAtrue, LOtrue, root)
         true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt, lineage_weighted_lambda_tt, lineage_weighted_mu_tt)
         mass_ext_time = np.abs(np.array([mass_ext_time])) / self.scale
         mass_ext_mag = np.array([mass_ext_mag])
@@ -1299,13 +1345,13 @@ class bdnn_simulator():
                   'env_eff_sp': 1.0 / env_eff_sp,
                   'env_eff_ex': 1.0 / env_eff_ex,
                   'lineage_rates_through_time': lineage_rates_through_time * self.scale,
-                  'tree': tree}
+                  'tree': tree,
+                  'LTTtrue': LTTtrue}
         if self.sp_env_file is not None:
             res_bd['env_sp'] = sp_env_ts
         if self.ex_env_file is not None:
             res_bd['env_ex'] = ex_env_ts
         if verbose:
-            print("N. species", len(LOtrue))
             ltt = ""
             for i in range(int(max(FAtrue))):
                 n = len(FAtrue[FAtrue > i]) - len(LOtrue[LOtrue > i])
@@ -1524,7 +1570,7 @@ class write_PyRate_files():
         for i in range(n_cat_traits):
             cat_traits_i = cat_traits[:, i, taxa_sampled]
             maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0][0]
-            maj_cat_traits_i = maj_cat_traits_i.compressed()
+            #maj_cat_traits_i = maj_cat_traits_i[0]#.compressed()
             maj_cat_traits[:,i] = maj_cat_traits_i.astype(int)
 
         return maj_cat_traits

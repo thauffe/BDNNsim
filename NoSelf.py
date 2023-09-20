@@ -10,22 +10,23 @@ from bdnn_simulator import *
 
 # cont_traits_cov = np.array([[0.3, 0.2],[0.2, 0.3]]) # Colinearity ~0.67
 
-rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
+rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
 # rnd_seed = 94649591
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [200, 300],  # min/max size data set
+                        rangeSP = [30, 70],  # min/max size data set
                         minEX_SP = 0,  # minimum number of extinct lineages allowed
                         #maxExtant_SP = 1, # minimum number of extant lineages
                         minExtant_SP = 5,
-                        root_r = [60., 60.],  # range root ages
-                        rangeL = [0.1, 0.3],  # range of birth rates
-                        rangeM = [0.05, 0.2],  # range of death rates
+                        timewindow_rangeSP = [25., 15.],
+                        root_r = [35., 35.],  # range root ages
+                        rangeL = [0.2, 0.2],  # range of birth rates
+                        rangeM = [0.1, 0.1],  # range of death rates
                         scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
-                        cont_traits_sigma_clado = [0.1, 0.1],
+                        # cont_traits_sigma_clado = [0.1, 0.1],
                         # poiL = 3,  # expected number of birth rate shifts
                         # poiM = 3,  # expected number of death rate shift
                         # range_linL = [0.0, 0.0],
@@ -33,8 +34,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # Shifts
                         # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
                         # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
-                        fixed_Ltt = np.array([[60., 0.25], [30.001, 0.25], [30., 0.02], [0.0, 0.02]]),
-                        fixed_Mtt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.025], [0.0, 0.025]]),
+                        # fixed_Ltt = np.array([[60., 0.25], [30.001, 0.25], [30., 0.02], [0.0, 0.02]]),
+                        # fixed_Mtt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.025], [0.0, 0.025]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.25], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.25]]),
@@ -213,7 +214,7 @@ write_FBD_fix.run_FBD_writter(trunc_fossil)
 FBD_tree = write_FBD_tree(fossils = sim_fossil,
                           res_bd = res_bd,
                           output_wd = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny',
-                          name_file = 'FBD',)
+                          name_file = 'FBD')
 FBD_tree.trim_tree_by_lad()
 FBD_tree.tree_pruned.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/PhyloPruned.tre', schema = 'newick')
 FBD_tree.tree_trimmed.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/PhyloTrimmed.tre', schema = 'newick')
