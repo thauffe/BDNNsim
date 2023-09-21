@@ -253,6 +253,7 @@ class bdnn_simulator():
         lineage_weighted_mu_tt = np.zeros(np.abs(root))
 
         # evolution (from the past to the present)
+        exceeded_diversity = False
         for t in range(root, 0):
             # time i.e. integers self.root * self.scale
             # t = 0 not simulated!
@@ -264,8 +265,10 @@ class bdnn_simulator():
             TE = len(te)
             if self.timewindow_rangeSP is None:
                 if TE > self.maxSP:
+                    exceeded_diversity = True
                     break
             elif TE > self.maxSP_timewindow and t_abs <= self.timewindow_rangeSP[0] and t_abs >= self.timewindow_rangeSP[1]:
+                exceeded_diversity = True
                 break
 
             ran_vec = np.random.random(TE)
@@ -482,7 +485,7 @@ class bdnn_simulator():
         lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
         lineage_rates[:, 4] = lineage_rates[:, 4] * self.scale
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str, exceeded_diversity
 
 
     def get_random_settings(self, root, sp_env_ts, ex_env_ts, verbose):
@@ -1254,9 +1257,13 @@ class bdnn_simulator():
 
     def check_diversity_in_timewindow(self, FA, LA):
         timewindow = self.timewindow_rangeSP / self.scale
-        FAbefore_LAin = np.logical_and(FA >= timewindow[0], LA >= timewindow[1])
-        FAin_LAafter = np.logical_and(FA <= timewindow[0], LA >= timewindow[1])
-        FAin_LAin = np.logical_and(FA <= timewindow[0], LA >= timewindow[1])
+        FA_before = FA >= timewindow[0]
+        FA_in = np.logical_and(FA <= timewindow[0], FA >= timewindow[1])
+        LA_in = np.logical_and(LA <= timewindow[0], LA >= timewindow[1])
+        LA_after = LA <= timewindow[1]
+        FAbefore_LAin = np.logical_and(FA_before, LA_in)
+        FAin_LAafter = np.logical_and(FA_in, LA_after)
+        FAin_LAin = np.logical_and(FA_in, LA_in)
         diversity_in_window = np.sum(np.any((FAbefore_LAin, FAin_LAafter, FAin_LAin), axis = 0))
         diversity_in_rangeSP = diversity_in_window <= self.maxSP_timewindow and diversity_in_window >= self.minSP_timewindow
 
@@ -1281,14 +1288,17 @@ class bdnn_simulator():
             self.timewindow_rangeSP = np.sort(self.timewindow_rangeSP)[::-1] * self.scale
             self.minSP = 0.0
             self.maxSP = np.inf
-        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False or rangeSP_OK_in_timewindow == False:
+        exceeded_diversity = True
+        while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False or rangeSP_OK_in_timewindow == False or exceeded_diversity:
+            print('New round')
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
             self.nwk_leading_digits = len(str(int(np.abs(root))))
             self.nwk_decimal_digits = len(str(int(self.scale)))
             self.nwk_digits = self.nwk_leading_digits + self.nwk_decimal_digits + 1
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str, exceeded_diversity = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
+            # print('exceeded_diversity', exceeded_diversity)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])

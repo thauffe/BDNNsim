@@ -15,15 +15,14 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 # rnd_seed = 94649591
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [30, 70],  # min/max size data set
-                        minEX_SP = 0,  # minimum number of extinct lineages allowed
+                        rangeSP = [100., 500.],  # min/max size data set
+                        #minEX_SP = 0,  # minimum number of extinct lineages allowed
                         #maxExtant_SP = 1, # minimum number of extant lineages
-                        minExtant_SP = 5,
-                        timewindow_rangeSP = [25., 15.],
-                        root_r = [35., 35.],  # range root ages
-                        rangeL = [0.2, 0.2],  # range of birth rates
+                        minExtant_SP = 1,
+                        timewindow_rangeSP = [44., 21.],
+                        root_r = [60., 60.],  # range root ages
+                        rangeL = [0.15, 0.15],  # range of birth rates
                         rangeM = [0.1, 0.1],  # range of death rates
-                        scale = 100.,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
                         # cont_traits_sigma_clado = [0.1, 0.1],
@@ -34,8 +33,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # Shifts
                         # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
                         # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
-                        # fixed_Ltt = np.array([[60., 0.25], [30.001, 0.25], [30., 0.02], [0.0, 0.02]]),
-                        # fixed_Mtt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.025], [0.0, 0.025]]),
+                        fixed_Ltt = np.array([[60., 0.2], [47.001, 0.2], [47., 0.6], [41.001, 0.6],  [41., 0.2], [18.001, 0.2], [18., 0.01], [0., 0.01]]),
+                        fixed_Mtt = np.array([[60., 0.10], [24.001, 0.10], [24., 0.4], [18.001, 0.4], [18., 0.3], [0., 0.3]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.25], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.25]]),
@@ -54,7 +53,7 @@ print(res_bd['tshift_mu'])
 # Sampling simulation
 fossil_sim = fossil_simulator(range_q = [0.1, 1.0],
                               range_alpha = [1000.0, 1000.0],
-                              poi_shifts = 2,
+                              poi_shifts = 0,
                               seed = rnd_seed)
 sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 print(sim_fossil['q'])
