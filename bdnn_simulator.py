@@ -10,6 +10,11 @@ from itertools import combinations
 from functools import reduce
 from operator import iconcat
 from math import comb
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 import numpy as np
 import pandas as pd
 import scipy.linalg
@@ -265,6 +270,11 @@ class bdnn_simulator():
             TE = len(te)
             if self.timewindow_rangeSP is None:
                 if TE > self.maxSP:
+                    exceeded_diversity = True
+                    break
+            elif (self.timewindow_rangeSP[1] - t_abs) == 0.0:
+                rangeSP_OK_in_timewindow, diversity_in_window = self.check_diversity_in_timewindow(-np.array(ts) / self.scale, -np.array(te) / self.scale)
+                if rangeSP_OK_in_timewindow is False:
                     exceeded_diversity = True
                     break
             elif TE > self.maxSP_timewindow and t_abs <= self.timewindow_rangeSP[0] and t_abs >= self.timewindow_rangeSP[1]:

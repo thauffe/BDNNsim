@@ -15,11 +15,11 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 # rnd_seed = 94649591
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [100., 300.],  # min/max size data set
+                        rangeSP = [50., 200.],  # min/max size data set
                         #minEX_SP = 0,  # minimum number of extinct lineages allowed
                         #maxExtant_SP = 1, # minimum number of extant lineages
                         minExtant_SP = 1,
-                        timewindow_rangeSP = [44., 21.],
+                        timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
                         rangeL = [0.2, 0.2],  # range of birth rates
                         rangeM = [0.1, 0.1],  # range of death rates
@@ -35,8 +35,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.1], [0.0, 0.1]]),
                         # fixed_Ltt = np.array([[60., 0.1], [47.001, 0.1], [47., 0.8], [41.001, 0.8],  [41., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.05], [24.001, 0.05], [24., 0.3], [18.001, 0.3], [18., 0.2], [0., 0.2]]),
-                        fixed_Ltt = np.array([[60., 0.10], [20.001, 0.10], [20., 0.6], [0.0, 0.6]]),
-                        fixed_Mtt = np.array([[60., 0.01], [20.001, 0.01], [20., 0.3], [0.0, 0.3]]),
+                        # fixed_Ltt = np.array([[60., 0.15], [15.001, 0.15], [15., 0.4], [0.0, 0.4]]),
+                        # fixed_Mtt = np.array([[60., 0.1], [20.001, 0.1], [20., 0.1], [0.0, 0.1]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.25], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.25]]),
@@ -213,6 +213,7 @@ write_FBD_fix.run_FBD_writter(trunc_fossil)
 
 
 # Writting tree-based FBD analysis
+##################################
 FBD_tree = write_FBD_tree(fossils = sim_fossil,
                           res_bd = res_bd,
                           output_wd = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny',
