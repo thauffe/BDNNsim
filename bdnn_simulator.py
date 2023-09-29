@@ -22,6 +22,7 @@ import random
 import string
 import dendropy
 # np.set_printoptions(suppress = True, precision = 3)
+np.set_printoptions(threshold = sys.maxsize)
 from collections.abc import Iterable
 #from .extract_properties import *
 SMALL_NUMBER = 1e-10
@@ -1982,6 +1983,7 @@ class write_FBD_files():
         if self.translate is not None or min_age > 0.0:
             rho = 0.0
         if self.FBD_rate_prior == 'HSMRF' and self.fix_fake_bin is False and self.padding[0] == np.inf and self.padding[1] == 0.0:
+            # FBD for complete data or truncated but without padding
             scr = "%s/%s/%s/%s/%s_FBDR_HSMRF.Rev" % (self.output_wd, self.name_file, 'FBD', 'scripts', self.name_file)
             scrfile = open(scr, "w")
             scrfile.write('######################################')
@@ -2217,7 +2219,9 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('rho <- %s' % str(rho))
             scrfile.write('\n')
-            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
+            scrfile.write('# bounded = FALSE mitigates high extinction rate at the present under constant speciation and extinction')
+            scrfile.write('\n')
+            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k, bounded = FALSE)')
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# times of speciation and extinction')
@@ -2283,6 +2287,8 @@ class write_FBD_files():
             scrfile.write('q()')
             scrfile.flush()
         elif self.FBD_rate_prior == 'HSMRF' and self.fix_fake_bin is False and self.padding[0] != np.inf and self.padding[1] != 0.0:
+            # FBD for truncated data with padding using fake bins
+            # speciation and extinction rates of fake bins are part of the horseshoe
             scr = "%s/%s/%s/%s/%s_FBDR_HSMRF.Rev" % (self.output_wd, self.name_file, 'FBD', 'scripts', self.name_file)
             scrfile = open(scr, "w")
             scrfile.write('######################################')
@@ -2290,6 +2296,9 @@ class write_FBD_files():
             scrfile.write('# FBD using stratigraphic range data #')
             scrfile.write('\n')
             scrfile.write('######################################')
+            scrfile.write('\n')
+            scrfile.write('\n')
+            scrfile.write('# FBD for truncated data with padding using fake bins. Speciation and extinction rates of fake bins are part of the horseshoe.')
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# read stratigraphic ranges')
@@ -2601,7 +2610,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('rho <- %s' % str(rho))
             scrfile.write('\n')
-            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi2, rho = rho, timeline = timeline, k = k)')
+            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi2, rho = rho, timeline = timeline, k = k, bounded = TRUE)')
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# times of speciation and extinction')
@@ -2666,7 +2675,9 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('q()')
             scrfile.flush()
-        elif self.FBD_rate_prior == 'HSMRF'  and self.fix_fake_bin is True and self.padding[0] != np.inf and self.padding[1] != 0.0:
+        elif self.FBD_rate_prior == 'HSMRF' and self.fix_fake_bin is True and self.padding[0] != np.inf and self.padding[1] != 0.0:
+            # FBD for truncated data with padding using fake bins.
+            # Speciation and extinction rates of fake bins are inferred separately of the horseshoe.
             scr = "%s/%s/%s/%s/%s_FBDR_HSMRF.Rev" % (self.output_wd, self.name_file, 'FBD', 'scripts', self.name_file)
             scrfile = open(scr, "w")
             scrfile.write('######################################')
@@ -2674,6 +2685,9 @@ class write_FBD_files():
             scrfile.write('# FBD using stratigraphic range data #')
             scrfile.write('\n')
             scrfile.write('######################################')
+            scrfile.write('\n')
+            scrfile.write('\n')
+            scrfile.write('# FBD for truncated data with padding using fake bins. Speciation and extinction rates of fake bins are inferred separately of the horseshoe.')
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# read stratigraphic ranges')
@@ -2940,7 +2954,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('rho <- %s' % str(rho))
             scrfile.write('\n')
-            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation2, mu = extinction2, psi = psi2, rho = rho, timeline = timeline, k = k)')
+            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation2, mu = extinction2, psi = psi2, rho = rho, timeline = timeline, k = k, bounded = TRUE)')
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# times of speciation and extinction')
@@ -3406,7 +3420,7 @@ class write_FBD_files():
             # scrfile.write('\n')
             # scrfile.write('rho <- %s' % str(rho))
             # scrfile.write('\n')
-            # scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
+            # scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k, bounded = FALSE)')
             # scrfile.write('\n')
             # scrfile.write('\n')
             # scrfile.write('moves.append(mvMatrixElementScale(bd, lambda = 0.01, weight = taxa.size()))')
@@ -3460,6 +3474,7 @@ class write_FBD_files():
             # scrfile.flush()
         else:
             scr = "%s/%s/%s/%s/%s_FBDR.Rev" % (self.output_wd, self.name_file, 'FBD', 'scripts', self.name_file)
+            print('Fourth FBD')
             scrfile = open(scr, "w")
             scrfile.write('######################################')
             scrfile.write('\n')
@@ -3586,7 +3601,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('rho <- %s' % str(rho))
             scrfile.write('\n')
-            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k)')
+            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k, bounded = FALSE)')
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('moves.append(mvMatrixElementScale(bd, lambda = 0.01, weight = taxa.size()))')
