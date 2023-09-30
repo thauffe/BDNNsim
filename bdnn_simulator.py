@@ -1980,8 +1980,11 @@ class write_FBD_files():
 
     def write_script(self, interval_ages, min_age):
         rho = 1.0
+        bounded = "FALSE"
         if self.translate is not None or min_age > 0.0:
             rho = 0.0
+        if min_age > 0.0:
+            bounded = "TRUE"
         if self.FBD_rate_prior == 'HSMRF' and self.fix_fake_bin is False and self.padding[0] == np.inf and self.padding[1] == 0.0:
             # FBD for complete data or truncated but without padding
             scr = "%s/%s/%s/%s/%s_FBDR_HSMRF.Rev" % (self.output_wd, self.name_file, 'FBD', 'scripts', self.name_file)
@@ -2221,7 +2224,7 @@ class write_FBD_files():
             scrfile.write('\n')
             scrfile.write('# bounded = FALSE mitigates high extinction rate at the present under constant speciation and extinction')
             scrfile.write('\n')
-            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k, bounded = FALSE)')
+            scrfile.write('bd ~ dnFBDRMatrix(taxa=taxa, lambda = speciation, mu = extinction, psi = psi, rho = rho, timeline = timeline, k = k, bounded = %s)' % str(bounded))
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# times of speciation and extinction')
