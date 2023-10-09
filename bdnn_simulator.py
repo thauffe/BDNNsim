@@ -1385,8 +1385,8 @@ class bdnn_simulator():
 class fossil_simulator():
     def __init__(self,
                  range_q = [0.5, 5.],
-                 range_alpha = [1.0, 10.0],
-                 poi_shifts = 2,
+                 range_alpha = [1000.0, 1000.0],
+                 poi_shifts = 0,
                  seed = 0):
         self.range_q = range_q
         self.range_alpha = range_alpha
