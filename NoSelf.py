@@ -15,14 +15,14 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 # rnd_seed = 94649591
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [50., 300.],  # min/max size data set
+                        rangeSP = [50., 500.],  # min/max size data set
                         #minEX_SP = 0,  # minimum number of extinct lineages allowed
-                        maxExtant_SP = 0, # minimum number of extant lineages
-                        minExtant_SP = 0,
-                        timewindow_rangeSP = [45., 21.],
+                        # maxExtant_SP = 0, # minimum number of extant lineages
+                        # minExtant_SP = 1,
+                        # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
-                        rangeL = [0.1, 0.1],  # range of birth rates
-                        rangeM = [0.05, 0.05],  # range of death rates
+                        rangeL = [0.08, 0.08],  # range of birth rates
+                        rangeM = [0.04, 0.04],  # range of death rates
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
                         # cont_traits_sigma_clado = [0.1, 0.1],
@@ -31,30 +31,29 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # range_linL = [0.6, 0.0],
                         # range_linM = [0.0, 0.6],
                         # Shifts
-                        fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
-                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
-                        # fixed_Ltt = np.array([[60., 0.1], [47.001, 0.1], [47., 0.8], [41.001, 0.8],  [41., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
+                        # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
+                        # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
+                        # fixed_Ltt = np.array([[60., 0.1], [48.001, 0.1], [48., 0.8], [42.001, 0.8],  [42., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.05], [24.001, 0.05], [24., 0.3], [18.001, 0.3], [18., 0.2], [0., 0.2]]),
-                        # fixed_Ltt = np.array([[60., 0.15], [15.001, 0.15], [15., 0.4], [0.0, 0.4]]),
-                        # fixed_Mtt = np.array([[60., 0.1], [20.001, 0.1], [20., 0.1], [0.0, 0.1]]),
+                        fixed_Ltt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.4], [30.001, 0.4], [30., 0.05], [0.0, 0.05]]),
+                        fixed_Mtt = np.array([[60., 0.05], [20.001, 0.05], [20., 0.1], [0.0, 0.1]]),
                         # Linear change
-                        # fixed_Ltt = np.array([[60., 0.5], [0.0, 0.05]]),
-                        # fixed_Mtt = np.array([[60., 0.05], [0.0, 0.5]]),
+                        # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
+                        # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 scenario = 'Shifts_15'
-scenario = 'Constant'
-# scenario = 'Linear_01'
+scenario = 'Constant_03'
+scenario = 'Linear_02'
 
 # Birth-death simulation
+########################
 res_bd = bd_sim.run_simulation(verbose = True)
-print(res_bd['lambda'])
-print(res_bd['tshift_lambda'])
-print(res_bd['mu'])
-print(res_bd['tshift_mu'])
+
 
 # Sampling simulation
-fossil_sim = fossil_simulator(range_q = [0.5, 1.0],
+#####################
+fossil_sim = fossil_simulator(range_q = [0.5, 0.8],
                               range_alpha = [1000.0, 1000.0],
                               poi_shifts = 0,
                               seed = rnd_seed)
@@ -76,28 +75,10 @@ write_occurrence_table(sim_fossil,
                        output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                        name_file = 'Complete')
 
+ltt_true_file = '/home/torsten/Work/EdgeEffect/Simulations/%s/Complete/LTT_true.csv' % scenario
+np.savetxt(ltt_true_file, res_bd['LTTtrue'], delimiter = '\t', fmt = '%f')
 
-# if len(sim_fossil['shift_time']) > 0:
-#     sampl = '-qShift', '/home/torsten/Work/BDNN/%s_q_epochs.txt' % name_file
-# else:
-#     sampl = '-mHPP'
 
-# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_file, name_file),
-#                              #sampl,
-#                              #'-qShift', '/home/torsten/Work/BDNN/%s/%s_q_epochs.txt' % (name_file, name_file),
-#                              '-A 4',
-#                              #'-mG',
-#                              '-n 500001', '-s 5000', '-p 100000'])
-#
-# PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-#                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_file),
-#                               '-b 20'])
-
-# Create inpute files for FBD analysis
-# interval_ages = np.array([[np.inf, 27.0],
-#                           [27.0, 26.0],
-#                           [26.0, 25.0]])
 write_FBD = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                             name_file =  name_file,
                             interval_ages = None)
@@ -111,28 +92,6 @@ write_FBD.run_FBD_writter(sim_fossil)
 keep_in_interval = np.array([ [45.0, 21.0] ])
 sim_fossil_deepcopy = copy.deepcopy(sim_fossil)
 
-# trunc_fossil_inclExt = keep_fossils_in_interval(sim_fossil_deepcopy,
-#                                                 keep_in_interval = keep_in_interval,
-#                                                 keep_extant = True)
-# interval_exceedings = get_interval_exceedings(sim_fossil, res_bd['ts_te'], keep_in_interval)
-#
-# write_inclExt = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-#                                    delta_time = 1.0,
-#                                    name = 'TruncInclExt')
-# name_inclExt = write_inclExt.run_writter(trunc_fossil_inclExt, res_bd)
-#
-# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_inclExt, name_inclExt),
-#                              '-A 4',
-#                              #'-mG',
-#                              '-n 500001', '-s 5000', '-p 100000'])
-# PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-#                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_inclExt),
-#                               '-b 20'])
-#
-# write_FBD_inclExt = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
-#                                     name_file =  name_inclExt)
-# write_FBD_inclExt.run_FBD_writter(trunc_fossil_inclExt)
 
 # truncate data and remove information on extant lineages
 # Do not translate fossil occurrences by keep_in_interval[1]
@@ -150,15 +109,10 @@ write_occurrence_table(trunc_fossil,
                        output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                        name_file = 'Truncated')
 
-# PyRate_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-#                              '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/%s.py' % (scenario, name_exclExt, name_exclExt),
-#                              '-A 4',
-#                              #' -translate -%s' % keep_in_interval[0,1], # Why is PyRate complaining about no argument translate?
-#                              #'-mG',
-#                              '-n 500001', '-s 5000', '-p 100000'])
-# PyRate_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
-#                               '-plotRJ', '/home/torsten/Work/EdgeEffect/Simulations/%s/%s/pyrate_mcmc_logs' % (scenario, name_exclExt),
-#                               '-b 20'])
+# Write sampling epochs
+# sampling_epochs = '/home/torsten/Work/EdgeEffect/Simulations/%s/Truncated/sampling_epochs.csv' % scenario
+# np.savetxt(sampling_epochs, np.transpose(keep_in_interval), delimiter = '\t', fmt = '%f')
+
 
 write_FBD_trunc = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
                                   name_file = name_trunc,
@@ -212,8 +166,8 @@ write_FBD_fix = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simul
 write_FBD_fix.run_FBD_writter(trunc_fossil)
 
 
-# Writting tree-based FBD analysis
-##################################
+# Writing tree-based FBD analysis
+#################################
 FBD_tree = write_FBD_tree(fossils = sim_fossil,
                           res_bd = res_bd,
                           output_wd = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny',
@@ -223,6 +177,7 @@ FBD_tree.tree_pruned.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phy
 FBD_tree.tree_trimmed.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/PhyloTrimmed.tre', schema = 'newick')
 FBD_tree.write_ranges()
 
+res_bd['tree'].write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Complete/FBD/data/PhyloComplete.tre', schema = 'newick')
 
 tree_extant = prune_extinct(res_bd['tree'])
 tree_extant.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Extant/data/PhyloExtant.tre', schema = 'newick')

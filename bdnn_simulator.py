@@ -40,8 +40,8 @@ class bdnn_simulator():
                  rangeL = [0.2, 0.5], # range speciation rate
                  rangeM = [0.2, 0.5], # range extinction rate
                  scale = 100., # root * scale = steps for the simulation
-                 p_mass_extinction = 0.00924,
-                 magnitude_mass_ext = [0.8, 0.95],
+                 p_mass_extinction = 0.0,
+                 magnitude_mass_ext = [0.0, 0.0],
                  fixed_times_mass_ext = -1.0, # List of ages with mass extinction events
                  poiL = 3, # Number of rate shifts expected according to a Poisson distribution
                  poiM = 3, # Number of rate shifts expected according to a Poisson distribution
@@ -72,9 +72,9 @@ class bdnn_simulator():
                  cont_traits_effect_shift_ex = None,  # 1D numpy array with shift times
                  n_cat_traits = [0, 0], # range of the number of categorical traits
                  n_cat_traits_states = [2, 5], # range number of states for categorical trait, can be set to [0,0] to avid any trait
-                 cat_traits_ordinal = [True, False], # is categorical trait ordinal or discrete?
-                 cat_traits_dir = 1, # concentration parameter dirichlet distribution for transition probabilities between categorical states
-                 cat_traits_diag = None, # fix diagonal of categorical transition matrix to this value (overwrites cat_traits_dir)
+                 cat_traits_ordinal = [False, False], # Is categorical trait ordinal or discrete? Random sampling of one of these values
+                 cat_traits_dir = 2.0, # concentration parameter dirichlet distribution for transition probabilities between categorical states
+                 cat_traits_diag = None, # fix diagonal of categorical transition matrix to this value (overwrites cat_traits_dir), probability of no state change
                  # range of effect of categorical traits on speciation (1st row) and extinction (2nd row) (1 is no effect)
                  # effects can be fixed with e.g. np.array([[2.3., 2.3.],[1.5.,1.5.]]) and cat_traits_effect_decr_incr = np.array([[True, True],[False, False]])
                  # effect of n_cat_traits_states > 2 can be fixed with n_cat_traits_states = [3, 3] AND np.array([[1.5., 2.3.],[0.2.,1.5.]]) (no need for cat_traits_effect_decr_incr)
