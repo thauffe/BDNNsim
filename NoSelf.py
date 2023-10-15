@@ -35,8 +35,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
                         # fixed_Ltt = np.array([[60., 0.1], [48.001, 0.1], [48., 0.8], [42.001, 0.8],  [42., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.05], [24.001, 0.05], [24., 0.3], [18.001, 0.3], [18., 0.2], [0., 0.2]]),
-                        fixed_Ltt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.4], [30.001, 0.4], [30., 0.05], [0.0, 0.05]]),
-                        fixed_Mtt = np.array([[60., 0.05], [20.001, 0.05], [20., 0.1], [0.0, 0.1]]),
+                        # fixed_Ltt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.4], [30.001, 0.4], [30., 0.05], [0.0, 0.05]]), # Tree FBD
+                        # fixed_Mtt = np.array([[60., 0.05], [20.001, 0.05], [20., 0.1], [0.0, 0.1]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
@@ -45,6 +45,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
 scenario = 'Shifts_15'
 scenario = 'Constant_03'
 scenario = 'Linear_02'
+scenario = 'Phylogeny'
 
 # Birth-death simulation
 ########################
@@ -172,12 +173,17 @@ FBD_tree = write_FBD_tree(fossils = sim_fossil,
                           res_bd = res_bd,
                           output_wd = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny',
                           name_file = 'FBD')
-FBD_tree.trim_tree_by_lad()
-FBD_tree.tree_pruned.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/PhyloPruned.tre', schema = 'newick')
-FBD_tree.tree_trimmed.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/PhyloTrimmed.tre', schema = 'newick')
+# Make directory and write fossil ranges
 FBD_tree.write_ranges()
+# Trim branches by last fossil occurrence
+FBD_tree.trim_tree_by_lad()
+# Safe tree with taxa that have also fossil samples (but without trimming branches to last occurrences)
+FBD_tree.tree_pruned.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloPruned.tre', schema = 'newick')
+# Safe tree with taxa that have fossil samples and branches trimmed to last occurrences
+FBD_tree.tree_trimmed.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloTrimmed.tre', schema = 'newick')
+FBD_tree.write_ranges(trimmed = True)
 
-res_bd['tree'].write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Complete/FBD/data/PhyloComplete.tre', schema = 'newick')
+# res_bd['tree'].write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloComplete.tre', schema = 'newick')
 
 tree_extant = prune_extinct(res_bd['tree'])
 tree_extant.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Extant/data/PhyloExtant.tre', schema = 'newick')

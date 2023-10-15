@@ -3778,35 +3778,55 @@ class write_FBD_tree():
         ts_te = self.res_bd['ts_te']
         #youngest_sim_age = np.min(ts_te[:, 1])
         self.tree_trimmed = self.tree_pruned.clone()
+        keep_taxa = []
         for leaf in self.tree_trimmed.leaf_node_iter():
             leaf_name = str(leaf.taxon)
+            leaf_name = leaf_name.replace("'", "")
             #ts_te_idx = int(''.join(filter(str.isdigit, leaf_name)))
             ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
             te_leaf = ts_te[ts_te_idx, 1]
             if te_leaf != 0.0:
-                leaf_name = leaf_name.replace("'", "")
                 occ_idx = taxon_names.index(leaf_name)
                 lad_leaf = np.min(occ[occ_idx])
                 shorten_branch = lad_leaf - te_leaf
-                leaf.edge_length = leaf.edge_length - shorten_branch
+                # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
+                if (leaf.edge_length - shorten_branch) >= 0:
+                    leaf.edge_length = leaf.edge_length - shorten_branch
+                    keep_taxa.append(leaf_name)
+            else:
+                keep_taxa.append(leaf_name)
+        # Remove taxa with maximum fossil age older than the node from which the taxa descends
+        self.tree_trimmed = self.tree_trimmed.extract_tree_with_taxa_labels(labels = set(keep_taxa))
+        self.keep_taxa_trimmed = keep_taxa
 
-    def get_ranges(self):
+
+    def get_ranges(self, trimmed = False):
         taxon_names = self.fossils['taxon_names']
         n_lineages = len(taxon_names)
         ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
-        ranges['min_age'] = np.zeros(n_lineages)
-        ranges['max_age'] = np.zeros(n_lineages)
+        ranges['min'] = np.zeros(n_lineages) # min for RB1.1, RB1.2 needs min_age
+        ranges['max'] = np.zeros(n_lineages)
         occ = self.fossils['fossil_occurrences']
         for i in range(n_lineages):
             occ_i = occ[i]
             ranges.iloc[i, 1] = np.min(occ_i)
             ranges.iloc[i, 2] = np.max(occ_i)
+        if trimmed:
+            ranges = ranges[ranges['taxon'].isin(self.keep_taxa_trimmed)]
 
         return ranges
 
 
-    def write_ranges(self):
-        # Rewrite this later to put the range into /data directory
-        ranges = self.get_ranges()
-        ranges_file = "%s/%s/ranges.csv" % (self.output_wd, self.name_file)
-        ranges.to_csv(ranges_file, header=True, sep='\t', index=False)
+    def write_ranges(self, trimmed = False):
+        path_make_dir_data = os.path.join(self.output_wd, 'FBD', 'data')
+        try:
+            os.makedirs(path_make_dir_data, exist_ok = True)
+        except OSError as error:
+            print(error)
+        if trimmed == False:
+            ranges = self.get_ranges()
+            ranges_file = "%s/ranges_pruned.csv" % path_make_dir_data
+        else:
+            ranges = self.get_ranges(trimmed = True)
+            ranges_file = "%s/ranges_trimmed.csv" % path_make_dir_data
+        ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
