@@ -1333,8 +1333,10 @@ class bdnn_simulator():
         mass_ext_mag = np.array([mass_ext_mag])
 
         tree = 'No tree when there is more than one starting species'
+        tree_offset = 0.0
         if self.s_species == 1:
             tree = self.nwk_str_to_tree(nwk_str, ts_te, root)
+            tree_offset = np.min(ts_te[:, 1])
 
         res_bd = {'lambda': L * self.scale,
                   'tshift_lambda': timesL / self.scale,
@@ -1367,6 +1369,7 @@ class bdnn_simulator():
                   'env_eff_ex': 1.0 / env_eff_ex,
                   'lineage_rates_through_time': lineage_rates_through_time * self.scale,
                   'tree': tree,
+                  'tree_offset': tree_offset,
                   'LTTtrue': LTTtrue}
         if self.sp_env_file is not None:
             res_bd['env_sp'] = sp_env_ts
@@ -3748,46 +3751,59 @@ class write_FBD_tree():
                  res_bd = None,
                  output_wd = '',
                  name_file = '',
-                 interval_size = 1.0,
-                 FBD_rate_prior = 'HSMRF',
-                 translate = None, # move occurrence by time X (only useful if lineages are extinct)
-                 interval_ages = None,
-                 padding = [np.inf, 0.0],
-                 fix_fake_bin = False):
+                 edges = None):
         self.fossils = fossils
         self.res_bd = res_bd
         self.output_wd = output_wd
         self.name_file = name_file
-        self.interval_size = interval_size
-        self.FBD_rate_prior = FBD_rate_prior
-        self.translate = translate
-        self.interval_ages = interval_ages
-        self.padding = padding
-        self.fix_fake_bin = fix_fake_bin
+        self.edges = edges
+        self.make_FBD_dir()
+        #self.modify_fossils_by_treeoffset()
+
+
+    def make_FBD_dir(self):
+        self._path_FBD_data = os.path.join(self.output_wd, self.name_file, 'data')
+        os.makedirs(self._path_FBD_data, exist_ok = True)
+
+
+    def modify_fossils_by_treeoffset(self):
+        # If tree_offset > 0, we need to subtract the offset from all fossil occurrences.
+        # If not, will lad_leaf - te_leaf of trim_tree_by_lad() be wrong?
+        tree_offset = self.res_bd['tree_offset']
+        if tree_offset > 0.0:
+            for i in range(len(self.fossils['fossil_occurrences'])):
+                self.fossils['fossil_occurrences'][i] = self.fossils['fossil_occurrences'][i] - tree_offset
+
 
     def prune_tree_by_fossil(self):
+        # Keep only taxa in the tree that have fossil samples
         tree = self.res_bd['tree']
         labels = set(self.fossils['taxon_names'])
         self.tree_pruned = tree.extract_tree_with_taxa_labels(labels = labels)
 
 
-    def trim_tree_by_lad(self):
+    def write_tree_pruned(self):
         self.prune_tree_by_fossil()
-        taxon_names = self.fossils['taxon_names']
-        occ = self.fossils['fossil_occurrences']
+        self.write_ranges('pruned')
+        path_pruned_tree = os.path.join(self._path_FBD_data, 'PhyloPruned.tre')
+        self.tree_pruned.write(path = path_pruned_tree, schema = 'newick')
+
+
+    def trim_tree_by_lad(self, tree, fossils, edges = False):
+        taxon_names = fossils['taxon_names']
+        fossil_occurrences = fossils['fossil_occurrences']
+        tree_trimmed = tree.clone()
+        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels = set(taxon_names))
         ts_te = self.res_bd['ts_te']
-        #youngest_sim_age = np.min(ts_te[:, 1])
-        self.tree_trimmed = self.tree_pruned.clone()
         keep_taxa = []
-        for leaf in self.tree_trimmed.leaf_node_iter():
+        for leaf in tree_trimmed.leaf_node_iter():
             leaf_name = str(leaf.taxon)
             leaf_name = leaf_name.replace("'", "")
-            #ts_te_idx = int(''.join(filter(str.isdigit, leaf_name)))
             ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
             te_leaf = ts_te[ts_te_idx, 1]
-            if te_leaf != 0.0:
+            if te_leaf != 0.0 or edges:
                 occ_idx = taxon_names.index(leaf_name)
-                lad_leaf = np.min(occ[occ_idx])
+                lad_leaf = np.min(fossil_occurrences[occ_idx])
                 shorten_branch = lad_leaf - te_leaf
                 # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
                 if (leaf.edge_length - shorten_branch) >= 0:
@@ -3796,11 +3812,19 @@ class write_FBD_tree():
             else:
                 keep_taxa.append(leaf_name)
         # Remove taxa with maximum fossil age older than the node from which the taxa descends
-        self.tree_trimmed = self.tree_trimmed.extract_tree_with_taxa_labels(labels = set(keep_taxa))
-        self.keep_taxa_trimmed = keep_taxa
+        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels = set(keep_taxa))
+
+        return tree_trimmed, keep_taxa
 
 
-    def get_ranges(self, trimmed = False):
+    def write_tree_trimmed_by_lad(self):
+        self.tree_trimmed, keep_taxa = self.trim_tree_by_lad(self.res_bd['tree'], self.fossils)
+        self.write_ranges('trimmed', keep_taxa)
+        path_trimmed_tree = os.path.join(self._path_FBD_data, 'PhyloTrimmed.tre')
+        self.tree_trimmed.write(path = path_trimmed_tree, schema = 'newick')
+
+
+    def get_ranges(self, keep_taxa = None):
         taxon_names = self.fossils['taxon_names']
         n_lineages = len(taxon_names)
         ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
@@ -3811,22 +3835,46 @@ class write_FBD_tree():
             occ_i = occ[i]
             ranges.iloc[i, 1] = np.min(occ_i)
             ranges.iloc[i, 2] = np.max(occ_i)
-        if trimmed:
-            ranges = ranges[ranges['taxon'].isin(self.keep_taxa_trimmed)]
+        if keep_taxa is not None:
+            ranges = ranges[ranges['taxon'].isin(keep_taxa)]
 
         return ranges
 
 
-    def write_ranges(self, trimmed = False):
-        path_make_dir_data = os.path.join(self.output_wd, 'FBD', 'data')
-        try:
-            os.makedirs(path_make_dir_data, exist_ok = True)
-        except OSError as error:
-            print(error)
-        if trimmed == False:
+    def write_ranges(self, name, keep_taxa = None):
+        if keep_taxa is None:
             ranges = self.get_ranges()
-            ranges_file = "%s/ranges_pruned.csv" % path_make_dir_data
         else:
-            ranges = self.get_ranges(trimmed = True)
-            ranges_file = "%s/ranges_trimmed.csv" % path_make_dir_data
+            ranges = self.get_ranges(keep_taxa)
+        ranges_file = os.path.join(self._path_FBD_data, 'ranges_%s.csv') % name
         ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
+
+
+    def get_new_offset(self):
+        num_taxa_in_edges = len(self.trunc_fossil['fossil_occurrences'])
+        latest_occ = np.zeros(num_taxa_in_edges)
+        for i in range(num_taxa_in_edges):
+            latest_occ[i] = np.min(self.trunc_fossil['fossil_occurrences'][i])
+        distance_to_edge = np.min(latest_occ) - self.edges[0, 1]
+        new_offset = self.res_bd['tree_offset'] + distance_to_edge
+
+        return new_offset
+
+
+    def prune_and_trim_tree_at_edges(self):
+        # Remove taxa not within edges and trim by fossil occurrences
+        tree = self.res_bd['tree']
+        tree_offset = self.res_bd['tree_offset']
+        self.trunc_fossil = keep_fossils_in_interval(copy.deepcopy(self.fossils),
+                                                     keep_in_interval = self.edges,
+                                                     keep_extant = False)
+        tree = self.res_bd['tree']
+        tree_offset = self.res_bd['tree_offset']
+        # mrca_age = tree.max_distance_from_root()  # + tree_offset # age of the first speciation
+
+        tree_pruned_edges, keep_taxa = self.trim_tree_by_lad(tree, self.trunc_fossil, edges = True)
+        self.write_ranges('edges', keep_taxa)
+        path_pruned_tree = os.path.join(self._path_FBD_data, 'PhyloEdges.tre')
+        tree_pruned_edges.write(path = path_pruned_tree, schema = 'newick')
+        new_tree_offset = self.get_new_offset()
+        print(new_tree_offset) # + edge itself? self.edges[0, 1]

@@ -12,12 +12,12 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
-# rnd_seed = 94649591
+# rnd_seed = 60923866
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [50., 500.],  # min/max size data set
                         #minEX_SP = 0,  # minimum number of extinct lineages allowed
-                        # maxExtant_SP = 0, # minimum number of extant lineages
+                        #maxExtant_SP = 0, # minimum number of extant lineages
                         # minExtant_SP = 1,
                         # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
@@ -172,18 +172,17 @@ write_FBD_fix.run_FBD_writter(trunc_fossil)
 FBD_tree = write_FBD_tree(fossils = sim_fossil,
                           res_bd = res_bd,
                           output_wd = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny',
-                          name_file = 'FBD')
-# Make directory and write fossil ranges
-FBD_tree.write_ranges()
-# Trim branches by last fossil occurrence
-FBD_tree.trim_tree_by_lad()
-# Safe tree with taxa that have also fossil samples (but without trimming branches to last occurrences)
-FBD_tree.tree_pruned.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloPruned.tre', schema = 'newick')
+                          name_file = 'FBD',
+                          edges = keep_in_interval)
+
+# Safe tree with taxa that have also fossil samples (but without trimming branches to last occurrences. Useful?)
+# FBD_tree.write_tree_pruned()
 # Safe tree with taxa that have fossil samples and branches trimmed to last occurrences
-FBD_tree.tree_trimmed.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloTrimmed.tre', schema = 'newick')
-FBD_tree.write_ranges(trimmed = True)
+FBD_tree.write_tree_trimmed_by_lad()
+# Phylogeny pruned by edges and trimmed by fossil samples
+FBD_tree.prune_and_trim_tree_at_edges()
+
 
 # res_bd['tree'].write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloComplete.tre', schema = 'newick')
-
 tree_extant = prune_extinct(res_bd['tree'])
 tree_extant.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Extant/data/PhyloExtant.tre', schema = 'newick')
