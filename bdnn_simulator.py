@@ -3762,7 +3762,7 @@ class write_FBD_tree():
 
 
     def make_FBD_dir(self):
-        self._path_FBD_data = os.path.join(self.output_wd, self.name_file, 'data')
+        self._path_FBD_data = os.path.join(self.output_wd, self.name_file, 'FBDtree', 'data')
         os.makedirs(self._path_FBD_data, exist_ok = True)
 
 
@@ -3878,3 +3878,4 @@ class write_FBD_tree():
         tree_pruned_edges.write(path = path_pruned_tree, schema = 'newick')
         new_tree_offset = self.get_new_offset()
         print(new_tree_offset) # + edge itself? self.edges[0, 1]
+        

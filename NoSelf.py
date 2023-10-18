@@ -12,17 +12,18 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
-# rnd_seed = 60923866
+# rnd_seed = 79014948
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [50., 500.],  # min/max size data set
+                        rangeSP = [50., 300.],  # min/max size data set
                         #minEX_SP = 0,  # minimum number of extinct lineages allowed
                         #maxExtant_SP = 0, # minimum number of extant lineages
-                        # minExtant_SP = 1,
-                        # timewindow_rangeSP = [45., 21.],
+                        minExtant_SP = 1,
+                        timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
                         rangeL = [0.08, 0.08],  # range of birth rates
                         rangeM = [0.04, 0.04],  # range of death rates
+                        scale = 1000.0,
                         p_mass_extinction = 0.0,
                         magnitude_mass_ext = [0.0, 0.0],
                         # cont_traits_sigma_clado = [0.1, 0.1],
@@ -31,8 +32,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # range_linL = [0.6, 0.0],
                         # range_linM = [0.0, 0.6],
                         # Shifts
-                        # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
-                        # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
+                        fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
+                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
                         # fixed_Ltt = np.array([[60., 0.1], [48.001, 0.1], [48., 0.8], [42.001, 0.8],  [42., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.05], [24.001, 0.05], [24., 0.3], [18.001, 0.3], [18., 0.2], [0., 0.2]]),
                         # fixed_Ltt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.4], [30.001, 0.4], [30., 0.05], [0.0, 0.05]]), # Tree FBD
@@ -46,6 +47,10 @@ scenario = 'Shifts_15'
 scenario = 'Constant_03'
 scenario = 'Linear_02'
 scenario = 'Phylogeny'
+
+# Set directory
+base_dir = '/home/torsten/Work/EdgeEffect/Simulations'
+output_dir = os.path.join(base_dir, scenario)
 
 # Birth-death simulation
 ########################
@@ -67,20 +72,20 @@ print(sim_fossil['alpha'])
 # Complete data
 ################
 # Write input files for PyRate analysis
-write_PyRate = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_PyRate = write_PyRate_files(output_wd = output_dir,
                                   delta_time = 1.0,
                                   name = 'Complete')
 name_file = write_PyRate.run_writter(sim_fossil, res_bd)
 
 write_occurrence_table(sim_fossil,
-                       output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                       output_wd = output_dir,
                        name_file = 'Complete')
 
-ltt_true_file = '/home/torsten/Work/EdgeEffect/Simulations/%s/Complete/LTT_true.csv' % scenario
+ltt_true_file = os.path.join(output_dir, 'Complete', 'LTT_true.csv')
 np.savetxt(ltt_true_file, res_bd['LTTtrue'], delimiter = '\t', fmt = '%f')
 
 
-write_FBD = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_FBD = write_FBD_files(output_wd = output_dir,
                             name_file =  name_file,
                             interval_ages = None)
 write_FBD.run_FBD_writter(sim_fossil)
@@ -101,13 +106,13 @@ trunc_fossil = keep_fossils_in_interval(sim_fossil_deepcopy,
                                         keep_in_interval = keep_in_interval,
                                         keep_extant = False)
 
-write_trunc = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_trunc = write_PyRate_files(output_wd = output_dir,
                                  delta_time = 1.0,
                                  name = 'Truncated')
 name_trunc = write_trunc.run_writter(trunc_fossil, res_bd)
 
 write_occurrence_table(trunc_fossil,
-                       output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+                       output_wd = output_dir,
                        name_file = 'Truncated')
 
 # Write sampling epochs
@@ -115,7 +120,7 @@ write_occurrence_table(trunc_fossil,
 # np.savetxt(sampling_epochs, np.transpose(keep_in_interval), delimiter = '\t', fmt = '%f')
 
 
-write_FBD_trunc = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_FBD_trunc = write_FBD_files(output_wd = output_dir,
                                   name_file = name_trunc,
                                   translate = keep_in_interval[0,1])
 write_FBD_trunc.run_FBD_writter(trunc_fossil)
@@ -123,12 +128,12 @@ write_FBD_trunc.run_FBD_writter(trunc_fossil)
 
 # pad the counts by an additional column before and after the truncation boundaries
 ###################################################################################
-write_padded = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_padded = write_PyRate_files(output_wd = output_dir,
                                   delta_time = 1.0,
                                   name = 'TruncatedPadded')
 name_padded = write_padded.run_writter(trunc_fossil, res_bd)
 
-write_FBD_padded = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_FBD_padded = write_FBD_files(output_wd = output_dir,
                                    name_file = name_padded,
                                    padding = keep_in_interval[0,:])
 write_FBD_padded.run_FBD_writter(trunc_fossil)
@@ -155,12 +160,12 @@ write_FBD_padded.run_FBD_writter(trunc_fossil)
 # but pad the counts by an additional column before and after the truncation boundaries
 # and fix speciation for most recent bin and extinction of the earliest bin
 ########################################################################################
-write_fix = write_PyRate_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_fix = write_PyRate_files(output_wd = output_dir,
                                delta_time = 1.0,
                                name = 'TruncatedPaddedFix')
 name_fix = write_fix.run_writter(trunc_fossil, res_bd)
 
-write_FBD_fix = write_FBD_files(output_wd = '/home/torsten/Work/EdgeEffect/Simulations/%s' % scenario,
+write_FBD_fix = write_FBD_files(output_wd = output_dir,
                                 name_file = name_fix,
                                 padding = keep_in_interval[0,:],
                                 fix_fake_bin = True)
@@ -171,8 +176,8 @@ write_FBD_fix.run_FBD_writter(trunc_fossil)
 #################################
 FBD_tree = write_FBD_tree(fossils = sim_fossil,
                           res_bd = res_bd,
-                          output_wd = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny',
-                          name_file = 'FBD',
+                          output_wd = output_dir,
+                          name_file = 'FBDtree',
                           edges = keep_in_interval)
 
 # Safe tree with taxa that have also fossil samples (but without trimming branches to last occurrences. Useful?)
@@ -183,6 +188,28 @@ FBD_tree.write_tree_trimmed_by_lad()
 FBD_tree.prune_and_trim_tree_at_edges()
 
 
-# res_bd['tree'].write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloComplete.tre', schema = 'newick')
+res_bd['tree'].write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloComplete.tre', schema = 'newick')
+
+tree = res_bd['tree']
+# These are leaf ages but not node ages!!! Fucking dendropy
+d1 = np.array(tree.calc_node_root_distances())
+root_length = tree.seed_node.edge.length
+np.sort(d1) + root_length
+
+d2 = np.array([x.distance_from_root() for x in tree.leaf_node_iter()])
+np.sort(d2)
+
+
+
+
+node_distance_from_root = []
+for nd in tree.postorder_node_iter():
+    if nd.is_leaf() is False:
+        node_distance_from_root.append(nd.distance_from_root())
+node_distance_from_root = np.sort(np.array(node_distance_from_root))
+tree.max_distance_from_root() - node_distance_from_root
+
+
+
 tree_extant = prune_extinct(res_bd['tree'])
 tree_extant.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Extant/data/PhyloExtant.tre', schema = 'newick')
