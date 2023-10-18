@@ -174,42 +174,24 @@ write_FBD_fix.run_FBD_writter(trunc_fossil)
 
 # Writing tree-based FBD analysis
 #################################
-FBD_tree = write_FBD_tree(fossils = sim_fossil,
-                          res_bd = res_bd,
-                          output_wd = output_dir,
-                          name_file = 'FBDtree',
-                          edges = keep_in_interval)
+FBDtree_complete = write_FBD_tree(fossils = sim_fossil,
+                                  res_bd = res_bd,
+                                  output_wd = output_dir,
+                                  name = 'Complete')
+FBDtree_complete.run_writter()
 
-# Safe tree with taxa that have also fossil samples (but without trimming branches to last occurrences. Useful?)
-# FBD_tree.write_tree_pruned()
-# Safe tree with taxa that have fossil samples and branches trimmed to last occurrences
-FBD_tree.write_tree_trimmed_by_lad()
-# Phylogeny pruned by edges and trimmed by fossil samples
-FBD_tree.prune_and_trim_tree_at_edges()
+FBDtree_trunc = write_FBD_tree(fossils = sim_fossil,
+                               res_bd = res_bd,
+                               output_wd = output_dir,
+                               name = 'Truncated',
+                               edges = keep_in_interval)
+FBDtree_trunc.run_writter()
+
+
 
 
 res_bd['tree'].write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/FBD/data/PhyloComplete.tre', schema = 'newick')
 
 tree = res_bd['tree']
-# These are leaf ages but not node ages!!! Fucking dendropy
-d1 = np.array(tree.calc_node_root_distances())
-root_length = tree.seed_node.edge.length
-np.sort(d1) + root_length
-
-d2 = np.array([x.distance_from_root() for x in tree.leaf_node_iter()])
-np.sort(d2)
-
-
-
-
-node_distance_from_root = []
-for nd in tree.postorder_node_iter():
-    if nd.is_leaf() is False:
-        node_distance_from_root.append(nd.distance_from_root())
-node_distance_from_root = np.sort(np.array(node_distance_from_root))
-tree.max_distance_from_root() - node_distance_from_root
-
-
-
-tree_extant = prune_extinct(res_bd['tree'])
+tree_extant = prune_extinct(tree)
 tree_extant.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Extant/data/PhyloExtant.tre', schema = 'newick')
