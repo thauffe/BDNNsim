@@ -1371,7 +1371,8 @@ class bdnn_simulator():
                   'lineage_rates_through_time': lineage_rates_through_time * self.scale,
                   'tree': tree,
                   'tree_offset': tree_offset,
-                  'LTTtrue': LTTtrue}
+                  'LTTtrue': LTTtrue,
+                  'sim_scale': self.scale}
         if self.sp_env_file is not None:
             res_bd['env_sp'] = sp_env_ts
         if self.ex_env_file is not None:
@@ -3949,6 +3950,10 @@ class write_FBD_tree():
         # Check if any boundaries (as defined by the timeline) is equal to a node age.
         # RevBayes will not find an initial likelihood in that case.
         node_ages = self.get_node_ages(tree, tree_offset)
+        sim_fractional_digits = len(str(int(np.round(self.res_bd['sim_scale'])))) - 1
+        node_ages = np.round(node_ages, sim_fractional_digits)
+        problematic_boundaries = np.isin(timeline, node_ages)
+        timeline[problematic_boundaries] = timeline[problematic_boundaries] + 10**-(sim_fractional_digits + 1)
         timeline = timeline.tolist()
         scrfile.write('# Skyline time boundaries\n')
         scrfile.write('timeline <- v(')

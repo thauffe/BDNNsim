@@ -12,7 +12,7 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
-# rnd_seed = 79014948
+# rnd_seed = 38995818
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [100., 1000.],  # min/max size data set
