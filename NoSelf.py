@@ -15,25 +15,23 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 # rnd_seed = 79014948
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [50., 300.],  # min/max size data set
+                        rangeSP = [100., 1000.],  # min/max size data set
                         #minEX_SP = 0,  # minimum number of extinct lineages allowed
                         #maxExtant_SP = 0, # minimum number of extant lineages
                         minExtant_SP = 1,
-                        timewindow_rangeSP = [45., 21.],
+                        # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
-                        rangeL = [0.08, 0.08],  # range of birth rates
-                        rangeM = [0.04, 0.04],  # range of death rates
+                        rangeL = [0.15, 0.15],  # range of birth rates
+                        rangeM = [0.05, 0.05],  # range of death rates
                         scale = 1000.0,
-                        p_mass_extinction = 0.0,
-                        magnitude_mass_ext = [0.0, 0.0],
                         # cont_traits_sigma_clado = [0.1, 0.1],
                         # poiL = 3,  # expected number of birth rate shifts
                         # poiM = 3,  # expected number of death rate shift
                         # range_linL = [0.6, 0.0],
                         # range_linM = [0.0, 0.6],
                         # Shifts
-                        fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
-                        fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
+                        # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
+                        # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
                         # fixed_Ltt = np.array([[60., 0.1], [48.001, 0.1], [48., 0.8], [42.001, 0.8],  [42., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.05], [24.001, 0.05], [24., 0.3], [18.001, 0.3], [18., 0.2], [0., 0.2]]),
                         # fixed_Ltt = np.array([[60., 0.10], [40.001, 0.10], [40., 0.4], [30.001, 0.4], [30., 0.05], [0.0, 0.05]]), # Tree FBD
@@ -186,7 +184,6 @@ FBDtree_trunc = write_FBD_tree(fossils = sim_fossil,
                                name = 'Truncated',
                                edges = keep_in_interval)
 FBDtree_trunc.run_writter()
-
 
 
 

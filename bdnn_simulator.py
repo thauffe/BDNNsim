@@ -21,6 +21,7 @@ import scipy.linalg
 import random
 import string
 import dendropy
+import warnings
 # np.set_printoptions(suppress = True, precision = 3)
 np.set_printoptions(threshold = sys.maxsize)
 from collections.abc import Iterable
@@ -3753,7 +3754,7 @@ class write_FBD_tree():
                  name = '',
                  edges = None,
                  delta_time = 1.0):
-        self.fossils = fossils
+        self.fossils = copy.deepcopy(fossils)
         self.res_bd = res_bd
         self.output_wd = output_wd
         self.name = name
@@ -3795,14 +3796,15 @@ class write_FBD_tree():
     #     self.tree_pruned.write(path = path_pruned_tree, schema = 'newick')
 
 
-    def get_node_ages(self, tree):
+    def get_node_ages(self, tree, tree_offset):
         # Get node age (does not include a potential offset!)
         node_distance_from_root = []
         for nd in tree.postorder_node_iter():
             if nd.is_leaf() is False:
                 node_distance_from_root.append(nd.distance_from_root())
         node_distance_from_root = np.sort(np.array(node_distance_from_root))
-        node_ages = tree.max_distance_from_root() - node_distance_from_root
+        root_length = tree.seed_node.edge_length
+        node_ages = root_length + tree.max_distance_from_root() - node_distance_from_root + tree_offset
 
         return node_ages
 
@@ -3852,15 +3854,17 @@ class write_FBD_tree():
             if self.edges is not None:
                 younger = occ_i <= self.edges[0, 1]
                 occ_i[younger] = np.nan
-            ranges.iloc[i, 1] = np.nanmin(occ_i)
-            ranges.iloc[i, 2] = np.nanmax(occ_i)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category = RuntimeWarning)
+                ranges.iloc[i, 1] = np.nanmin(occ_i)
+                ranges.iloc[i, 2] = np.nanmax(occ_i)
         if keep_taxa is not None:
             ranges = ranges[ranges['taxon'].isin(keep_taxa)]
 
         return ranges
 
 
-    def write_ranges(self, name, keep_taxa = None):
+    def write_ranges(self, keep_taxa = None):
         if keep_taxa is None:
             ranges = self.get_ranges()
         else:
@@ -3899,8 +3903,11 @@ class write_FBD_tree():
 
         return keep_taxa
 
-    def write_rb_script(self, tree, tree_offset, upper_edge = 0.0):
-        scr = os.path.join(self._path_FBD_scripts, '%s_Episodic_FBD.Rev' % self.name)
+    def write_rb_script(self, tree, tree_offset, upper_edge = 0.0, episodic_sampling = False):
+        epi_sam = ''
+        if episodic_sampling:
+            epi_sam = 'Full'
+        scr = os.path.join(self._path_FBD_scripts, '%s_%sEpisodic_FBD.Rev' % (self.name, epi_sam))
         scrfile = open(scr, "w")
         scrfile.write('####################################\n')
         scrfile.write('# EPISODIC FOSSIILIZED BIRTH-DEATH #\n')
@@ -3939,6 +3946,9 @@ class write_FBD_tree():
         if upper_edge != 0.0 or tree_offset > self.delta_time:
             start = np.floor(tree_offset)
         timeline = np.arange(start, mrca_age - self.delta_time, step = self.delta_time)
+        # Check if any boundaries (as defined by the timeline) is equal to a node age.
+        # RevBayes will not find an initial likelihood in that case.
+        node_ages = self.get_node_ages(tree, tree_offset)
         timeline = timeline.tolist()
         scrfile.write('# Skyline time boundaries\n')
         scrfile.write('timeline <- v(')
@@ -4013,13 +4023,35 @@ class write_FBD_tree():
         scrfile.write('moves.append( mvHSRFIntervalSwap(delta_log_speciation, sigma_speciation, weight = 5) )\n')
         scrfile.write('moves.append( mvHSRFIntervalSwap(delta_log_extinction, sigma_extinction, weight = 5) )\n')
         scrfile.write('\n')
-        scrfile.write('# Assume an exponential prior on the rate of sampling fossils (psi)\n')
-        scrfile.write('psi ~ dnExponential(10.0)\n')
-        scrfile.write('\n')
-        scrfile.write('# Specify a scale move on the psi parameter\n')
-        scrfile.write('moves.append( mvScale(psi, lambda = 0.01, weight = 1) )\n')
-        scrfile.write('moves.append( mvScale(psi, lambda = 0.1,  weight = 1) )\n')
-        scrfile.write('moves.append( mvScale(psi, lambda = 1.0,  weight = 1) )\n')
+        if episodic_sampling is False:
+            scrfile.write('# Assume an exponential prior on the rate of sampling fossils (psi)\n')
+            scrfile.write('psi2 ~ dnExponential(10.0)\n')
+            scrfile.write('\n')
+            scrfile.write('# Specify a scale move on the psi parameter\n')
+            scrfile.write('moves.append( mvScale(psi2, lambda = 0.01, weight = 1) )\n')
+            scrfile.write('moves.append( mvScale(psi2, lambda = 0.1,  weight = 1) )\n')
+            scrfile.write('moves.append( mvScale(psi2, lambda = 1.0,  weight = 1) )\n')
+            scrfile.write('for (i in 1:(timeline_size + 1)) {\n')
+            scrfile.write('    psi[i] := psi2\n')
+            scrfile.write('}\n')
+        else:
+            scrfile.write('# Horseshoe prior for sampling (psi))\n')
+            scrfile.write('psi_global_scale_hyperprior <- 0.021\n')
+            scrfile.write('psi_global_scale ~ dnHalfCauchy(0, 1)\n')
+            scrfile.write('log_psi_at_present ~ dnUniform(-5.0, 1.0)\n')
+            scrfile.write('log_psi_at_present.setValue(-4.0)\n')
+            scrfile.write('moves.append( mvSlide(log_psi_at_present, delta = 1.0, weight = 5) )\n')
+            scrfile.write('for (i in 1:timeline_size) {\n')
+            scrfile.write('    sigma_psi[i] ~ dnHalfCauchy(0, 1)\n')
+            scrfile.write('    sigma_psi[i].setValue(runif(1, 0.005, 0.1)[1])\n')
+            scrfile.write('    delta_log_psi[i] ~ dnNormal(mean = 0, sd = sigma_psi[i] * psi_global_scale * psi_global_scale_hyperprior)\n')
+            scrfile.write('    delta_log_psi[i].setValue(runif(1, -0.1, 0.1)[1])\n')
+            scrfile.write('    moves.append( mvSlideBactrian(delta_log_psi[i], weight = 5) )\n')
+            scrfile.write('}\n')
+            scrfile.write('psi := fnassembleContinuousMRF(log_psi_at_present, delta_log_psi, initialValueIsLogScale = TRUE, order = 1) + 0.000001\n')
+            scrfile.write('moves.append( mvEllipticalSliceSamplingSimple(delta_log_psi, weight = 5, tune = FALSE, forceAccept = TRUE) )\n')
+            scrfile.write('moves.append( mvHSRFHyperpriorsGibbs(psi_global_scale, sigma_psi, delta_log_psi, psi_global_scale_hyperprior, order = 1, weight = 10))\n')
+            scrfile.write('moves.append( mvHSRFIntervalSwap(delta_log_psi, sigma_psi, weight = 5) )\n')
         scrfile.write('\n')
         scrfile.write('# Probability of sampling species at the present\n')
         scrfile.write('rho <- %s' % str(rho))
@@ -4039,9 +4071,9 @@ class write_FBD_tree():
         scrfile.write('\n')
         scrfile.write('# Set up the monitors that will output parameter values to file and screen\n')
         scrfile.write('monitors.append( mnScreen(printgen = 5000, psi) )\n')
-        scrfile.write('monitors.append( mnModel(filename = "output/%s_episodic_FBD.log", printgen = 100, separator = TAB) )' % self.name)
+        scrfile.write('monitors.append( mnModel(filename = "output/%s_%sEpisodic_FBD.log", printgen = 100, separator = TAB) )' % (self.name, epi_sam))
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_timeline.log", timeline, printgen = 50))' % self.name)
+        scrfile.write('monitors.append(mnFile(filename = "output/%s_%sTimeline.log", timeline, printgen = 50))' % (self.name, epi_sam))
         scrfile.write('\n')
         scrfile.write('\n')
         scrfile.write('\n')
@@ -4066,11 +4098,13 @@ class write_FBD_tree():
             self.write_tree(tree_trimmed)
             self.write_tree_offset(self.res_bd['tree_offset'])
             self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'])
+            self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], episodic_sampling = True)
         else:
             keep_taxa = self.prune_and_trim_tree_at_edges()
             self.write_tree(self.tree_pruned_edges)
             self.write_tree_offset(self.new_tree_offset)
             self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.edges[0, 1])
+            self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.edges[0, 1], episodic_sampling = True)
         self.write_ranges(keep_taxa)
 
 
