@@ -1310,7 +1310,7 @@ class bdnn_simulator():
             self.nwk_digits = self.nwk_leading_digits + self.nwk_decimal_digits + 1
 
             FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str, exceeded_diversity = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
-            # print('exceeded_diversity', exceeded_diversity)
+            #print('exceeded_diversity', exceeded_diversity)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
             n_extinct = len(LOtrue[LOtrue > 0.0])
@@ -3838,12 +3838,12 @@ class write_FBD_tree():
         return tree_trimmed, keep_taxa
 
 
-    def write_tree(self, tree):
-        path_tree = os.path.join(self._path_FBD_data, '%s_tree.tre' % self.name)
+    def write_tree(self, tree, name):
+        path_tree = os.path.join(self._path_FBD_data, '%s_tree.tre' % name)
         tree.write(path = path_tree, schema = 'newick')
 
 
-    def get_ranges(self, keep_taxa = None):
+    def get_ranges(self, keep_taxa = None, tree = None):
         taxon_names = self.fossils['taxon_names']
         n_lineages = len(taxon_names)
         ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
@@ -3855,6 +3855,9 @@ class write_FBD_tree():
             if self.edges is not None:
                 younger = occ_i <= self.edges[0, 1]
                 occ_i[younger] = np.nan
+            if tree is not None:
+                # Should we trunc fossil ranges their node ages? RevBayes does not have a budding speciation model
+                pass
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category = RuntimeWarning)
                 ranges.iloc[i, 1] = np.nanmin(occ_i)
@@ -3865,13 +3868,30 @@ class write_FBD_tree():
         return ranges
 
 
-    def write_ranges(self, keep_taxa = None):
+    def write_ranges(self, keep_taxa = None, tree = None):
         if keep_taxa is None:
             ranges = self.get_ranges()
         else:
             ranges = self.get_ranges(keep_taxa)
         ranges_file = os.path.join(self._path_FBD_data, '%s_ranges.csv') % self.name
         ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
+
+
+    def write_occurrence(self):
+        occ = self.fossils['fossil_occurrences']
+        n_lineages = len(occ)
+        occ_concat = np.array([])
+        for i in range(n_lineages):
+            occ_i = occ[i]
+            occ_i = occ_i[occ_i > 0.0]
+            if self.edges is not None:
+                keep = np.logical_and(occ_i <= self.edges[0, 0], occ_i >= self.edges[0, 1])
+                occ_i = occ_i[keep]
+            occ_concat = np.concatenate((occ_concat, occ_i), axis = None)
+        occ_concat = occ_concat.reshape((len(occ_concat), 1))
+        # occ_concat = np.column_stack((occ_concat, occ_concat)) # Can RevBay not read a single column text file?
+        path_occ = os.path.join(self._path_FBD_data, '%s_occurrences.txt' % self.name)
+        np.savetxt(path_occ, X = occ_concat, delimiter='\t', fmt='%f')
 
 
     def get_new_offset(self):
@@ -3904,11 +3924,32 @@ class write_FBD_tree():
 
         return keep_taxa
 
-    def write_rb_script(self, tree, tree_offset, upper_edge = 0.0, episodic_sampling = False):
+    def write_rb_script(self, tree, tree_offset, name, upper_edge = 0.0, episodic_sampling = False):
+        # Pre-computed hyperpriors for 2-99 shifts (using RevGadgets:::setMRFGlobalScaleHyperpriorNShifts(N, "HSMRF"))
+        GlobalScaleHyperprior_NShifts = [0.999952567, 0.507331511, 0.234871326, 0.145767331, 0.103241578,
+                                         0.078804639, 0.063162029, 0.052340099, 0.044464321, 0.038521775,
+                                         0.033868844, 0.030150525, 0.027111679, 0.024594979, 0.022462786,
+                                         0.020649951, 0.019089467, 0.017725212, 0.016534940, 0.015479044,
+                                         0.014531150, 0.013706527, 0.012959935, 0.012257861, 0.011636135,
+                                         0.011085222, 0.010571979, 0.010110646, 0.009646429, 0.009252232,
+                                         0.008893276, 0.008528772, 0.008217924, 0.007928209, 0.007628666,
+                                         0.007354106, 0.007116858, 0.006874918, 0.006665834, 0.006459795,
+                                         0.006259011, 0.006079703, 0.005904844, 0.005757506, 0.005568076,
+                                         0.005447242, 0.005303322, 0.005130847, 0.005024999, 0.004880406,
+                                         0.004789234, 0.004666251, 0.004538062, 0.004432210, 0.004369065,
+                                         0.004250532, 0.004158740, 0.004070418, 0.003987883, 0.003920844,
+                                         0.003831751, 0.003746992, 0.003666860, 0.003591752, 0.003531298,
+                                         0.003457690, 0.003402831, 0.003355132, 0.003293772, 0.003234674,
+                                         0.003180808, 0.003105620, 0.003064930, 0.002999167, 0.002943756,
+                                         0.002891630, 0.002881929, 0.002833793, 0.002788829, 0.002744748,
+                                         0.002701360, 0.002659138, 0.002617455, 0.002579869, 0.002544178,
+                                         0.002510394, 0.002441295, 0.002434237, 0.002399183, 0.002362197,
+                                         0.002326165, 0.002291734, 0.002276365, 0.002226954, 0.002196094,
+                                         0.002156608, 0.002166308, 0.002116517, 0.002093737]
         epi_sam = ''
         if episodic_sampling:
             epi_sam = 'Full'
-        scr = os.path.join(self._path_FBD_scripts, '%s_%sEpisodic_FBD.Rev' % (self.name, epi_sam))
+        scr = os.path.join(self._path_FBD_scripts, '%s_%sEpisodic_FBD.Rev' % (name, epi_sam))
         scrfile = open(scr, "w")
         scrfile.write('####################################\n')
         scrfile.write('# EPISODIC FOSSIILIZED BIRTH-DEATH #\n')
@@ -3918,7 +3959,7 @@ class write_FBD_tree():
         scrfile.write('#-----------------\n')
         scrfile.write('\n')
         scrfile.write('# Read the phylogeny\n')
-        scrfile.write('observed_phylogeny = readTrees(file = "data/%s_tree.tre")[1]' % self.name)
+        scrfile.write('observed_phylogeny = readTrees(file = "data/%s_tree.tre")[1]' % name)
         scrfile.write('\n')
         rho = 1.0
         root_argument = "root"
@@ -3969,9 +4010,10 @@ class write_FBD_tree():
         scrfile.write('#-----------------\n')
         scrfile.write('\n')
         scrfile.write('# prior and hyperprior for overall amount of rate variation\n')
-        scrfile.write('speciation_global_scale_hyperprior <- 0.021\n')
+        GlobalScaleHyperprior = GlobalScaleHyperprior_NShifts[len(timeline) - 1]
+        scrfile.write('speciation_global_scale_hyperprior <- %s\n' % GlobalScaleHyperprior)
         scrfile.write('speciation_global_scale ~ dnHalfCauchy(0, 1)\n')
-        scrfile.write('extinction_global_scale_hyperprior <- 0.021\n')
+        scrfile.write('extinction_global_scale_hyperprior <- %s\n' % GlobalScaleHyperprior)
         scrfile.write('extinction_global_scale ~ dnHalfCauchy(0, 1)\n')
         scrfile.write('\n')
         scrfile.write('# create a random variable at the present time\n')
@@ -4040,8 +4082,8 @@ class write_FBD_tree():
             scrfile.write('    psi[i] := psi2\n')
             scrfile.write('}\n')
         else:
-            scrfile.write('# Horseshoe prior for sampling (psi))\n')
-            scrfile.write('psi_global_scale_hyperprior <- 0.021\n')
+            scrfile.write('# Horseshoe prior for sampling (psi)\n')
+            scrfile.write('psi_global_scale_hyperprior <- %s\n' % GlobalScaleHyperprior)
             scrfile.write('psi_global_scale ~ dnHalfCauchy(0, 1)\n')
             scrfile.write('log_psi_at_present ~ dnUniform(-5.0, 1.0)\n')
             scrfile.write('log_psi_at_present.setValue(-4.0)\n')
@@ -4063,7 +4105,7 @@ class write_FBD_tree():
         scrfile.write('\n')
         scrfile.write('\n')
         scrfile.write('# Define the tree-prior distribution as the fossilized birth-death process\n')
-        scrfile.write('fbd_tree ~ dnBDSTP(originAge = %s, lambda = speciation_rate, mu = extinction_rate, phi = psi, Phi = rho, timeline = timeline, taxa = taxa, condition = "time", initialTree = observed_phylogeny)' % root_argument)
+        scrfile.write('fbd_tree ~ dnBDSTP(originAge = %s, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline, taxa = taxa, condition = "time", initialTree = observed_phylogeny)' % root_argument)
         scrfile.write('\n')
         scrfile.write('fbd_tree.clamp(observed_phylogeny)\n')
         scrfile.write('\n')
@@ -4076,9 +4118,9 @@ class write_FBD_tree():
         scrfile.write('\n')
         scrfile.write('# Set up the monitors that will output parameter values to file and screen\n')
         scrfile.write('monitors.append( mnScreen(printgen = 5000, psi) )\n')
-        scrfile.write('monitors.append( mnModel(filename = "output/%s_%sEpisodic_FBD.log", printgen = 100, separator = TAB) )' % (self.name, epi_sam))
+        scrfile.write('monitors.append( mnModel(filename = "output/%s_%sEpisodic_FBD.log", printgen = 100, separator = TAB) )' % (name, epi_sam))
         scrfile.write('\n')
-        scrfile.write('monitors.append(mnFile(filename = "output/%s_%sTimeline.log", timeline, printgen = 50))' % (self.name, epi_sam))
+        scrfile.write('monitors.append( mnFile(filename = "output/%s_%sTimeline.log", timeline, printgen = 50) )' % (name, epi_sam))
         scrfile.write('\n')
         scrfile.write('\n')
         scrfile.write('\n')
@@ -4100,16 +4142,19 @@ class write_FBD_tree():
     def run_writter(self):
         if self.edges is None:
             tree_trimmed, keep_taxa = self.trim_tree_by_lad(self.res_bd['tree'], self.fossils)
-            self.write_tree(tree_trimmed)
+            self.write_tree(tree_trimmed, self.name)
             self.write_tree_offset(self.res_bd['tree_offset'])
-            self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'])
-            self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], episodic_sampling = True)
+            self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], self.name)
+            self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], self.name, episodic_sampling = True)
+            self.write_tree(self.res_bd['tree'], 'Simulated')
+            self.write_rb_script(self.res_bd['tree'], self.res_bd['tree_offset'], 'Simulated')
         else:
             keep_taxa = self.prune_and_trim_tree_at_edges()
-            self.write_tree(self.tree_pruned_edges)
+            self.write_tree(self.tree_pruned_edges, self.name)
             self.write_tree_offset(self.new_tree_offset)
-            self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.edges[0, 1])
-            self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.edges[0, 1], episodic_sampling = True)
+            self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.name, self.edges[0, 1])
+            self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.name, self.edges[0, 1], episodic_sampling = True)
         self.write_ranges(keep_taxa)
+        self.write_occurrence()
 
 
