@@ -3988,6 +3988,10 @@ class write_FBD_tree():
         if upper_edge != 0.0 or tree_offset > self.delta_time:
             start = np.floor(tree_offset)
         timeline = np.arange(start, mrca_age - self.delta_time, step = self.delta_time)
+        # Check if hyperpriors should be for an uneven grid
+        diff_timeline = np.abs(np.diff(np.concatenate((np.zeros(1), timeline))))
+        even_grid_hyperprior = np.all(diff_timeline == diff_timeline[0])
+        even_grid_hyperprior = True # Uneven grid hyperprior not working, so overwrite it for the moment.
         # Check if any boundaries (as defined by the timeline) is equal to a node age.
         # RevBayes will not find an initial likelihood in that case.
         node_ages = self.get_node_ages(tree, tree_offset)
@@ -4052,7 +4056,7 @@ class write_FBD_tree():
         scrfile.write('    delta_up_down_move[i].addVariable(delta_log_speciation[i], TRUE)\n')
         scrfile.write('    delta_up_down_move[i].addVariable(delta_log_extinction[i], TRUE)\n')
         scrfile.write('    moves.append( delta_up_down_move[i] )\n')
-        scrfile.write('    }\n')
+        scrfile.write('}\n')
         scrfile.write('\n')
         scrfile.write('# Assemble first-order differences and speciation_rate at present into the random field\n')
         scrfile.write('speciation_rate := fnassembleContinuousMRF(log_speciation_at_present, delta_log_speciation, initialValueIsLogScale = TRUE, order = 1) + 0.000001\n')
@@ -4063,8 +4067,19 @@ class write_FBD_tree():
         scrfile.write('moves.append( mvEllipticalSliceSamplingSimple(delta_log_extinction, weight = 5, tune = FALSE, forceAccept = TRUE) )\n')
         scrfile.write('\n')
         scrfile.write('# Move all field hyperparameters in one go\n')
-        scrfile.write('moves.append( mvHSRFHyperpriorsGibbs(speciation_global_scale, sigma_speciation, delta_log_speciation, speciation_global_scale_hyperprior, order = 1, weight = 10) )\n')
-        scrfile.write('moves.append( mvHSRFHyperpriorsGibbs(extinction_global_scale, sigma_extinction, delta_log_extinction, extinction_global_scale_hyperprior, order = 1, weight = 10) )\n')
+        if even_grid_hyperprior:
+            scrfile.write('moves.append( mvHSRFHyperpriorsGibbs(speciation_global_scale, sigma_speciation, delta_log_speciation, speciation_global_scale_hyperprior, order = 1, weight = 10) )\n')
+            scrfile.write('moves.append( mvHSRFHyperpriorsGibbs(extinction_global_scale, sigma_extinction, delta_log_extinction, extinction_global_scale_hyperprior, order = 1, weight = 10) )\n')
+        else:
+            # Not working because grid should be of type deterministic but this code makes it constant. No idea how to change it.
+            scrfile.write('grid <- v(')
+            for i in range(len(diff_timeline)):
+                scrfile.write(str(diff_timeline[i]))
+                if i < (len(diff_timeline) - 1):
+                    scrfile.write(',')
+            scrfile.write(')\n')
+            scrfile.write('moves.append( mvHSRFUnevenGridHyperpriorsGibbs(speciation_global_scale, sigma_speciation, delta_log_speciation, grid, speciation_global_scale_hyperprior, order = 1, weight = 10) )\n')
+            scrfile.write('moves.append( mvHSRFUnevenGridHyperpriorsGibbs(extinction_global_scale, sigma_extinction, delta_log_extinction, grid, extinction_global_scale_hyperprior, order = 1, weight = 10) )\n')
         scrfile.write('\n')
         scrfile.write('# Swap moves to exchange adjacent delta,sigma pairs\n')
         scrfile.write('moves.append( mvHSRFIntervalSwap(delta_log_speciation, sigma_speciation, weight = 5) )\n')
@@ -4118,9 +4133,9 @@ class write_FBD_tree():
         scrfile.write('\n')
         scrfile.write('# Set up the monitors that will output parameter values to file and screen\n')
         scrfile.write('monitors.append( mnScreen(printgen = 5000, psi) )\n')
-        scrfile.write('monitors.append( mnModel(filename = "output/%s_%sEpisodic_FBD.log", printgen = 100, separator = TAB) )' % (name, epi_sam))
+        scrfile.write('monitors.append( mnModel(filename = "output/%s_%sEpisodic_FBD.log", printgen = 50, separator = TAB) )' % (name, epi_sam))
         scrfile.write('\n')
-        scrfile.write('monitors.append( mnFile(filename = "output/%s_%sTimeline.log", timeline, printgen = 50) )' % (name, epi_sam))
+        scrfile.write('monitors.append( mnFile(filename = "output/%s_%sTimeline.log", timeline, printgen = 500) )' % (name, epi_sam))
         scrfile.write('\n')
         scrfile.write('\n')
         scrfile.write('\n')
