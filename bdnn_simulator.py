@@ -21,6 +21,7 @@ import scipy.linalg
 import random
 import string
 import dendropy
+import nexus
 import warnings
 # np.set_printoptions(suppress = True, precision = 3)
 np.set_printoptions(threshold = sys.maxsize)
@@ -1595,8 +1596,7 @@ class write_PyRate_files():
         maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
         for i in range(n_cat_traits):
             cat_traits_i = cat_traits[:, i, taxa_sampled]
-            maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0][0]
-            #maj_cat_traits_i = maj_cat_traits_i[0]#.compressed()
+            maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]#[0] # Did this change with newer scipy?
             maj_cat_traits[:,i] = maj_cat_traits_i.astype(int)
 
         return maj_cat_traits
@@ -3809,6 +3809,23 @@ class write_FBD_tree():
 
         return node_ages
 
+    def get_range_branches(self, tree, tree_offset = 0.0):
+        mrca_age = tree.max_distance_from_root()
+        root_length = tree.seed_node.edge_length
+        root_age = mrca_age + root_length + tree_offset
+        range_branches = []
+        for leaf in tree.leaf_node_iter():
+            if leaf.is_leaf():
+                leaf_name = str(leaf.taxon)
+                leaf_name = leaf_name.replace("'", "")
+                min_age = root_age - leaf.distance_from_root()
+                if min_age < 1e-10:
+                    min_age = 0.0
+                max_age = min_age + leaf.edge_length
+                range_branches.append([leaf_name, min_age, max_age])
+        range_branches_df = pd.DataFrame(range_branches, columns = ['taxon', 'min_age', 'max_age'])
+        return range_branches_df
+
 
     def trim_tree_by_lad(self, tree, fossils, edges = False):
         taxon_names = fossils['taxon_names']
@@ -3840,40 +3857,42 @@ class write_FBD_tree():
 
     def write_tree(self, tree, name):
         path_tree = os.path.join(self._path_FBD_data, '%s_tree.tre' % name)
+        tree.ladderize(ascending = False)
         tree.write(path = path_tree, schema = 'newick')
 
 
-    def get_ranges(self, keep_taxa = None, tree = None):
+    def get_ranges(self, keep_taxa = None, tree = None, tree_offset = 0.0):
         taxon_names = self.fossils['taxon_names']
         n_lineages = len(taxon_names)
         ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
-        ranges['min'] = np.zeros(n_lineages) # min for RB1.1, RB1.2 needs min_age
-        ranges['max'] = np.zeros(n_lineages)
+        ranges['min_age'] = np.zeros(n_lineages) # min for RB1.1, RB1.2 needs min_age
+        ranges['max_age'] = np.zeros(n_lineages)
         occ = self.fossils['fossil_occurrences']
-        for i in range(n_lineages):
-            occ_i = occ[i]
-            if self.edges is not None:
-                younger = occ_i <= self.edges[0, 1]
-                occ_i[younger] = np.nan
-            if tree is not None:
-                # Should we trunc fossil ranges their node ages? RevBayes does not have a budding speciation model
-                pass
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category = RuntimeWarning)
-                ranges.iloc[i, 1] = np.nanmin(occ_i)
-                ranges.iloc[i, 2] = np.nanmax(occ_i)
+        if tree is None:
+            for i in range(n_lineages):
+                occ_i = occ[i]
+                if self.edges is not None:
+                    younger = occ_i <= self.edges[0, 1]
+                    occ_i[younger] = np.nan
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', category = RuntimeWarning)
+                    ranges.iloc[i, 1] = np.nanmin(occ_i)
+                    ranges.iloc[i, 2] = np.nanmax(occ_i)
+        else:
+            ranges = self.get_range_branches(tree, tree_offset)
         if keep_taxa is not None:
             ranges = ranges[ranges['taxon'].isin(keep_taxa)]
 
         return ranges
 
 
-    def write_ranges(self, keep_taxa = None, tree = None):
-        if keep_taxa is None:
-            ranges = self.get_ranges()
-        else:
-            ranges = self.get_ranges(keep_taxa)
-        ranges_file = os.path.join(self._path_FBD_data, '%s_ranges.csv') % self.name
+    def write_ranges(self, name, keep_taxa = None, tree = None, tree_offset = 0.0):
+        # if keep_taxa is None and tree is None:
+        #     ranges = self.get_ranges()
+        # elif keep_taxa is not None and tree is None:
+        #     ranges = self.get_ranges(keep_taxa)
+        ranges = self.get_ranges(keep_taxa, tree, tree_offset)
+        ranges_file = os.path.join(self._path_FBD_data, '%s_ranges.csv') % name
         ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
 
 
@@ -3910,7 +3929,6 @@ class write_FBD_tree():
         np.savetxt(path_offset, X = np.array([offset]), delimiter = '\t', fmt = '%f')
 
 
-
     def prune_and_trim_tree_at_edges(self):
         # Remove taxa not within edges and trim by fossil occurrences
         self.trunc_fossil = keep_fossils_in_interval(copy.deepcopy(self.fossils),
@@ -3923,6 +3941,35 @@ class write_FBD_tree():
         self.new_tree_offset = tree_offset + self.get_new_offset() + self.edges[0, 1]
 
         return keep_taxa
+
+
+    def get_majority_cat_trait_per_taxon(self):
+        cat_traits = self.res_bd['cat_traits']
+        n_cat_traits = cat_traits.shape[1]
+        taxa_sampled = self.fossils['taxa_sampled']
+        n_taxa_sampled = len(taxa_sampled)
+        maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
+        for i in range(n_cat_traits):
+            cat_traits_i = cat_traits[:, i, taxa_sampled]
+            maj_cat_traits_i = mode(cat_traits_i, axis = 0, nan_policy = 'omit')[0]
+            maj_cat_traits[:,i] = maj_cat_traits_i.astype(int)
+
+        return maj_cat_traits
+
+
+    def write_trait_nexus(self, keep_taxa):
+        keep_taxa_array = np.array(keep_taxa)
+        maj_cat_traits = self.get_majority_cat_trait_per_taxon()
+        taxon_names = self.fossils['taxon_names']
+        nex = nexus.NexusWriter()
+        for i in range(len(taxon_names)):
+            taxon = taxon_names[i]
+            if np.isin(taxon, keep_taxa_array):
+                for j in range(maj_cat_traits.shape[1]):
+                    nex.add(taxon, 'Trait' + str(j), maj_cat_traits[i, j])
+        path_nexus_traits = os.path.join(self._path_FBD_data, '%s_Morphology.nex' % self.name)
+        nex.write_to_file(path_nexus_traits, interleave = False, charblock = True, preserve_order = True)
+
 
     def write_rb_script(self, tree, tree_offset, name, upper_edge = 0.0, episodic_sampling = False):
         # Pre-computed hyperpriors for 2-99 shifts (using RevGadgets:::setMRFGlobalScaleHyperpriorNShifts(N, "HSMRF"))
@@ -4161,15 +4208,22 @@ class write_FBD_tree():
             self.write_tree_offset(self.res_bd['tree_offset'])
             self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], self.name)
             self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], self.name, episodic_sampling = True)
-            self.write_tree(self.res_bd['tree'], 'Simulated')
-            self.write_rb_script(self.res_bd['tree'], self.res_bd['tree_offset'], 'Simulated')
+            if isinstance(self.res_bd['cat_traits'], np.ndarray):
+                self.write_trait_nexus(keep_taxa)
+            # Use the simulated tree
+            #self.write_tree(self.res_bd['tree'], 'Simulated')
+            #self.write_rb_script(self.res_bd['tree'], self.res_bd['tree_offset'], 'Simulated')
+            # Species ranges trimmed to their branch length
+            # self.write_ranges(self.name + '_branches', keep_taxa, tree_trimmed, self.res_bd['tree_offset'])
         else:
             keep_taxa = self.prune_and_trim_tree_at_edges()
             self.write_tree(self.tree_pruned_edges, self.name)
             self.write_tree_offset(self.new_tree_offset)
             self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.name, self.edges[0, 1])
             self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.name, self.edges[0, 1], episodic_sampling = True)
-        self.write_ranges(keep_taxa)
+            if isinstance(self.res_bd['cat_traits'], np.ndarray):
+                self.write_trait_nexus(keep_taxa)
+        self.write_ranges(self.name, keep_taxa)
         self.write_occurrence()
 
 
