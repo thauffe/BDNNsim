@@ -3861,12 +3861,12 @@ class write_FBD_tree():
         tree.write(path = path_tree, schema = 'newick')
 
 
-    def get_ranges(self, keep_taxa = None, tree = None, tree_offset = 0.0):
+    def get_taxon_data(self, keep_taxa = None, tree = None, tree_offset = 0.0, tip_ages = True):
         taxon_names = self.fossils['taxon_names']
         n_lineages = len(taxon_names)
-        ranges = pd.DataFrame(data = taxon_names, columns = ['taxon'])
-        ranges['min_age'] = np.zeros(n_lineages) # min for RB1.1, RB1.2 needs min_age
-        ranges['max_age'] = np.zeros(n_lineages)
+        taxon_data = pd.DataFrame(data = taxon_names, columns = ['taxon'])
+        taxon_data['min_age'] = np.zeros(n_lineages) # min for RB1.1, RB1.2 needs min_age
+        taxon_data['max_age'] = np.zeros(n_lineages)
         occ = self.fossils['fossil_occurrences']
         if tree is None:
             for i in range(n_lineages):
@@ -3876,24 +3876,28 @@ class write_FBD_tree():
                     occ_i[younger] = np.nan
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category = RuntimeWarning)
-                    ranges.iloc[i, 1] = np.nanmin(occ_i)
-                    ranges.iloc[i, 2] = np.nanmax(occ_i)
+                    min_age = np.nanmin(occ_i)
+                    taxon_data.iloc[i, 1] = min_age
+                    if tip_ages:
+                        taxon_data.iloc[i, 2] = min_age
+                    else:
+                        # Stratigraphic ages for fossilized birth-death range process
+                        taxon_data.iloc[i, 2] = np.nanmax(occ_i)
         else:
-            ranges = self.get_range_branches(tree, tree_offset)
+            taxon_data = self.get_range_branches(tree, tree_offset)
         if keep_taxa is not None:
-            ranges = ranges[ranges['taxon'].isin(keep_taxa)]
+            taxon_data = taxon_data[taxon_data['taxon'].isin(keep_taxa)]
 
-        return ranges
+        return taxon_data
 
 
-    def write_ranges(self, name, keep_taxa = None, tree = None, tree_offset = 0.0):
-        # if keep_taxa is None and tree is None:
-        #     ranges = self.get_ranges()
-        # elif keep_taxa is not None and tree is None:
-        #     ranges = self.get_ranges(keep_taxa)
-        self.ranges = self.get_ranges(keep_taxa, tree, tree_offset)
-        ranges_file = os.path.join(self._path_FBD_data, '%s_ranges.csv') % name
-        self.ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
+    def write_taxon_data(self, name, keep_taxa = None, tree = None, tree_offset = 0.0):
+        self.tip_ages = self.get_taxon_data(keep_taxa, tree, tree_offset, tip_ages = True)
+        tip_ages_file = os.path.join(self._path_FBD_data, '%s_tip_ages.csv') % name
+        self.tip_ages.to_csv(tip_ages_file, header = True, sep = '\t', index = False)
+        self.stratigraphic_ranges = self.get_taxon_data(keep_taxa, tree, tree_offset, tip_ages = False)
+        stratigraphic_ranges_file = os.path.join(self._path_FBD_data, '%s_stratigraphic_ranges.csv') % name
+        self.stratigraphic_ranges.to_csv(stratigraphic_ranges_file, header = True, sep = '\t', index = False)
 
 
     def write_occurrence(self):
@@ -4035,12 +4039,12 @@ class write_FBD_tree():
             mrca_age = np.round(tree.max_distance_from_root() + tree_offset)
         else:
             scrfile.write('# Read morphology and ranges\n')
-            scrfile.write('taxa <- readTaxonData("data/%s_ranges.csv")' % name)
+            scrfile.write('taxa <- readTaxonData("data/%s_tip_ages.csv")' % name)
             scrfile.write('\n')
             scrfile.write('morpho <- readDiscreteCharacterData("data/%s_Morphology.nex")' % name)
             scrfile.write('\n')
             scrfile.write('n_taxa <- taxa.size()\n')
-            mrca_age = np.sort(self.ranges['max_age'].to_numpy())[-2]
+            mrca_age = np.sort(self.tip_ages['max_age'].to_numpy())[-2]
             if lower_edge < mrca_age:
                 mrca_age = lower_edge
         scrfile.write('\n')
@@ -4288,7 +4292,7 @@ class write_FBD_tree():
             tree_trimmed, keep_taxa = self.trim_tree_by_lad(self.res_bd['tree'], self.fossils)
             self.write_tree(tree_trimmed, self.name)
             self.write_tree_offset(self.res_bd['tree_offset'])
-            self.write_ranges(self.name, keep_taxa)
+            self.write_taxon_data(self.name, keep_taxa)
             self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'])
             self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'], episodic_sampling = True)
             if isinstance(self.res_bd['cat_traits'], np.ndarray):
@@ -4303,7 +4307,7 @@ class write_FBD_tree():
             keep_taxa = self.prune_and_trim_tree_at_edges()
             self.write_tree(self.tree_pruned_edges, self.name)
             self.write_tree_offset(self.new_tree_offset)
-            self.write_ranges(self.name, keep_taxa)
+            self.write_taxon_data(self.name, keep_taxa)
             self.write_rb_script(self.name, self.tree_pruned_edges, self.new_tree_offset, self.edges)
             self.write_rb_script(self.name, self.tree_pruned_edges, self.new_tree_offset, self.edges, episodic_sampling = True)
             if isinstance(self.res_bd['cat_traits'], np.ndarray):

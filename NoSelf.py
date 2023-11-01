@@ -37,7 +37,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # fixed_Mtt = np.array([[60., 0.01], [25.001, 0.01], [25., 0.2], [15.001, 0.2], [15., 0.05], [0., 0.05]]),
                         # fixed_Ltt = np.array([[60., 0.15], [30.001, 0.15], [30., 0.5], [20.001, 0.5], [20., 0.05], [0., 0.05]]), # Tree FBD
                         # fixed_Mtt = np.array([[60., 0.03], [30.001, 0.03], [30., 0.3], [18.001, 0.3], [18., 0.08], [0., 0.08]]),
-                        fixed_Ltt = np.array([[60., 0.10], [38.001, 0.10], [38., 0.5], [28.001, 0.5], [28., 0.05], [0.0, 0.05]]),
+                        fixed_Ltt = np.array([[60., 0.1], [5.001, 0.1], [5., 0.5], [0.0, 0.5]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
@@ -47,7 +47,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
 scenario = 'Shifts_15'
 scenario = 'Constant_03'
 scenario = 'Linear_02'
-scenario = 'PhylogenyConstant03'
+scenario = 'PhylogenyShift05'
 
 # Set directory
 base_dir = '/home/torsten/Work/EdgeEffect/Simulations'
