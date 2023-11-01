@@ -15,14 +15,14 @@ rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 # rnd_seed = 74464520
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
-                        rangeSP = [50., 500.],  # min/max size data set
+                        rangeSP = [50., 300.],  # min/max size data set
                         #minEX_SP = 0,  # minimum number of extinct lineages allowed
                         #maxExtant_SP = 0, # minimum number of extant lineages
                         minExtant_SP = 1,
                         # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
                         rangeL = [0.1, 0.1],
-                        rangeM = [0.07, 0.07],
+                        rangeM = [0.05, 0.05],
                         # rangeL = [0.2, 0.2],  # range of birth rates -> 50-300 species in timewindow
                         # rangeM = [0.1, 0.1],  # range of death rates
                         # rangeL = [0.1, 0.1],
@@ -33,10 +33,11 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # Shifts
                         # fixed_Ltt = np.array([[60., 0.20], [37.001, 0.20], [37., 0.6], [30.001, 0.6], [30., 0.0001], [0.0, 0.0001]]),
                         # fixed_Mtt = np.array([[60., 0.05], [40.001, 0.05], [40., 0.5], [33.001, 0.5], [33., 0.15], [0.0, 0.15]]),
-                        fixed_Ltt = np.array([[60., 0.1], [48.001, 0.1], [48., 0.7], [42.001, 0.7],  [42., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
-                        fixed_Mtt = np.array([[60., 0.01], [25.001, 0.01], [25., 0.2], [15.001, 0.2], [15., 0.05], [0., 0.05]]),
+                        # fixed_Ltt = np.array([[60., 0.1], [48.001, 0.1], [48., 0.7], [42.001, 0.7],  [42., 0.1], [18.001, 0.1], [18., 0.01], [0., 0.01]]),
+                        # fixed_Mtt = np.array([[60., 0.01], [25.001, 0.01], [25., 0.2], [15.001, 0.2], [15., 0.05], [0., 0.05]]),
                         # fixed_Ltt = np.array([[60., 0.15], [30.001, 0.15], [30., 0.5], [20.001, 0.5], [20., 0.05], [0., 0.05]]), # Tree FBD
                         # fixed_Mtt = np.array([[60., 0.03], [30.001, 0.03], [30., 0.3], [18.001, 0.3], [18., 0.08], [0., 0.08]]),
+                        fixed_Ltt = np.array([[60., 0.10], [38.001, 0.10], [38., 0.5], [28.001, 0.5], [28., 0.05], [0.0, 0.05]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),

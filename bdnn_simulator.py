@@ -3891,9 +3891,9 @@ class write_FBD_tree():
         #     ranges = self.get_ranges()
         # elif keep_taxa is not None and tree is None:
         #     ranges = self.get_ranges(keep_taxa)
-        ranges = self.get_ranges(keep_taxa, tree, tree_offset)
+        self.ranges = self.get_ranges(keep_taxa, tree, tree_offset)
         ranges_file = os.path.join(self._path_FBD_data, '%s_ranges.csv') % name
-        ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
+        self.ranges.to_csv(ranges_file, header = True, sep = '\t', index = False)
 
 
     def write_occurrence(self):
@@ -3971,7 +3971,7 @@ class write_FBD_tree():
         nex.write_to_file(path_nexus_traits, interleave = False, charblock = True, preserve_order = True)
 
 
-    def write_rb_script(self, tree, tree_offset, name, upper_edge = 0.0, episodic_sampling = False):
+    def write_rb_script(self, name, tree = None, tree_offset = 0.0, edges = np.array([[np.inf, 0.0]]), episodic_sampling = False):
         # Pre-computed hyperpriors for 2-99 shifts (using RevGadgets:::setMRFGlobalScaleHyperpriorNShifts(N, "HSMRF"))
         GlobalScaleHyperprior_NShifts = [0.999952567, 0.507331511, 0.234871326, 0.145767331, 0.103241578,
                                          0.078804639, 0.063162029, 0.052340099, 0.044464321, 0.038521775,
@@ -3995,8 +3995,15 @@ class write_FBD_tree():
                                          0.002156608, 0.002166308, 0.002116517, 0.002093737]
         epi_sam = ''
         if episodic_sampling:
-            epi_sam = 'Full'
-        scr = os.path.join(self._path_FBD_scripts, '%s_%sEpisodic_FBD.Rev' % (name, epi_sam))
+            epi_sam = 'Full_'
+        fixed_tree = True
+        tree_type = 'Fixedtree'
+        if tree is None:
+            fixed_tree = False
+            tree_type = 'Infertree'
+        upper_edge = edges[0, 1]
+        lower_edge = edges[0, 0]
+        scr = os.path.join(self._path_FBD_scripts, '%s_%s_%sEpisodic.Rev' % (name, tree_type, epi_sam))
         scrfile = open(scr, "w")
         scrfile.write('####################################\n')
         scrfile.write('# EPISODIC FOSSIILIZED BIRTH-DEATH #\n')
@@ -4005,30 +4012,42 @@ class write_FBD_tree():
         scrfile.write('# Data and helpers\n')
         scrfile.write('#-----------------\n')
         scrfile.write('\n')
-        scrfile.write('# Read the phylogeny\n')
-        scrfile.write('observed_phylogeny = readTrees(file = "data/%s_tree.tre")[1]' % name)
-        scrfile.write('\n')
         rho = 1.0
-        root_argument = "root"
         if tree_offset > 0.0:
             rho = 0.0
-            root_argument = "root + offset"
-            scrfile.write('offset <- %s' % tree_offset)
+        if fixed_tree:
+            scrfile.write('# Read the phylogeny\n')
+            scrfile.write('observed_phylogeny = readTrees(file = "data/%s_tree.tre")[1]' % name)
             scrfile.write('\n')
-            scrfile.write('# Add offset\n')
-            scrfile.write('if (offset > 0.0) {\n')
-            scrfile.write('    observed_phylogeny.offset(offset)\n')
-            scrfile.write('}\n')
-        scrfile.write('\n')
-        scrfile.write('# Get the names of the taxa in the tree and the age of the tree. We need these later on.\n')
-        scrfile.write('taxa <- observed_phylogeny.taxa()\n')
-        scrfile.write('root <- observed_phylogeny.rootAge()\n')
+            root_argument = "root"
+            if tree_offset > 0.0:
+                root_argument = "root + offset"
+                scrfile.write('offset <- %s' % tree_offset)
+                scrfile.write('\n')
+                scrfile.write('# Add offset\n')
+                scrfile.write('if (offset > 0.0) {\n')
+                scrfile.write('    observed_phylogeny.offset(offset)\n')
+                scrfile.write('}\n')
+            scrfile.write('\n')
+            scrfile.write('# Get the names of the taxa in the tree and the age of the tree. We need these later on.\n')
+            scrfile.write('taxa <- observed_phylogeny.taxa()\n')
+            scrfile.write('root <- observed_phylogeny.rootAge()\n')
+            mrca_age = np.round(tree.max_distance_from_root() + tree_offset)
+        else:
+            scrfile.write('# Read morphology and ranges\n')
+            scrfile.write('taxa <- readTaxonData("data/%s_ranges.csv")' % name)
+            scrfile.write('\n')
+            scrfile.write('morpho <- readDiscreteCharacterData("data/%s_Morphology.nex")' % name)
+            scrfile.write('\n')
+            scrfile.write('n_taxa <- taxa.size()\n')
+            mrca_age = np.sort(self.ranges['max_age'].to_numpy())[-2]
+            if lower_edge < mrca_age:
+                mrca_age = lower_edge
         scrfile.write('\n')
         scrfile.write('# Init moves and monitors of this analysis\n')
         scrfile.write('moves = VectorMoves()\n')
         scrfile.write('monitors = VectorMonitors()\n')
         scrfile.write('\n')
-        mrca_age = np.round(tree.max_distance_from_root() + tree_offset)
         start = self.delta_time
         # When tree (not truncated by edges) only includes extinct species, we should use a single, large time-bin
         # from the present until the most recent tip
@@ -4039,13 +4058,14 @@ class write_FBD_tree():
         diff_timeline = np.abs(np.diff(np.concatenate((np.zeros(1), timeline))))
         even_grid_hyperprior = np.all(diff_timeline == diff_timeline[0])
         even_grid_hyperprior = True # Uneven grid hyperprior not working, so overwrite it for the moment.
-        # Check if any boundaries (as defined by the timeline) is equal to a node age.
-        # RevBayes will not find an initial likelihood in that case.
-        node_ages = self.get_node_ages(tree, tree_offset)
-        sim_fractional_digits = len(str(int(np.round(self.res_bd['sim_scale'])))) - 1
-        node_ages = np.round(node_ages, sim_fractional_digits)
-        problematic_boundaries = np.isin(timeline, node_ages)
-        timeline[problematic_boundaries] = timeline[problematic_boundaries] + 10**-(sim_fractional_digits + 1)
+        if fixed_tree:
+            # Check if any boundaries (as defined by the timeline) is equal to a node age.
+            # RevBayes will not find an initial likelihood in that case.
+            node_ages = self.get_node_ages(tree, tree_offset)
+            sim_fractional_digits = len(str(int(np.round(self.res_bd['sim_scale'])))) - 1
+            node_ages = np.round(node_ages, sim_fractional_digits)
+            problematic_boundaries = np.isin(timeline, node_ages)
+            timeline[problematic_boundaries] = timeline[problematic_boundaries] + 10**-(sim_fractional_digits + 1)
         timeline = timeline.tolist()
         scrfile.write('# Skyline time boundaries\n')
         scrfile.write('timeline <- v(')
@@ -4166,10 +4186,63 @@ class write_FBD_tree():
         scrfile.write('rho <- %s' % str(rho))
         scrfile.write('\n')
         scrfile.write('\n')
-        scrfile.write('# Define the tree-prior distribution as the fossilized birth-death process\n')
-        scrfile.write('fbd_tree ~ dnBDSTP(originAge = %s, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline, taxa = taxa, condition = "time", initialTree = observed_phylogeny)' % root_argument)
-        scrfile.write('\n')
-        scrfile.write('fbd_tree.clamp(observed_phylogeny)\n')
+        if fixed_tree:
+            scrfile.write('# Define the tree-prior distribution as the fossilized birth-death process\n')
+            scrfile.write('fbd_tree ~ dnBDSTP(originAge = %s, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline, taxa = taxa, condition = "time", initialTree = observed_phylogeny)' % root_argument)
+            scrfile.write('\n')
+            scrfile.write('fbd_tree.clamp(observed_phylogeny)\n')
+        else:
+            scrfile.write('# MRCA age\n')
+            scrfile.write('origin_time ~ dnUnif(%s, 100.0)' % str(mrca_age))
+            scrfile.write('\n')
+            scrfile.write('moves.append(mvSlide(origin_time, delta = 0.01, weight = 5))\n')
+            scrfile.write('moves.append(mvSlide(origin_time, delta = 0.1, weight = 5))\n')
+            scrfile.write('moves.append(mvSlide(origin_time, delta = 1.0, weight = 5))\n')
+            scrfile.write('\n')
+            scrfile.write('# Define the tree-prior distribution as the fossilized birth-death process\n')
+            scrfile.write('fbd_tree ~ dnBDSTP(originAge = origin_time, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline, taxa = taxa, condition = "time")\n')
+            scrfile.write('\n')
+            scrfile.write('# Moves on tree topology\n')
+            scrfile.write('moves.append( mvFNPR(fbd_tree, weight = n_taxa/10) )\n')
+            scrfile.write('moves.append( mvNNI(fbd_tree, weight = n_taxa/20) )\n')
+            scrfile.write('moves.append( mvNarrow(fbd_tree, weight = n_taxa/20) )\n')
+            scrfile.write('\n')
+            scrfile.write('# Moves on branch lengths and node ages\n')
+            scrfile.write('moves.append( mvNodeTimeSlideUniform(fbd_tree, weight = n_taxa/10) )\n')
+            scrfile.write('moves.append( mvRootTimeSlideUniform(fbd_tree, origin_time, weight = n_taxa/20) )\n')
+            scrfile.write('moves.append( mvSubtreeScale(fbd_tree, weight = n_taxa/20) )\n')
+            scrfile.write('moves.append( mvTreeScale(fbd_tree, origin_time, weight = n_taxa/20) )\n')
+            scrfile.write('\n')
+            scrfile.write('# Sampled ancestors\n')
+            scrfile.write('moves.append(mvCollapseExpandFossilBranch(fbd_tree, origin_time, weight = 5))\n')
+            scrfile.write('num_samp_anc := fbd_tree.numSampledAncestors()\n')
+            scrfile.write('\n')
+            scrfile.write('\n')
+            scrfile.write('# Binary morphological substitution model\n')
+            scrfile.write('#------------------------\n')
+            scrfile.write('Q_morpho := fnJC(2)\n')
+            scrfile.write('\n')
+            scrfile.write('# Set up Gamma-distributed rate variation\n')
+            scrfile.write('alpha_morpho ~ dnExponential( 1.0 )\n')
+            scrfile.write('rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )\n')
+            scrfile.write('\n')
+            scrfile.write('# Moves on the parameters to the Gamma distribution\n')
+            scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 0.01, weight = 5) )\n')
+            scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 0.1,  weight = 3) )\n')
+            scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 1.0,  weight = 1) )\n')
+            scrfile.write('\n')
+            scrfile.write('# We assume a strict morphological clock rate, drawn from an exponential prior\n')
+            scrfile.write('clock_morpho ~ dnExponential(1.0)\n')
+            scrfile.write('\n')
+            scrfile.write('moves.append( mvScale(clock_morpho, lambda = 0.01, weight = 10) )\n')
+            scrfile.write('moves.append( mvScale(clock_morpho, lambda = 0.1,  weight = 10) )\n')
+            scrfile.write('moves.append( mvScale(clock_morpho, lambda = 1.0,  weight = 10) )\n')
+            scrfile.write('\n')
+            scrfile.write('# Create the substitution model and clamp with our observed Standard data\n')
+            scrfile.write('# Here we use the option siteMatrices=true specify that the vector Q represents a site-specific mixture of rate matrices.\n')
+            scrfile.write('# We also condition on observing only variable characters using coding="variable".\n')
+            scrfile.write('phyMorpho ~ dnPhyloCTMC(tree = fbd_tree, siteRates = rates_morpho, branchRates = clock_morpho, Q = Q_morpho, type = "Standard", coding = "variable")\n')
+            scrfile.write('phyMorpho.clamp(morpho)\n')
         scrfile.write('\n')
         scrfile.write('\n')
         scrfile.write('# The Model\n')
@@ -4179,11 +4252,13 @@ class write_FBD_tree():
         scrfile.write('mymodel = model(speciation_rate)\n')
         scrfile.write('\n')
         scrfile.write('# Set up the monitors that will output parameter values to file and screen\n')
-        scrfile.write('monitors.append( mnScreen(printgen = 5000, psi) )\n')
-        scrfile.write('monitors.append( mnModel(filename = "output/%s_%sEpisodic_FBD.log", printgen = 50, separator = TAB) )' % (name, epi_sam))
+        scrfile.write('monitors.append( mnScreen(printgen = 5000, psi[1]) )\n')
+        scrfile.write('monitors.append( mnModel(filename = "output/%s_%s_%sEpisodic.log", printgen = 50, separator = TAB) )' % (name, tree_type, epi_sam))
         scrfile.write('\n')
-        scrfile.write('monitors.append( mnFile(filename = "output/%s_%sTimeline.log", timeline, printgen = 500) )' % (name, epi_sam))
+        scrfile.write('monitors.append( mnFile(filename = "output/%s_%s_%sTimeline.log", timeline, printgen = 50) )' % (name, tree_type, epi_sam))
         scrfile.write('\n')
+        if fixed_tree is False:
+            scrfile.write('monitors.append( mnFile(filename = "output/%s_%s_%sEpisodic.trees", fbd_tree, printgen = 500) )' % (name, tree_type, epi_sam))
         scrfile.write('\n')
         scrfile.write('\n')
         scrfile.write('# The Analysis\n')
@@ -4196,6 +4271,13 @@ class write_FBD_tree():
         scrfile.write('mymcmc.burnin(generations = 5000, tuningInterval = 500)\n')
         scrfile.write('mymcmc.run(50000)\n')
         scrfile.write('\n')
+        if fixed_tree is False:
+            scrfile.write('# Summarize phylogeny\n')
+            scrfile.write('posterior_trees = readTreeTrace("output/%s_%s_%sEpisodic.trees", burnin = 0.0)' % (name, tree_type, epi_sam))
+            scrfile.write('\n')
+            scrfile.write('mccTree(posterior_trees, file="output/%s_%s_%sEpisodic_MCC.tre", positiveBranchLengths = TRUE)' % (name, tree_type, epi_sam))
+            scrfile.write('\n')
+            scrfile.write('\n')
         scrfile.write('# quit\n')
         scrfile.write('q()')
         scrfile.flush()
@@ -4206,24 +4288,27 @@ class write_FBD_tree():
             tree_trimmed, keep_taxa = self.trim_tree_by_lad(self.res_bd['tree'], self.fossils)
             self.write_tree(tree_trimmed, self.name)
             self.write_tree_offset(self.res_bd['tree_offset'])
-            self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], self.name)
-            self.write_rb_script(tree_trimmed, self.res_bd['tree_offset'], self.name, episodic_sampling = True)
+            self.write_ranges(self.name, keep_taxa)
+            self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'])
+            self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'], episodic_sampling = True)
             if isinstance(self.res_bd['cat_traits'], np.ndarray):
                 self.write_trait_nexus(keep_taxa)
+                self.write_rb_script(self.name)
             # Use the simulated tree
             #self.write_tree(self.res_bd['tree'], 'Simulated')
-            #self.write_rb_script(self.res_bd['tree'], self.res_bd['tree_offset'], 'Simulated')
+            #self.write_rb_script('Simulated', self.res_bd['tree'], self.res_bd['tree_offset'])
             # Species ranges trimmed to their branch length
             # self.write_ranges(self.name + '_branches', keep_taxa, tree_trimmed, self.res_bd['tree_offset'])
         else:
             keep_taxa = self.prune_and_trim_tree_at_edges()
             self.write_tree(self.tree_pruned_edges, self.name)
             self.write_tree_offset(self.new_tree_offset)
-            self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.name, self.edges[0, 1])
-            self.write_rb_script(self.tree_pruned_edges, self.new_tree_offset, self.name, self.edges[0, 1], episodic_sampling = True)
+            self.write_ranges(self.name, keep_taxa)
+            self.write_rb_script(self.name, self.tree_pruned_edges, self.new_tree_offset, self.edges)
+            self.write_rb_script(self.name, self.tree_pruned_edges, self.new_tree_offset, self.edges, episodic_sampling = True)
             if isinstance(self.res_bd['cat_traits'], np.ndarray):
                 self.write_trait_nexus(keep_taxa)
-        self.write_ranges(self.name, keep_taxa)
+                self.write_rb_script(self.name, tree_offset = self.new_tree_offset, edges = self.edges)
         self.write_occurrence()
 
 
