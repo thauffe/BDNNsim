@@ -217,7 +217,7 @@ class bdnn_simulator():
             if n_cat_traits > 0:
                 for y in range(n_cat_traits):
                     if self.cat_traits_diag is None:
-                        cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
+                        cat_traits_Q[y] = dT * cat_traits_Q[y] * 0.01  # Only for anagenetic evolution of categorical traits
                     pi = self.get_stationary_distribution(cat_traits_Q[y])
                     cat_trait_yi = int(np.random.choice(cat_states[y], 1, p = pi))
                     cat_traits[-1, y, i] = cat_trait_yi
@@ -287,7 +287,7 @@ class bdnn_simulator():
 
             ran_vec = np.random.random(TE)
             te_extant = np.where(np.array(te) == 0)[0]
-            ran_vec_cat_trait = np.random.random(TE)
+            ran_vec_cat_trait = np.random.random(TE * n_cat_traits).reshape((TE, n_cat_traits))
             ran_vec_biogeo = np.random.random(TE)
 
             no = np.random.uniform(0, 1)  # draw a random number
@@ -336,7 +336,7 @@ class bdnn_simulator():
                     for y in range(n_cat_traits):
                         if self.cat_traits_diag is None:
                             cat_trait_j = self.evolve_cat_traits_ana(cat_traits_Q[y], cat_traits[t_abs + 1, y, j],
-                                                                     ran_vec_cat_trait[j], cat_states[y])
+                                                                     ran_vec_cat_trait[j, y], cat_states[y])
                         else:
                             cat_trait_j = cat_traits[t_abs + 1, y, j]  # No change along branches
                         cat_trait_j = int(cat_trait_j)
@@ -1346,6 +1346,11 @@ class bdnn_simulator():
         if self.s_species == 1:
             tree = self.nwk_str_to_tree(nwk_str, ts_te, root)
             tree_offset = np.min(ts_te[:, 1])
+
+        if isinstance(cat_traits, np.ndarray):
+            cat_traits[0, :] = cat_traits[1, :]
+        if isinstance(cont_traits, np.ndarray):
+            cont_traits[0, :] = cont_traits[1, :]
 
         res_bd = {'lambda': L * self.scale,
                   'tshift_lambda': timesL / self.scale,
@@ -3954,30 +3959,46 @@ class write_FBD_tree():
         return keep_taxa
 
 
-    def get_majority_cat_trait_per_taxon(self):
+    def get_cat_trait_per_taxon(self, majority = True):
         cat_traits = self.res_bd['cat_traits']
         n_cat_traits = cat_traits.shape[1]
         taxa_sampled = self.fossils['taxa_sampled']
         n_taxa_sampled = len(taxa_sampled)
-        maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
-        for i in range(n_cat_traits):
-            cat_traits_i = cat_traits[:, i, taxa_sampled]
-            maj_cat_traits_i = mode(cat_traits_i, axis = 0, nan_policy = 'omit')[0]
-            maj_cat_traits[:,i] = maj_cat_traits_i.astype(int)
+        occ = self.fossils['fossil_occurrences']
+        time = self.res_bd['true_rates_through_time']['time']
+        maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits).reshape((n_taxa_sampled, n_cat_traits))
+        if majority:
+            for i in range(n_cat_traits):
+                cat_traits_i = cat_traits[:, i, taxa_sampled]
+                maj_cat_traits[:, i] = mode(cat_traits_i, axis = 0, nan_policy = 'omit')[0]
+        else:
+            min_age = np.zeros(n_taxa_sampled)
+            for i in range(n_taxa_sampled):
+                occ_i = occ[i]
+                if self.edges is not None:
+                    keep = np.logical_and(occ_i <= self.edges[0, 0], occ_i >= self.edges[0, 1])
+                    occ_i = occ_i[keep]
+                if len(occ_i) > 0:
+                    min_age[i] = np.nanmin(occ_i)
+            trait_idx = np.searchsorted(time, min_age)
+            for i in range(n_cat_traits):
+                cat_traits_i = cat_traits[:, i, taxa_sampled]
+                for j in range(n_taxa_sampled):
+                    maj_cat_traits[j, i] = cat_traits_i[trait_idx[j], j]
 
         return maj_cat_traits
 
 
-    def write_trait_nexus(self, keep_taxa):
+    def write_trait_nexus(self, keep_taxa, majority = False):
         keep_taxa_array = np.array(keep_taxa)
-        maj_cat_traits = self.get_majority_cat_trait_per_taxon()
+        maj_cat_traits = self.get_cat_trait_per_taxon(majority = majority)
         taxon_names = self.fossils['taxon_names']
         nex = nexus.NexusWriter()
         for i in range(len(taxon_names)):
             taxon = taxon_names[i]
             if np.isin(taxon, keep_taxa_array):
                 for j in range(maj_cat_traits.shape[1]):
-                    nex.add(taxon, 'Trait' + str(j), maj_cat_traits[i, j])
+                    nex.add(taxon, 'Trait' + str(j), int(maj_cat_traits[i, j]))
         path_nexus_traits = os.path.join(self._path_FBD_data, '%s_Morphology.nex' % self.name)
         nex.write_to_file(path_nexus_traits, interleave = False, charblock = True, preserve_order = True)
 
