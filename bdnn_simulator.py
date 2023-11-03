@@ -213,10 +213,11 @@ class bdnn_simulator():
         lineage_rates_through_time[:] = np.nan
 
         for i in range(self.s_species):
-            #cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
             cat_trait_yi = 0
             if n_cat_traits > 0:
                 for y in range(n_cat_traits):
+                    if self.cat_traits_diag is None:
+                        cat_traits_Q[y] = dT * cat_traits_Q[y]  # Only for anagenetic evolution of categorical traits
                     pi = self.get_stationary_distribution(cat_traits_Q[y])
                     cat_trait_yi = int(np.random.choice(cat_states[y], 1, p = pi))
                     cat_traits[-1, y, i] = cat_trait_yi
@@ -333,7 +334,11 @@ class bdnn_simulator():
                 cat_trait_j = 0
                 if n_cat_traits > 0:
                     for y in range(n_cat_traits):
-                        cat_trait_j = cat_traits[t_abs + 1, y, j] # No change along branches
+                        if self.cat_traits_diag is None:
+                            cat_trait_j = self.evolve_cat_traits_ana(cat_traits_Q[y], cat_traits[t_abs + 1, y, j],
+                                                                     ran_vec_cat_trait[j], cat_states[y])
+                        else:
+                            cat_trait_j = cat_traits[t_abs + 1, y, j]  # No change along branches
                         cat_trait_j = int(cat_trait_j)
                         cat_traits[t_abs, y, j] = cat_trait_j
                         l_j = l_j * cat_trait_effect[y][0, cat_trait_j]
@@ -386,19 +391,21 @@ class bdnn_simulator():
                     cat_trait_new = 0
                     if n_cat_traits > 0:
                         cat_traits_new_species = self.empty_traits(root_plus_1, n_cat_traits)
-                        # cat_traits_new_species[t_abs,] = cat_traits[t_abs,:,j] # inherit state at speciation
-                        for y in range(n_cat_traits):
-                            # Change of categorical trait at speciation
-                            ancestral_cat_trait = cat_traits[t_abs, y, j]
-                            cat_trait_new = self.evolve_cat_traits_clado(cat_traits_Q[y], ancestral_cat_trait, cat_states[y])
-                            cat_trait_new = int(cat_trait_new)
-                            cat_traits_new_species[t_abs, y] = cat_trait_new
-                            # trait state for the just originated lineage
-                            lineage_rates_tmp[(5 + 3 * n_cont_traits + y):(6 + 3 * n_cont_traits + y)] = cat_trait_new
-                            # trait state of the ancestral lineage
-                            lineage_rates_tmp[(5 + 3 * n_cont_traits + y + n_cat_traits):(6 + 3 * n_cont_traits + y + n_cat_traits)] = ancestral_cat_trait
-                            l_new = l_new * cat_trait_effect[y][0, cat_trait_new]
-                            m_new = m_new * cat_trait_effect[y][1, cat_trait_new]
+                        if self.cat_traits_diag is None:
+                            cat_traits_new_species[t_abs, :] = cat_traits[t_abs, :, j] # inherit state at speciation
+                        else:
+                            for y in range(n_cat_traits):
+                                # Change of categorical trait at speciation
+                                ancestral_cat_trait = cat_traits[t_abs, y, j]
+                                cat_trait_new = self.evolve_cat_traits_clado(cat_traits_Q[y], ancestral_cat_trait, cat_states[y])
+                                cat_trait_new = int(cat_trait_new)
+                                cat_traits_new_species[t_abs, y] = cat_trait_new
+                                # trait state for the just originated lineage
+                                lineage_rates_tmp[(5 + 3 * n_cont_traits + y):(6 + 3 * n_cont_traits + y)] = cat_trait_new
+                                # trait state of the ancestral lineage
+                                lineage_rates_tmp[(5 + 3 * n_cont_traits + y + n_cat_traits):(6 + 3 * n_cont_traits + y + n_cat_traits)] = ancestral_cat_trait
+                                l_new = l_new * cat_trait_effect[y][0, cat_trait_new]
+                                m_new = m_new * cat_trait_effect[y][1, cat_trait_new]
                         cat_traits = np.dstack((cat_traits, cat_traits_new_species))
                     if n_cont_traits > 0:
                         cont_traits_new_species = self.empty_traits(root_plus_1, n_cont_traits)
@@ -4256,7 +4263,7 @@ class write_FBD_tree():
         scrfile.write('mymodel = model(speciation_rate)\n')
         scrfile.write('\n')
         scrfile.write('# Set up the monitors that will output parameter values to file and screen\n')
-        scrfile.write('monitors.append( mnScreen(printgen = 5000, psi[1]) )\n')
+        scrfile.write('monitors.append( mnScreen(printgen = 5000) )\n')
         scrfile.write('monitors.append( mnModel(filename = "output/%s_%s_%sEpisodic.log", printgen = 50, separator = TAB) )' % (name, tree_type, epi_sam))
         scrfile.write('\n')
         scrfile.write('monitors.append( mnFile(filename = "output/%s_%s_%sTimeline.log", timeline, printgen = 50) )' % (name, tree_type, epi_sam))
@@ -4298,6 +4305,7 @@ class write_FBD_tree():
             if isinstance(self.res_bd['cat_traits'], np.ndarray):
                 self.write_trait_nexus(keep_taxa)
                 self.write_rb_script(self.name)
+                self.write_rb_script(self.name, episodic_sampling = True)
             # Use the simulated tree
             #self.write_tree(self.res_bd['tree'], 'Simulated')
             #self.write_rb_script('Simulated', self.res_bd['tree'], self.res_bd['tree_offset'])
@@ -4313,6 +4321,7 @@ class write_FBD_tree():
             if isinstance(self.res_bd['cat_traits'], np.ndarray):
                 self.write_trait_nexus(keep_taxa)
                 self.write_rb_script(self.name, tree_offset = self.new_tree_offset, edges = self.edges)
+                self.write_rb_script(self.name, tree_offset=self.new_tree_offset, edges=self.edges, episodic_sampling = True)
         self.write_occurrence()
 
 

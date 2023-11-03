@@ -12,7 +12,7 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
-# rnd_seed = 74464520
+rnd_seed = 17577173
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [50., 300.],  # min/max size data set
@@ -21,8 +21,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         minExtant_SP = 1,
                         # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
-                        rangeL = [0.1, 0.1],
-                        rangeM = [0.05, 0.05],
+                        rangeL = [0.15, 0.15],
+                        rangeM = [0.1, 0.1],
                         # rangeL = [0.2, 0.2],  # range of birth rates -> 50-300 species in timewindow
                         # rangeM = [0.1, 0.1],  # range of death rates
                         # rangeL = [0.1, 0.1],
@@ -37,17 +37,18 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # fixed_Mtt = np.array([[60., 0.01], [25.001, 0.01], [25., 0.2], [15.001, 0.2], [15., 0.05], [0., 0.05]]),
                         # fixed_Ltt = np.array([[60., 0.15], [30.001, 0.15], [30., 0.5], [20.001, 0.5], [20., 0.05], [0., 0.05]]), # Tree FBD
                         # fixed_Mtt = np.array([[60., 0.03], [30.001, 0.03], [30., 0.3], [18.001, 0.3], [18., 0.08], [0., 0.08]]),
-                        fixed_Ltt = np.array([[60., 0.1], [5.001, 0.1], [5., 0.5], [0.0, 0.5]]),
+                        # fixed_Ltt = np.array([[60., 0.30], [40.001, 0.30], [40., 0.1], [0.0, 0.1]]),
+                        # fixed_Mtt = np.array([[60., 0.1], [35.001, 0.1], [35., 0.4], [27.001, 0.4], [27., 0.1], [0.0, 0.1]]),
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
-                        n_cat_traits = [50, 50], n_cat_traits_states = [2, 2], cat_traits_diag = 0.95,
+                        n_cat_traits = [10, 10], n_cat_traits_states = [2, 2], cat_traits_dir = 5.0, #cat_traits_diag = 0.95,
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 scenario = 'Shifts_15'
 scenario = 'Constant_03'
 scenario = 'Linear_02'
-scenario = 'PhylogenyShift05'
+scenario = 'PhylogenyShift06'
 
 # Set directory
 base_dir = '/home/torsten/Work/EdgeEffect/Simulations'
@@ -68,6 +69,15 @@ sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
 print(sim_fossil['q'])
 print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
+
+print(res_bd['cat_traits_Q'][0])
+
+cat_traits = res_bd['cat_traits']
+for i in range(cat_traits.shape[1]):
+    m = np.nanmean(cat_traits[:,i,:], axis = 0)
+    print(i, 'invariant', np.all(np.isin(m, np.array([0, 1]))))
+
+np.savetxt(base_dir + '/cat.txt', res_bd['cat_traits'][:,1,:], delimiter = '\t', fmt = '%f')
 
 
 # Complete data
