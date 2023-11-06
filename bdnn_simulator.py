@@ -3885,7 +3885,10 @@ class write_FBD_tree():
                 occ_i = occ[i]
                 if self.edges is not None:
                     younger = occ_i <= self.edges[0, 1]
+                    #occ_i = occ_i - self.edges[0, 1] # If we want to translate truncated data to the present
                     occ_i[younger] = np.nan
+                    older = occ_i >= self.edges[0, 0]
+                    occ_i[older] = np.nan
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category = RuntimeWarning)
                     min_age = np.nanmin(occ_i)
@@ -4074,18 +4077,21 @@ class write_FBD_tree():
             scrfile.write('n_taxa <- taxa.size()\n')
             mrca_age = np.sort(self.tip_ages['max_age'].to_numpy())[-2]
             if lower_edge < mrca_age:
+                # Truncated case
                 mrca_age = lower_edge
         scrfile.write('\n')
         scrfile.write('# Init moves and monitors of this analysis\n')
         scrfile.write('moves = VectorMoves()\n')
         scrfile.write('monitors = VectorMonitors()\n')
         scrfile.write('\n')
-        start = self.delta_time
-        # When tree (not truncated by edges) only includes extinct species, we should use a single, large time-bin
+        start_timeline = self.delta_time
+        # When the tree (truncated or not by edges) only includes extinct species, we should use a single, large time-bin
         # from the present until the most recent tip
-        if upper_edge != 0.0 or tree_offset > self.delta_time:
-            start = np.floor(tree_offset)
-        timeline = np.arange(start, mrca_age - self.delta_time, step = self.delta_time)
+        if upper_edge > self.delta_time or tree_offset > self.delta_time:
+            new_start_timeline = np.floor(tree_offset)
+            if new_start_timeline > start_timeline:
+                start_timeline = new_start_timeline
+        timeline = np.arange(start_timeline, mrca_age - self.delta_time, step = self.delta_time)
         # Check if hyperpriors should be for an uneven grid
         diff_timeline = np.abs(np.diff(np.concatenate((np.zeros(1), timeline))))
         even_grid_hyperprior = np.all(diff_timeline == diff_timeline[0])
@@ -4225,7 +4231,7 @@ class write_FBD_tree():
             scrfile.write('fbd_tree.clamp(observed_phylogeny)\n')
         else:
             scrfile.write('# MRCA age\n')
-            scrfile.write('origin_time ~ dnUnif(%s, 100.0)' % str(mrca_age))
+            scrfile.write('origin_time ~ dnUnif(%s, %s)' % (str(mrca_age), str(100.0 - upper_edge)))
             scrfile.write('\n')
             scrfile.write('moves.append(mvSlide(origin_time, delta = 0.01, weight = 5))\n')
             scrfile.write('moves.append(mvSlide(origin_time, delta = 0.1, weight = 5))\n')
@@ -4259,16 +4265,30 @@ class write_FBD_tree():
             scrfile.write('rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )\n')
             scrfile.write('\n')
             scrfile.write('# Moves on the parameters to the Gamma distribution\n')
-            scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 0.01, weight = 5) )\n')
-            scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 0.1,  weight = 3) )\n')
-            scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 1.0,  weight = 1) )\n')
+            # scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 0.01, weight = 5) )\n')
+            # scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 0.1,  weight = 3) )\n')
+            # scrfile.write('moves.append( mvScale(alpha_morpho, lambda = 1.0,  weight = 1) )\n')
             scrfile.write('\n')
             scrfile.write('# We assume a strict morphological clock rate, drawn from an exponential prior\n')
-            scrfile.write('clock_morpho ~ dnExponential(1.0)\n')
+            scrfile.write('clock_morpho ~ dnExponential(10.0)\n')
             scrfile.write('\n')
-            scrfile.write('moves.append( mvScale(clock_morpho, lambda = 0.01, weight = 10) )\n')
-            scrfile.write('moves.append( mvScale(clock_morpho, lambda = 0.1,  weight = 10) )\n')
-            scrfile.write('moves.append( mvScale(clock_morpho, lambda = 1.0,  weight = 10) )\n')
+            # scrfile.write('moves.append( mvScale(clock_morpho, lambda = 0.01, weight = 10) )\n')
+            # scrfile.write('moves.append( mvScale(clock_morpho, lambda = 0.1,  weight = 10) )\n')
+            # scrfile.write('moves.append( mvScale(clock_morpho, lambda = 1.0,  weight = 10) )\n')
+            scrfile.write('avmvn_morpho = mvAVMVN(weight = 10)\n')
+            scrfile.write('avmvn_morpho.addVariable(alpha_morpho)\n')
+            scrfile.write('avmvn_morpho.addVariable(clock_morpho)\n')
+            scrfile.write('moves.append( avmvn_morpho )\n')
+            scrfile.write('up_down_move_morpho = mvUpDownScale(weight = 10)\n')
+            scrfile.write('up_down_move_morpho.addVariable(alpha_morpho, TRUE)\n')
+            scrfile.write('up_down_move_morpho.addVariable(clock_morpho, TRUE)\n')
+            scrfile.write('moves.append( up_down_move_morpho )\n')
+            scrfile.write('moves.append( mvScaleBactrian(alpha_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvScaleBactrian(clock_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvMirrorMultiplier(alpha_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvMirrorMultiplier(clock_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvRandomDive(alpha_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvRandomDive(clock_morpho, weight = 10) )\n')
             scrfile.write('\n')
             scrfile.write('# Create the substitution model and clamp with our observed Standard data\n')
             scrfile.write('# Here we use the option siteMatrices=true specify that the vector Q represents a site-specific mixture of rate matrices.\n')
@@ -4337,12 +4357,24 @@ class write_FBD_tree():
             self.write_tree(self.tree_pruned_edges, self.name)
             self.write_tree_offset(self.new_tree_offset)
             self.write_taxon_data(self.name, keep_taxa)
-            self.write_rb_script(self.name, self.tree_pruned_edges, self.new_tree_offset, self.edges)
-            self.write_rb_script(self.name, self.tree_pruned_edges, self.new_tree_offset, self.edges, episodic_sampling = True)
+            self.write_rb_script(self.name,
+                                 tree = self.tree_pruned_edges,
+                                 tree_offset = self.new_tree_offset,# - self.edges[0, 1],
+                                 edges = self.edges)
+            self.write_rb_script(self.name,
+                                 tree = self.tree_pruned_edges,
+                                 tree_offset = self.new_tree_offset,# - self.edges[0, 1],
+                                 edges = self.edges,
+                                 episodic_sampling = True)
             if isinstance(self.res_bd['cat_traits'], np.ndarray):
                 self.write_trait_nexus(keep_taxa)
-                self.write_rb_script(self.name, tree_offset = self.new_tree_offset, edges = self.edges)
-                self.write_rb_script(self.name, tree_offset=self.new_tree_offset, edges=self.edges, episodic_sampling = True)
+                self.write_rb_script(self.name,
+                                     tree_offset = self.new_tree_offset,# - self.edges[0, 1],
+                                     edges = self.edges)
+                self.write_rb_script(self.name,
+                                     tree_offset = self.new_tree_offset,# - self.edges[0, 1],
+                                     edges = self.edges,
+                                     episodic_sampling = True)
         self.write_occurrence()
 
 
