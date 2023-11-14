@@ -12,7 +12,7 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
-rnd_seed = 83844910
+rnd_seed = 60120411
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [100., 300.],  # min/max size data set
@@ -21,10 +21,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         minExtant_SP = 1,
                         # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
-                        # rangeL = [0.21, 0.21],
-                        # rangeM = [0.15, 0.15],
                         rangeL = [0.15, 0.15],  # range of birth rates -> 50-300 species in timewindow
-                        rangeM = [0.08, 0.08],  # range of death rates
+                        #rangeM = [0.08, 0.08],  # range of death rates
                         scale = 100.0,
                         # cont_traits_sigma_clado = [0.1, 0.1],
                         # poiL = 3,  # expected number of birth rate shifts
@@ -41,18 +39,18 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # rangeL = [0.2, 0.2],
                         # fixed_Mtt = np.array([[60., 0.1], [39.001, 0.1], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
                         # PhylogenyShift07
-                        # fixed_Ltt = np.array([[60., 0.17], [39.001, 0.17], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
-                        # rangeM = [0.15, 0.15],
+                        fixed_Ltt = np.array([[60., 0.17], [39.001, 0.17], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
+                        rangeM = [0.15, 0.15],
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
-                        n_cat_traits = [100, 100], n_cat_traits_states = [2, 2], cat_traits_diag = 0.95, #, cat_traits_dir = 10.0
+                        n_cat_traits = [50, 50], n_cat_traits_states = [2, 2], cat_traits_dir = 10.0, #cat_traits_diag = 0.95,
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 scenario = 'Shifts_15'
 scenario = 'Constant_03'
-scenario = 'Linear_02'
 scenario = 'PhylogenyConstant03'
+scenario = 'PhylogenyShift07'
 
 # Set directory
 base_dir = '/home/torsten/Work/EdgeEffect/Simulations'
@@ -196,4 +194,22 @@ FBDtree_trunc.run_writter()
 res_bd['tree'].write(path = os.path.join(output_dir, 'Complete', 'FBDtree', 'data', 'Simulated_tree.tre'), schema = 'newick')
 tree = res_bd['tree']
 tree_extant = prune_extinct(tree)
-tree_extant.write(path = '/home/torsten/Work/EdgeEffect/Simulations/Phylogeny/Extant/data/PhyloExtant.tre', schema = 'newick')
+tree_extant.write(path = output_dir + '/Complete/FBDtree/data/Complete_extant_tree.tre', schema = 'newick')
+
+from dendropy.interop import seqgen
+s = seqgen.SeqGen()
+d0 = s.generate(tree_extant)
+
+from dendropy.model.discrete import simulate_discrete_chars, Jc69, Hky85, DiscreteCharacterEvolutionModel
+
+Q = DiscreteCharacterEvolutionModel(state_alphabet = ['0', '1'], stationary_freqs = [0.5, 0.5])
+
+N = 10
+data_Hky85 = simulate_discrete_chars(seq_len = N, tree_model = tree_extant, seq_model = Hky85(), mutation_rate = 0.01)
+
+data_Hky85 = simulate_discrete_chars(seq_len = N, tree_model = tree_extant, seq_model = Hky85(state_alphabet = ['0', '1']), mutation_rate = 0.01)
+
+ch_list = list()
+for t in data_Hky85.taxon_namespace:
+    ch_list.append([x.symbol for x in data_Hky85[t]])
+ch_arr = np.array(ch_list)

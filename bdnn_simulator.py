@@ -4002,7 +4002,7 @@ class write_FBD_tree():
             if np.isin(taxon, keep_taxa_array):
                 for j in range(maj_cat_traits.shape[1]):
                     nex.add(taxon, 'Trait' + str(j), int(maj_cat_traits[i, j]))
-        path_nexus_traits = os.path.join(self._path_FBD_data, '%s_Morphology.nex' % self.name)
+        path_nexus_traits = os.path.join(self._path_FBD_data, '%s_morphology.nex' % self.name)
         nex.write_to_file(path_nexus_traits, interleave = False, charblock = True, preserve_order = True)
 
 
@@ -4072,7 +4072,7 @@ class write_FBD_tree():
             scrfile.write('# Read morphology and ranges\n')
             scrfile.write('taxa <- readTaxonData("data/%s_tip_ages.csv")' % name)
             scrfile.write('\n')
-            scrfile.write('morpho <- readDiscreteCharacterData("data/%s_Morphology.nex")' % name)
+            scrfile.write('morpho <- readDiscreteCharacterData("data/%s_morphology.nex")' % name)
             scrfile.write('\n')
             scrfile.write('n_taxa <- taxa.size()\n')
             mrca_age = np.sort(self.tip_ages['max_age'].to_numpy())[-2]
@@ -4257,11 +4257,12 @@ class write_FBD_tree():
             scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# Binary morphological substitution model\n')
-            scrfile.write('#------------------------\n')
+            scrfile.write('#----------------------------------------\n')
             scrfile.write('Q_morpho := fnJC(2)\n')
             scrfile.write('\n')
             scrfile.write('# Set up Gamma-distributed rate variation\n')
-            scrfile.write('alpha_morpho ~ dnExponential( 1.0 )\n')
+            scrfile.write('alpha_morpho_inv ~ dnExponential( 1.0 )\n')
+            scrfile.write('alpha_morpho := 1.0 / alpha_morpho_inv\n')
             scrfile.write('rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )\n')
             scrfile.write('\n')
             scrfile.write('# Moves on the parameters to the Gamma distribution\n')
@@ -4276,18 +4277,18 @@ class write_FBD_tree():
             # scrfile.write('moves.append( mvScale(clock_morpho, lambda = 0.1,  weight = 10) )\n')
             # scrfile.write('moves.append( mvScale(clock_morpho, lambda = 1.0,  weight = 10) )\n')
             scrfile.write('avmvn_morpho = mvAVMVN(weight = 10)\n')
-            scrfile.write('avmvn_morpho.addVariable(alpha_morpho)\n')
+            scrfile.write('avmvn_morpho.addVariable(alpha_morpho_inv)\n')
             scrfile.write('avmvn_morpho.addVariable(clock_morpho)\n')
             scrfile.write('moves.append( avmvn_morpho )\n')
             scrfile.write('up_down_move_morpho = mvUpDownScale(weight = 10)\n')
-            scrfile.write('up_down_move_morpho.addVariable(alpha_morpho, TRUE)\n')
+            scrfile.write('up_down_move_morpho.addVariable(alpha_morpho_inv, TRUE)\n')
             scrfile.write('up_down_move_morpho.addVariable(clock_morpho, TRUE)\n')
             scrfile.write('moves.append( up_down_move_morpho )\n')
-            scrfile.write('moves.append( mvScaleBactrian(alpha_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvScaleBactrian(alpha_morpho_inv, weight = 10) )\n')
             scrfile.write('moves.append( mvScaleBactrian(clock_morpho, weight = 10) )\n')
-            scrfile.write('moves.append( mvMirrorMultiplier(alpha_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvMirrorMultiplier(alpha_morpho_inv, weight = 10) )\n')
             scrfile.write('moves.append( mvMirrorMultiplier(clock_morpho, weight = 10) )\n')
-            scrfile.write('moves.append( mvRandomDive(alpha_morpho, weight = 10) )\n')
+            scrfile.write('moves.append( mvRandomDive(alpha_morpho_inv, weight = 10) )\n')
             scrfile.write('moves.append( mvRandomDive(clock_morpho, weight = 10) )\n')
             scrfile.write('\n')
             scrfile.write('# Create the substitution model and clamp with our observed Standard data\n')
@@ -4310,7 +4311,7 @@ class write_FBD_tree():
         scrfile.write('monitors.append( mnFile(filename = "output/%s_%s_%sTimeline.log", timeline, printgen = 50) )' % (name, tree_type, epi_sam))
         scrfile.write('\n')
         if fixed_tree is False:
-            scrfile.write('monitors.append( mnFile(filename = "output/%s_%s_%sEpisodic.trees", fbd_tree, printgen = 500) )' % (name, tree_type, epi_sam))
+            scrfile.write('monitors.append( mnFile(filename = "output/%s_%s_%sEpisodic.trees", fbd_tree, printgen = 50) )' % (name, tree_type, epi_sam))
         scrfile.write('\n')
         scrfile.write('\n')
         scrfile.write('# The Analysis\n')
@@ -4343,7 +4344,7 @@ class write_FBD_tree():
             self.write_taxon_data(self.name, keep_taxa)
             self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'])
             self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'], episodic_sampling = True)
-            if isinstance(self.res_bd['cat_traits'], np.ndarray):
+            if self.res_bd['cat_traits'].size > 0:
                 self.write_trait_nexus(keep_taxa)
                 self.write_rb_script(self.name)
                 self.write_rb_script(self.name, episodic_sampling = True)
@@ -4366,7 +4367,7 @@ class write_FBD_tree():
                                  tree_offset = self.new_tree_offset,# - self.edges[0, 1],
                                  edges = self.edges,
                                  episodic_sampling = True)
-            if isinstance(self.res_bd['cat_traits'], np.ndarray):
+            if self.res_bd['cat_traits'].size > 0:
                 self.write_trait_nexus(keep_taxa)
                 self.write_rb_script(self.name,
                                      tree_offset = self.new_tree_offset,# - self.edges[0, 1],
