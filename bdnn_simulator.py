@@ -1860,9 +1860,9 @@ def keep_fossils_in_interval(fossils, keep_in_interval, keep_extant = True):
                 occ_keep_y = occ_i[np.logical_and(occ_i <= keep_in_interval[y,0], occ_i > keep_in_interval[y,1])]
                 occ_keep = np.concatenate((occ_keep, occ_keep_y))
             occ_i = occ_keep
+            if is_alive and keep_extant:
+                occ_i = np.concatenate((occ_i, np.zeros(1)))
             if len(occ_i) > 0:
-                if is_alive and keep_extant:
-                    occ_i = np.concatenate((occ_i, np.zeros(1)))
                 occ.append(occ_i)
                 keep.append(i)
 
@@ -3884,9 +3884,10 @@ class write_FBD_tree():
             for i in range(n_lineages):
                 occ_i = occ[i]
                 if self.edges is not None:
+                    # occ_i = occ_i - self.edges[0, 1] # If we want to translate truncated data to the present
                     younger = occ_i <= self.edges[0, 1]
-                    #occ_i = occ_i - self.edges[0, 1] # If we want to translate truncated data to the present
-                    occ_i[younger] = np.nan
+                    if np.min(occ_i) > 0.0 or tree_offset > 0.0:
+                        occ_i[younger] = np.nan
                     older = occ_i >= self.edges[0, 0]
                     occ_i[older] = np.nan
                 with warnings.catch_warnings():
@@ -3948,11 +3949,11 @@ class write_FBD_tree():
         np.savetxt(path_offset, X = np.array([offset]), delimiter = '\t', fmt = '%f')
 
 
-    def prune_and_trim_tree_at_edges(self):
+    def prune_and_trim_tree_at_edges(self, keep_extant = False):
         # Remove taxa not within edges and trim by fossil occurrences
         self.trunc_fossil = keep_fossils_in_interval(copy.deepcopy(self.fossils),
                                                      keep_in_interval = self.edges,
-                                                     keep_extant = False)
+                                                     keep_extant = keep_extant)
         tree = self.res_bd['tree']
         tree_offset = self.res_bd['tree_offset']
         # mrca_age = tree.max_distance_from_root()  # + tree_offset # age of the first speciation
@@ -4075,7 +4076,7 @@ class write_FBD_tree():
             scrfile.write('morpho <- readDiscreteCharacterData("data/%s_morphology.nex")' % name)
             scrfile.write('\n')
             scrfile.write('n_taxa <- taxa.size()\n')
-            mrca_age = np.sort(self.tip_ages['max_age'].to_numpy())[-2]
+            mrca_age = np.sort(self.tip_ages['max_age'].to_numpy())[-1] # Why initially -2?
             if lower_edge < mrca_age:
                 # Truncated case
                 mrca_age = lower_edge
@@ -4336,7 +4337,7 @@ class write_FBD_tree():
         scrfile.flush()
 
 
-    def run_writter(self):
+    def run_writter(self, keep_extant = True):
         if self.edges is None:
             tree_trimmed, keep_taxa = self.trim_tree_by_lad(self.res_bd['tree'], self.fossils)
             self.write_tree(tree_trimmed, self.name)
@@ -4354,10 +4355,10 @@ class write_FBD_tree():
             # Species ranges trimmed to their branch length
             # self.write_ranges(self.name + '_branches', keep_taxa, tree_trimmed, self.res_bd['tree_offset'])
         else:
-            keep_taxa = self.prune_and_trim_tree_at_edges()
+            keep_taxa = self.prune_and_trim_tree_at_edges(keep_extant = keep_extant)
             self.write_tree(self.tree_pruned_edges, self.name)
             self.write_tree_offset(self.new_tree_offset)
-            self.write_taxon_data(self.name, keep_taxa)
+            self.write_taxon_data(self.name, keep_taxa, tree_offset = self.new_tree_offset)
             self.write_rb_script(self.name,
                                  tree = self.tree_pruned_edges,
                                  tree_offset = self.new_tree_offset,# - self.edges[0, 1],
