@@ -21,7 +21,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         minExtant_SP = 1,
                         # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
-                        rangeL = [0.22, 0.22],  # range of birth rates -> 50-300 species in timewindow
+                        rangeL = [0.2, 0.2],  # range of birth rates -> 50-300 species in timewindow
                         rangeM = [0.08, 0.08],  # range of death rates
                         scale = 100.0,
                         magnitude_mass_ext = [0.9, 0.9],
@@ -46,7 +46,7 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
-                        n_cat_traits = [50, 50], n_cat_traits_states = [2, 2], cat_traits_dir = 10.0, #cat_traits_diag = 0.95,
+                        n_cat_traits = [5, 5], n_cat_traits_states = [2, 2], cat_traits_dir = 10.0, #cat_traits_diag = 0.95,
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 scenario = 'Shifts_15'
@@ -181,20 +181,28 @@ write_FBD_fix.run_FBD_writter(trunc_fossil)
 
 # Writing tree-based FBD analysis
 #################################
-FBDtree_complete = write_FBD_tree(fossils = sim_fossil,
-                                  res_bd = res_bd,
-                                  output_wd = output_dir,
-                                  name = 'Complete')
-FBDtree_complete.run_writter(infer_mass_extinctions = True)
+FBDtree = write_FBD_tree(fossils = sim_fossil,
+                         res_bd = res_bd,
+                         output_wd = output_dir)
+FBDtree.run_writter(name = 'Complete', infer_mass_extinctions = True)
+FBDtree.run_writter(name = 'Truncated', edges = keep_in_interval, keep_extant = False, infer_mass_extinctions = True)
+FBDtree.run_writter(name = 'Truncated', edges = keep_in_interval, keep_extant = True, infer_mass_extinctions = True)
+FBDtree.run_writter(name = 'Truncatedtranslated',
+                    edges = keep_in_interval,
+                    keep_extant = False,
+                    infer_mass_extinctions = True,
+                    translate_to_present = True)
 
-FBDtree_trunc = write_FBD_tree(fossils = sim_fossil,
-                               res_bd = res_bd,
-                               output_wd = output_dir,
-                               name = 'Truncated',
-                               edges = keep_in_interval)
-# Stupid immutable elements: When switching between keep_extant True/False, it is often wrong.
-# I will never understand classes!
-FBDtree_trunc.run_writter(keep_extant = True, infer_mass_extinctions = False)
+Fuck = taxon_data[taxon_data['taxon'].isin(keep_taxa)]
+
+# FBDtree_trunc = write_FBD_tree(fossils = sim_fossil,
+#                                res_bd = res_bd,
+#                                output_wd = output_dir)
+# # Stupid immutable elements: When switching keep_extant False to True has all extant species removed.
+# # I will never understand classes!
+# FBDtree_trunc.run_writter(name = 'Truncated', edges = keep_in_interval, keep_extant = False, infer_mass_extinctions = True)
+# FBDtree_trunc.run_writter(name = 'Truncated', edges = keep_in_interval, keep_extant = True, infer_mass_extinctions = True)
+
 
 res_bd['tree'].write(path = os.path.join(output_dir, 'Complete', 'FBDtree', 'data', 'Simulated_tree.tre'), schema = 'newick')
 tree = res_bd['tree']

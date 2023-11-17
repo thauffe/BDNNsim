@@ -3764,25 +3764,22 @@ class write_FBD_tree():
                  fossils = None,
                  res_bd = None,
                  output_wd = '',
-                 name = '',
                  edges = None,
                  delta_time = 1.0):
         self.fossils = copy.deepcopy(fossils)
-        self.res_bd = res_bd
+        self.res_bd = copy.deepcopy(res_bd)
         self.output_wd = output_wd
-        self.name = name
-        self.edges = edges
+        self.edges = copy.deepcopy(edges)
         self.delta_time = delta_time
-        self.make_FBD_dir()
         #self.modify_fossils_by_treeoffset()
 
 
-    def make_FBD_dir(self):
-        self._path_FBD_data = os.path.join(self.output_wd, self.name, 'FBDtree', 'data')
+    def make_FBD_dir(self, name):
+        self._path_FBD_data = os.path.join(self.output_wd, name, 'FBDtree', 'data')
         os.makedirs(self._path_FBD_data, exist_ok = True)
-        self._path_FBD_scripts = os.path.join(self.output_wd, self.name, 'FBDtree', 'scripts')
+        self._path_FBD_scripts = os.path.join(self.output_wd, name, 'FBDtree', 'scripts')
         os.makedirs(self._path_FBD_scripts, exist_ok = True)
-        self._path_FBD_output = os.path.join(self.output_wd, self.name, 'FBDtree', 'output')
+        self._path_FBD_output = os.path.join(self.output_wd, name, 'FBDtree', 'output')
         os.makedirs(self._path_FBD_output, exist_ok = True)
 
 
@@ -3839,19 +3836,20 @@ class write_FBD_tree():
         return range_branches_df
 
 
-    def trim_tree_by_lad(self, tree, fossils, edges = False):
+    def trim_tree_by_lad(self, res_bd, fossils, trim_edges = False):
         taxon_names = fossils['taxon_names']
         fossil_occurrences = fossils['fossil_occurrences']
+        tree = res_bd['tree']
         tree_trimmed = tree.clone()
         tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels = set(taxon_names))
-        ts_te = self.res_bd['ts_te']
+        ts_te = res_bd['ts_te']
         keep_taxa = []
         for leaf in tree_trimmed.leaf_node_iter():
             leaf_name = str(leaf.taxon)
             leaf_name = leaf_name.replace("'", "")
             ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
             te_leaf = ts_te[ts_te_idx, 1]
-            if te_leaf != 0.0 or edges:
+            if te_leaf != 0.0 or trim_edges:
                 occ_idx = taxon_names.index(leaf_name)
                 lad_leaf = np.min(fossil_occurrences[occ_idx])
                 shorten_branch = lad_leaf - te_leaf
@@ -3873,32 +3871,31 @@ class write_FBD_tree():
         tree.write(path = path_tree, schema = 'newick')
 
 
-    def get_taxon_data(self, keep_taxa = None, tree = None, tree_offset = 0.0, tip_ages = True):
-        taxon_names = self.fossils['taxon_names']
+    def get_taxon_data(self, fossils, edges, keep_taxa = None, tree = None, tree_offset = 0.0, translate = 0.0, tip_ages = True):
+        taxon_names = fossils['taxon_names']
         n_lineages = len(taxon_names)
         taxon_data = pd.DataFrame(data = taxon_names, columns = ['taxon'])
         taxon_data['min_age'] = np.zeros(n_lineages) # min for RB1.1, RB1.2 needs min_age
         taxon_data['max_age'] = np.zeros(n_lineages)
-        occ = self.fossils['fossil_occurrences']
+        occ = fossils['fossil_occurrences']
         if tree is None:
             for i in range(n_lineages):
                 occ_i = occ[i]
-                if self.edges is not None:
-                    # occ_i = occ_i - self.edges[0, 1] # If we want to translate truncated data to the present
-                    younger = occ_i <= self.edges[0, 1]
+                if edges is not None:
+                    younger = occ_i <= edges[0, 1]
                     if np.min(occ_i) > 0.0 or tree_offset > 0.0:
                         occ_i[younger] = np.nan
-                    older = occ_i >= self.edges[0, 0]
+                    older = occ_i >= edges[0, 0]
                     occ_i[older] = np.nan
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category = RuntimeWarning)
-                    min_age = np.nanmin(occ_i)
+                    min_age = np.nanmin(occ_i) - translate
                     taxon_data.iloc[i, 1] = min_age
                     if tip_ages:
                         taxon_data.iloc[i, 2] = min_age
                     else:
                         # Stratigraphic ages for fossilized birth-death range process
-                        taxon_data.iloc[i, 2] = np.nanmax(occ_i)
+                        taxon_data.iloc[i, 2] = np.nanmax(occ_i) - translate
         else:
             taxon_data = self.get_range_branches(tree, tree_offset)
         if keep_taxa is not None:
@@ -3907,69 +3904,67 @@ class write_FBD_tree():
         return taxon_data
 
 
-    def write_taxon_data(self, name, keep_taxa = None, tree = None, tree_offset = 0.0):
-        self.tip_ages = self.get_taxon_data(keep_taxa, tree, tree_offset, tip_ages = True)
+    def write_taxon_data(self, name, fossils, edges = None, keep_taxa = None, tree = None, tree_offset = 0.0, translate = 0.0):
+        self.tip_ages = self.get_taxon_data(fossils, edges, keep_taxa, tree, tree_offset, translate, tip_ages = True)
         tip_ages_file = os.path.join(self._path_FBD_data, '%s_tip_ages.csv') % name
         self.tip_ages.to_csv(tip_ages_file, header = True, sep = '\t', index = False)
-        self.stratigraphic_ranges = self.get_taxon_data(keep_taxa, tree, tree_offset, tip_ages = False)
+        self.stratigraphic_ranges = self.get_taxon_data(fossils, edges, keep_taxa, tree, tree_offset, translate, tip_ages = False)
         stratigraphic_ranges_file = os.path.join(self._path_FBD_data, '%s_stratigraphic_ranges.csv') % name
         self.stratigraphic_ranges.to_csv(stratigraphic_ranges_file, header = True, sep = '\t', index = False)
 
 
-    def write_occurrence(self):
+    def write_occurrence(self, name, edges):
         occ = self.fossils['fossil_occurrences']
         n_lineages = len(occ)
         occ_concat = np.array([])
         for i in range(n_lineages):
             occ_i = occ[i]
             occ_i = occ_i[occ_i > 0.0]
-            if self.edges is not None:
-                keep = np.logical_and(occ_i <= self.edges[0, 0], occ_i >= self.edges[0, 1])
+            if edges is not None:
+                keep = np.logical_and(occ_i <= edges[0, 0], occ_i >= edges[0, 1])
                 occ_i = occ_i[keep]
             occ_concat = np.concatenate((occ_concat, occ_i), axis = None)
         occ_concat = occ_concat.reshape((len(occ_concat), 1))
         # occ_concat = np.column_stack((occ_concat, occ_concat)) # Can RevBay not read a single column text file?
-        path_occ = os.path.join(self._path_FBD_data, '%s_occurrences.txt' % self.name)
+        path_occ = os.path.join(self._path_FBD_data, '%s_occurrences.txt' % name)
         np.savetxt(path_occ, X = occ_concat, delimiter='\t', fmt='%f')
 
 
-    def get_new_offset(self):
+    def get_new_offset(self, edges, tree_offset):
         num_taxa_in_edges = len(self.trunc_fossil['fossil_occurrences'])
         latest_occ = np.zeros(num_taxa_in_edges)
         for i in range(num_taxa_in_edges):
             latest_occ[i] = np.min(self.trunc_fossil['fossil_occurrences'][i])
-        distance_to_edge = np.min(latest_occ) - self.edges[0, 1]
-        new_offset = self.res_bd['tree_offset'] + distance_to_edge
+        distance_to_edge = np.min(latest_occ) - edges[0, 1]
+        new_offset = tree_offset + distance_to_edge
 
         return new_offset
 
 
-    def write_tree_offset(self, offset):
-        path_offset = os.path.join(self._path_FBD_data, '%s_tree_offset.txt' % self.name)
+    def write_tree_offset(self, offset, name):
+        path_offset = os.path.join(self._path_FBD_data, '%s_tree_offset.txt' % name)
         np.savetxt(path_offset, X = np.array([offset]), delimiter = '\t', fmt = '%f')
 
 
-    def prune_and_trim_tree_at_edges(self, keep_extant = False):
+    def prune_and_trim_tree_at_edges(self, res_bd, tree_offset, fossils, edges, keep_extant = False):
         # Remove taxa not within edges and trim by fossil occurrences
-        self.trunc_fossil = keep_fossils_in_interval(copy.deepcopy(self.fossils),
-                                                     keep_in_interval = self.edges,
+        self.trunc_fossil = keep_fossils_in_interval(copy.deepcopy(fossils),
+                                                     keep_in_interval = edges,
                                                      keep_extant = keep_extant)
-        tree = self.res_bd['tree']
-        tree_offset = self.res_bd['tree_offset']
         # mrca_age = tree.max_distance_from_root()  # + tree_offset # age of the first speciation
-        self.tree_pruned_edges, keep_taxa = self.trim_tree_by_lad(tree, self.trunc_fossil, edges = True)
-        self.new_tree_offset = tree_offset + self.get_new_offset() + self.edges[0, 1]
+        tree_pruned_edges, keep_taxa = self.trim_tree_by_lad(res_bd, self.trunc_fossil, trim_edges = True)
+        self.new_tree_offset = tree_offset + self.get_new_offset(edges, tree_offset) + edges[0, 1]
 
-        return keep_taxa
+        return keep_taxa, tree_pruned_edges
 
 
-    def get_cat_trait_per_taxon(self, majority = True):
-        cat_traits = self.res_bd['cat_traits']
+    def get_cat_trait_per_taxon(self, res_bd, fossils, edges = None, majority = True):
+        cat_traits = res_bd['cat_traits']
         n_cat_traits = cat_traits.shape[1]
-        taxa_sampled = self.fossils['taxa_sampled']
+        taxa_sampled = fossils['taxa_sampled']
         n_taxa_sampled = len(taxa_sampled)
-        occ = self.fossils['fossil_occurrences']
-        time = self.res_bd['true_rates_through_time']['time']
+        occ = fossils['fossil_occurrences']
+        time = res_bd['true_rates_through_time']['time']
         maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits).reshape((n_taxa_sampled, n_cat_traits))
         if majority:
             for i in range(n_cat_traits):
@@ -3979,8 +3974,8 @@ class write_FBD_tree():
             min_age = np.zeros(n_taxa_sampled)
             for i in range(n_taxa_sampled):
                 occ_i = occ[i]
-                if self.edges is not None:
-                    keep = np.logical_and(occ_i <= self.edges[0, 0], occ_i >= self.edges[0, 1])
+                if edges is not None:
+                    keep = np.logical_and(occ_i <= edges[0, 0], occ_i >= edges[0, 1])
                     occ_i = occ_i[keep]
                 if len(occ_i) > 0:
                     min_age[i] = np.nanmin(occ_i)
@@ -3993,17 +3988,17 @@ class write_FBD_tree():
         return maj_cat_traits
 
 
-    def write_trait_nexus(self, keep_taxa, majority = False):
+    def write_trait_nexus(self, name, res_bd, fossils, keep_taxa, edges, majority = False):
         keep_taxa_array = np.array(keep_taxa)
-        maj_cat_traits = self.get_cat_trait_per_taxon(majority = majority)
-        taxon_names = self.fossils['taxon_names']
+        maj_cat_traits = self.get_cat_trait_per_taxon(res_bd, fossils, edges = edges, majority = majority)
+        taxon_names = fossils['taxon_names']
         nex = nexus.NexusWriter()
         for i in range(len(taxon_names)):
             taxon = taxon_names[i]
             if np.isin(taxon, keep_taxa_array):
                 for j in range(maj_cat_traits.shape[1]):
                     nex.add(taxon, 'Trait' + str(j), int(maj_cat_traits[i, j]))
-        path_nexus_traits = os.path.join(self._path_FBD_data, '%s_morphology.nex' % self.name)
+        path_nexus_traits = os.path.join(self._path_FBD_data, '%s_morphology.nex' % name)
         nex.write_to_file(path_nexus_traits, interleave = False, charblock = True, preserve_order = True)
 
 
@@ -4351,28 +4346,42 @@ class write_FBD_tree():
         scrfile.flush()
 
 
-    def run_writter(self, keep_extant = True, infer_mass_extinctions = False):
-        if self.edges is None:
-            tree_trimmed, keep_taxa = self.trim_tree_by_lad(self.res_bd['tree'], self.fossils)
-            self.write_tree(tree_trimmed, self.name)
-            self.write_tree_offset(self.res_bd['tree_offset'])
-            self.write_taxon_data(self.name, keep_taxa)
-            self.write_rb_script(self.name,
+    def run_writter(self,
+                    name,
+                    edges = None,
+                    keep_extant = True,
+                    infer_mass_extinctions = False,
+                    translate_to_present = False):
+        self.make_FBD_dir(name)
+        fossils_copy = copy.deepcopy(self.fossils)
+        res_bd_copy = copy.deepcopy(self.res_bd)
+        if edges is None:
+            tree_trimmed, keep_taxa = self.trim_tree_by_lad(res_bd_copy, fossils_copy)
+            # Delete this one below
+            # taxon_data = self.get_taxon_data(fossils = fossils_copy, edges = edges, keep_taxa = keep_taxa, tree=None, tree_offset=0.0, translate = translate_to_present, tip_ages=True)
+            self.write_tree(tree_trimmed, name = name)
+            self.write_tree_offset(offset = res_bd_copy['tree_offset'], name = name)
+            self.write_taxon_data(name = name, fossils = fossils_copy, edges=None, keep_taxa = keep_taxa, tree=None, tree_offset=0.0, translate=0.0)
+            self.write_rb_script(name = name,
                                  tree = tree_trimmed,
-                                 tree_offset = self.res_bd['tree_offset'],
+                                 tree_offset = res_bd_copy['tree_offset'],
                                  infer_mass_extinctions = infer_mass_extinctions)
-            self.write_rb_script(self.name,
+            self.write_rb_script(name = name,
                                  tree = tree_trimmed,
-                                 tree_offset = self.res_bd['tree_offset'],
+                                 tree_offset = res_bd_copy['tree_offset'],
                                  episodic_sampling = True,
                                  infer_mass_extinctions = infer_mass_extinctions)
             if self.res_bd['cat_traits'].size > 0:
-                self.write_trait_nexus(keep_taxa)
-                self.write_rb_script(self.name,
-                                     tree_offset = self.res_bd['tree_offset'],
+                self.write_trait_nexus(name = name,
+                                       res_bd = res_bd_copy,
+                                       fossils = fossils_copy,
+                                       keep_taxa = keep_taxa,
+                                       edges = edges)
+                self.write_rb_script(name = name,
+                                     tree_offset = res_bd_copy['tree_offset'],
                                      infer_mass_extinctions = infer_mass_extinctions)
-                self.write_rb_script(self.name,
-                                     tree_offset = self.res_bd['tree_offset'],
+                self.write_rb_script(name = name,
+                                     tree_offset = res_bd_copy['tree_offset'],
                                      episodic_sampling = True,
                                      infer_mass_extinctions = infer_mass_extinctions)
             # Use the simulated tree
@@ -4381,32 +4390,47 @@ class write_FBD_tree():
             # Species ranges trimmed to their branch length
             # self.write_ranges(self.name + '_branches', keep_taxa, tree_trimmed, self.res_bd['tree_offset'])
         else:
-            keep_taxa = self.prune_and_trim_tree_at_edges(keep_extant = keep_extant)
-            self.write_tree(self.tree_pruned_edges, self.name)
-            self.write_tree_offset(self.new_tree_offset)
-            self.write_taxon_data(self.name, keep_taxa, tree_offset = self.new_tree_offset)
-            self.write_rb_script(self.name,
-                                 tree = self.tree_pruned_edges,
-                                 tree_offset = self.new_tree_offset,# - self.edges[0, 1],
-                                 edges = self.edges,
+            translate = 0.0
+            if translate_to_present:
+                translate = edges[0, 1]
+            keep_taxa, tree_pruned_edges = self.prune_and_trim_tree_at_edges(res_bd = res_bd_copy,
+                                                                             tree_offset = res_bd_copy['tree_offset'],
+                                                                             fossils = fossils_copy,
+                                                                             edges = edges,
+                                                                             keep_extant = keep_extant)
+            self.write_tree(tree_pruned_edges, name = name)
+            self.write_tree_offset(offset = self.new_tree_offset, name = name)
+            self.write_taxon_data(name = name,
+                                  fossils = fossils_copy,
+                                  edges = edges,
+                                  keep_taxa = keep_taxa,
+                                  tree_offset = self.new_tree_offset,
+                                  translate = translate)
+            self.write_rb_script(name = name,
+                                 tree = tree_pruned_edges,
+                                 tree_offset = self.new_tree_offset - translate,
+                                 edges = edges,
                                  infer_mass_extinctions = infer_mass_extinctions)
-            self.write_rb_script(self.name,
-                                 tree = self.tree_pruned_edges,
-                                 tree_offset = self.new_tree_offset,# - self.edges[0, 1],
-                                 edges = self.edges,
+            self.write_rb_script(name = name,
+                                 tree = tree_pruned_edges,
+                                 tree_offset = self.new_tree_offset - translate,
+                                 edges = edges,
                                  episodic_sampling = True,
                                  infer_mass_extinctions = infer_mass_extinctions)
             if self.res_bd['cat_traits'].size > 0:
-                self.write_trait_nexus(keep_taxa)
-                self.write_rb_script(self.name,
-                                     tree_offset = self.new_tree_offset,# - self.edges[0, 1],
-                                     edges = self.edges,
+                self.write_trait_nexus(name = name,
+                                       res_bd = res_bd_copy,
+                                       fossils = fossils_copy,
+                                       keep_taxa = keep_taxa,
+                                       edges = edges)
+                self.write_rb_script(name = name,
+                                     tree_offset = self.new_tree_offset - translate,
+                                     edges = edges,
                                      infer_mass_extinctions = infer_mass_extinctions)
-                self.write_rb_script(self.name,
-                                     tree_offset = self.new_tree_offset,# - self.edges[0, 1],
-                                     edges = self.edges,
+                self.write_rb_script(name = name,
+                                     tree_offset = self.new_tree_offset - translate,
+                                     edges = edges,
                                      episodic_sampling = True,
                                      infer_mass_extinctions = infer_mass_extinctions)
-        self.write_occurrence()
-
+        self.write_occurrence(name = name, edges = edges)
 
