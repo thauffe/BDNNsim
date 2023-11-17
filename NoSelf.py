@@ -12,7 +12,7 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
-rnd_seed = 60120411
+# rnd_seed = 60120411
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [100., 300.],  # min/max size data set
@@ -21,9 +21,11 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         minExtant_SP = 1,
                         # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
-                        rangeL = [0.15, 0.15],  # range of birth rates -> 50-300 species in timewindow
-                        #rangeM = [0.08, 0.08],  # range of death rates
+                        rangeL = [0.22, 0.22],  # range of birth rates -> 50-300 species in timewindow
+                        rangeM = [0.08, 0.08],  # range of death rates
                         scale = 100.0,
+                        magnitude_mass_ext = [0.9, 0.9],
+                        fixed_times_mass_ext = 30.0,
                         # cont_traits_sigma_clado = [0.1, 0.1],
                         # poiL = 3,  # expected number of birth rate shifts
                         # poiM = 3,  # expected number of death rate shift
@@ -39,8 +41,8 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # rangeL = [0.2, 0.2],
                         # fixed_Mtt = np.array([[60., 0.1], [39.001, 0.1], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
                         # PhylogenyShift07
-                        fixed_Ltt = np.array([[60., 0.17], [39.001, 0.17], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
-                        rangeM = [0.15, 0.15],
+                        # fixed_Ltt = np.array([[60., 0.17], [39.001, 0.17], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
+                        # rangeM = [0.15, 0.15],
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
@@ -51,6 +53,7 @@ scenario = 'Shifts_15'
 scenario = 'Constant_03'
 scenario = 'PhylogenyConstant03'
 scenario = 'PhylogenyShift07'
+scenario = 'PhylogenyME01'
 
 # Set directory
 base_dir = '/home/torsten/Work/EdgeEffect/Simulations'
@@ -182,14 +185,16 @@ FBDtree_complete = write_FBD_tree(fossils = sim_fossil,
                                   res_bd = res_bd,
                                   output_wd = output_dir,
                                   name = 'Complete')
-FBDtree_complete.run_writter()
+FBDtree_complete.run_writter(infer_mass_extinctions = True)
 
 FBDtree_trunc = write_FBD_tree(fossils = sim_fossil,
                                res_bd = res_bd,
                                output_wd = output_dir,
                                name = 'Truncated',
                                edges = keep_in_interval)
-FBDtree_trunc.run_writter()
+# Stupid immutable elements: When switching between keep_extant True/False, it is often wrong.
+# I will never understand classes!
+FBDtree_trunc.run_writter(keep_extant = True, infer_mass_extinctions = False)
 
 res_bd['tree'].write(path = os.path.join(output_dir, 'Complete', 'FBDtree', 'data', 'Simulated_tree.tre'), schema = 'newick')
 tree = res_bd['tree']

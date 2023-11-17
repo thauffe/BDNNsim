@@ -4007,7 +4007,7 @@ class write_FBD_tree():
         nex.write_to_file(path_nexus_traits, interleave = False, charblock = True, preserve_order = True)
 
 
-    def write_rb_script(self, name, tree = None, tree_offset = 0.0, edges = np.array([[np.inf, 0.0]]), episodic_sampling = False):
+    def write_rb_script(self, name, tree = None, tree_offset = 0.0, edges = np.array([[np.inf, 0.0]]), episodic_sampling = False, infer_mass_extinctions = False):
         # Pre-computed hyperpriors for 2-99 shifts (using RevGadgets:::setMRFGlobalScaleHyperpriorNShifts(N, "HSMRF"))
         GlobalScaleHyperprior_NShifts = [0.999952567, 0.507331511, 0.234871326, 0.145767331, 0.103241578,
                                          0.078804639, 0.063162029, 0.052340099, 0.044464321, 0.038521775,
@@ -4225,9 +4225,22 @@ class write_FBD_tree():
         scrfile.write('rho <- %s' % str(rho))
         scrfile.write('\n')
         scrfile.write('\n')
+        Mu_argument = ""
+        if infer_mass_extinctions:
+            scrfile.write('# Mass extinction\n')
+            scrfile.write('# ---------------\n')
+            scrfile.write('expected_number_of_mass_extinctions <- 1.0\n')
+            scrfile.write('mix_p <- Probability(1.0 - expected_number_of_mass_extinctions / timeline_size)\n')
+            scrfile.write('for (i in 1:timeline_size) {\n')
+            scrfile.write('    mass_extinction_probabilities[i] ~ dnReversibleJumpMixture(0.0, dnBeta(18.0, 2.0), mix_p)\n')
+            scrfile.write('    moves.append( mvRJSwitch(mass_extinction_probabilities[i]) )\n')
+            scrfile.write('    moves.append( mvSlideBactrian(mass_extinction_probabilities[i]) )\n')
+            scrfile.write('}\n')
+            scrfile.write('\n')
+            Mu_argument = " Mu = mass_extinction_probabilities,"
         if fixed_tree:
             scrfile.write('# Define the tree-prior distribution as the fossilized birth-death process\n')
-            scrfile.write('fbd_tree ~ dnBDSTP(originAge = %s, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline, taxa = taxa, condition = "time", initialTree = observed_phylogeny)' % root_argument)
+            scrfile.write('fbd_tree ~ dnBDSTP(originAge = %s, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline,%s taxa = taxa, condition = "time", initialTree = observed_phylogeny)' % (root_argument, Mu_argument))
             scrfile.write('\n')
             scrfile.write('fbd_tree.clamp(observed_phylogeny)\n')
         else:
@@ -4239,7 +4252,8 @@ class write_FBD_tree():
             scrfile.write('moves.append(mvSlide(origin_time, delta = 1.0, weight = 5))\n')
             scrfile.write('\n')
             scrfile.write('# Define the tree-prior distribution as the fossilized birth-death process\n')
-            scrfile.write('fbd_tree ~ dnBDSTP(originAge = origin_time, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline, taxa = taxa, condition = "time")\n')
+            scrfile.write('fbd_tree ~ dnBDSTP(originAge = origin_time, lambda = speciation_rate, mu = extinction_rate, psi = psi, Phi = rho, timeline = timeline,%s taxa = taxa, condition = "time")' % Mu_argument)
+            scrfile.write('\n')
             scrfile.write('\n')
             scrfile.write('# Moves on tree topology\n')
             scrfile.write('moves.append( mvFNPR(fbd_tree, weight = n_taxa/10) )\n')
@@ -4337,18 +4351,30 @@ class write_FBD_tree():
         scrfile.flush()
 
 
-    def run_writter(self, keep_extant = True):
+    def run_writter(self, keep_extant = True, infer_mass_extinctions = False):
         if self.edges is None:
             tree_trimmed, keep_taxa = self.trim_tree_by_lad(self.res_bd['tree'], self.fossils)
             self.write_tree(tree_trimmed, self.name)
             self.write_tree_offset(self.res_bd['tree_offset'])
             self.write_taxon_data(self.name, keep_taxa)
-            self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'])
-            self.write_rb_script(self.name, tree_trimmed, self.res_bd['tree_offset'], episodic_sampling = True)
+            self.write_rb_script(self.name,
+                                 tree = tree_trimmed,
+                                 tree_offset = self.res_bd['tree_offset'],
+                                 infer_mass_extinctions = infer_mass_extinctions)
+            self.write_rb_script(self.name,
+                                 tree = tree_trimmed,
+                                 tree_offset = self.res_bd['tree_offset'],
+                                 episodic_sampling = True,
+                                 infer_mass_extinctions = infer_mass_extinctions)
             if self.res_bd['cat_traits'].size > 0:
                 self.write_trait_nexus(keep_taxa)
-                self.write_rb_script(self.name)
-                self.write_rb_script(self.name, episodic_sampling = True)
+                self.write_rb_script(self.name,
+                                     tree_offset = self.res_bd['tree_offset'],
+                                     infer_mass_extinctions = infer_mass_extinctions)
+                self.write_rb_script(self.name,
+                                     tree_offset = self.res_bd['tree_offset'],
+                                     episodic_sampling = True,
+                                     infer_mass_extinctions = infer_mass_extinctions)
             # Use the simulated tree
             #self.write_tree(self.res_bd['tree'], 'Simulated')
             #self.write_rb_script('Simulated', self.res_bd['tree'], self.res_bd['tree_offset'])
@@ -4362,21 +4388,25 @@ class write_FBD_tree():
             self.write_rb_script(self.name,
                                  tree = self.tree_pruned_edges,
                                  tree_offset = self.new_tree_offset,# - self.edges[0, 1],
-                                 edges = self.edges)
+                                 edges = self.edges,
+                                 infer_mass_extinctions = infer_mass_extinctions)
             self.write_rb_script(self.name,
                                  tree = self.tree_pruned_edges,
                                  tree_offset = self.new_tree_offset,# - self.edges[0, 1],
                                  edges = self.edges,
-                                 episodic_sampling = True)
+                                 episodic_sampling = True,
+                                 infer_mass_extinctions = infer_mass_extinctions)
             if self.res_bd['cat_traits'].size > 0:
                 self.write_trait_nexus(keep_taxa)
                 self.write_rb_script(self.name,
                                      tree_offset = self.new_tree_offset,# - self.edges[0, 1],
-                                     edges = self.edges)
+                                     edges = self.edges,
+                                     infer_mass_extinctions = infer_mass_extinctions)
                 self.write_rb_script(self.name,
                                      tree_offset = self.new_tree_offset,# - self.edges[0, 1],
                                      edges = self.edges,
-                                     episodic_sampling = True)
+                                     episodic_sampling = True,
+                                     infer_mass_extinctions = infer_mass_extinctions)
         self.write_occurrence()
 
 
