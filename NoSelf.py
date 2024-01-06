@@ -12,20 +12,20 @@ from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
 
-# rnd_seed = 60120411
+# rnd_seed = 96032857
 
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [100., 300.],  # min/max size data set
                         #minEX_SP = 0,  # minimum number of extinct lineages allowed
                         #maxExtant_SP = 0, # minimum number of extant lineages
-                        minExtant_SP = 1,
+                        minExtant_SP = 0,
                         # timewindow_rangeSP = [45., 21.],
                         root_r = [60., 60.],  # range root ages
-                        rangeL = [0.2, 0.2],  # range of birth rates -> 50-300 species in timewindow
+                        rangeL = [0.15, 0.15],  # range of birth rates -> 50-300 species in timewindow
                         rangeM = [0.08, 0.08],  # range of death rates
                         scale = 100.0,
-                        magnitude_mass_ext = [0.9, 0.9],
-                        fixed_times_mass_ext = 30.0,
+                        magnitude_mass_ext = [1.0, 1.0],
+                        fixed_times_mass_ext = 5.0,
                         # cont_traits_sigma_clado = [0.1, 0.1],
                         # poiL = 3,  # expected number of birth rate shifts
                         # poiM = 3,  # expected number of death rate shift
@@ -41,12 +41,12 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # rangeL = [0.2, 0.2],
                         # fixed_Mtt = np.array([[60., 0.1], [39.001, 0.1], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
                         # PhylogenyShift07
-                        # fixed_Ltt = np.array([[60., 0.17], [39.001, 0.17], [39., 0.5], [30.001, 0.5], [30., 0.1], [0.0, 0.1]]),
-                        # rangeM = [0.15, 0.15],
+                        # fixed_Ltt = np.array([[60., 0.2], [37.001, 0.2], [37., 0.5], [28.001, 0.5], [28., 0.1], [0.0, 0.1]]),
+                        # rangeM = [0.12, 0.12],
                         # Linear change
                         # fixed_Ltt = np.array([[60., 0.3], [0.0, 0.01]]),
                         # fixed_Mtt = np.array([[60., 0.01], [0.0, 0.3]]),
-                        n_cat_traits = [5, 5], n_cat_traits_states = [2, 2], cat_traits_dir = 10.0, #cat_traits_diag = 0.95,
+                        n_cat_traits = [50, 50], n_cat_traits_states = [2, 2], cat_traits_dir = 10.0, #cat_traits_diag = 0.95,
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 scenario = 'Shifts_15'
@@ -66,7 +66,7 @@ res_bd = bd_sim.run_simulation(verbose = True)
 
 # Sampling simulation
 #####################
-fossil_sim = fossil_simulator(range_q = [0.3, 0.5],
+fossil_sim = fossil_simulator(range_q = [3.8, 4.2],
                               range_alpha = [1000.0, 1000.0],
                               poi_shifts = 0,
                               seed = rnd_seed)
@@ -185,15 +185,20 @@ FBDtree = write_FBD_tree(fossils = sim_fossil,
                          res_bd = res_bd,
                          output_wd = output_dir)
 FBDtree.run_writter(name = 'Complete', infer_mass_extinctions = True)
-FBDtree.run_writter(name = 'Truncated', edges = keep_in_interval, keep_extant = False, infer_mass_extinctions = True)
-FBDtree.run_writter(name = 'Truncated', edges = keep_in_interval, keep_extant = True, infer_mass_extinctions = True)
+FBDtree.run_writter(name = 'Truncated',
+                    edges = keep_in_interval,
+                    keep_extant = False,
+                    infer_mass_extinctions = True)
+FBDtree.run_writter(name = 'Truncated',
+                    edges = keep_in_interval,
+                    keep_extant = True,
+                    infer_mass_extinctions = True)
 FBDtree.run_writter(name = 'Truncatedtranslated',
                     edges = keep_in_interval,
                     keep_extant = False,
                     infer_mass_extinctions = True,
                     translate_to_present = True)
 
-Fuck = taxon_data[taxon_data['taxon'].isin(keep_taxa)]
 
 # FBDtree_trunc = write_FBD_tree(fossils = sim_fossil,
 #                                res_bd = res_bd,

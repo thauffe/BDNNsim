@@ -1,7 +1,6 @@
 import copy
 import sys
 import os
-from numpy import linalg as la
 from scipy.stats import mode
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
@@ -10,11 +9,13 @@ from itertools import combinations
 from functools import reduce
 from operator import iconcat
 from math import comb
+from natsort import index_natsorted
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
+from numpy import linalg as la
 import numpy as np
 import pandas as pd
 import scipy.linalg
@@ -45,8 +46,8 @@ class bdnn_simulator():
                  p_mass_extinction = 0.0,
                  magnitude_mass_ext = [0.0, 0.0],
                  fixed_times_mass_ext = -1.0, # List of ages with mass extinction events
-                 poiL = 3, # Number of rate shifts expected according to a Poisson distribution
-                 poiM = 3, # Number of rate shifts expected according to a Poisson distribution
+                 poiL = 0, # Number of rate shifts expected according to a Poisson distribution
+                 poiM = 0, # Number of rate shifts expected according to a Poisson distribution
                  range_linL = None, # None or a range (e.g. [-0.2, 0.2])
                  range_linM = None, # None or a range (e.g. [-0.2, 0.2])
                  # fix speciation rate through time
@@ -1740,8 +1741,56 @@ class write_PyRate_files():
         binned_env = np.stack((time_vec[:-1], binned_env), axis = 1)
         np.savetxt(env_file_name, binned_env, delimiter = '\t')
 
+    def get_cophenetic_distance_matrix(self, tree):
+        pdm = tree.phylogenetic_distance_matrix().as_data_table()._data
 
-    def run_writter(self, sim_fossil, res_bd):
+        species = [tip.label for tip in tree.taxon_namespace]
+        print('species:\n', species)
+        ntips = len(species)
+
+        pD = np.zeros((ntips, ntips))
+        for i in range(ntips):
+            for j in range(i, ntips):
+                print(i, species[i])
+                print(j, species[j])
+                d = pdm[species[i]][species[j]]
+                pD[i][j] = d
+                pD[j][i] = d
+
+        return ({'pD': pD, 'species': species})
+
+
+    def pvr_decomp(self, tree):
+        """
+        Phylogenetic distances matrix (eigen)decomposition.
+        Arguments
+        ----------
+        tree : dendropy phylogeny
+        Returns
+        -------
+        dictionary : {"eigenval": E, "eigenvect": V, "species":vcv["species"]}
+        """
+        pD = self.get_cophenetic_distance_matrix(tree)
+        P = pD['pD']
+        A = -0.5 * P
+        L = np.ones(P.size).reshape((P.shape[0], P.shape[1]))
+        D = np.eye(P.shape[0]) - ((1 / P.shape[1]) * L)
+        P = la.multi_dot([D, A, D])
+        E, V = la.eigh(P, UPLO='L')
+        key = np.argsort(E)[::-1][:None]
+        E, V = E[key], V[:, key]
+
+        # Sort alphanumerically (T0, T1, T2, ..., T10, T11, ..., T20)
+        species = pD['species']
+        sort_idx = np.array(index_natsorted(species))
+        species = np.array(species)[sort_idx].tolist()  # Why there is no fancy indexing of lists?
+        E = E[sort_idx]
+        V = V[sort_idx, :]
+
+        return ({'eigenval': E, 'eigenvect': V, 'species': species})
+
+
+    def run_writter(self, sim_fossil, res_bd, incl_pvr = False):
         # Create a directory for the output
         try:
             os.mkdir(self.output_wd)
@@ -1784,10 +1833,21 @@ class write_PyRate_files():
                     cat_traits_taxon_one_hot, names_one_hot = self.make_one_hot_encoding(maj_cat_traits_taxon[:,y])
                     for i in range(cat_traits_taxon_one_hot.shape[1]):
                         traits['cat_trait_%s_%s' % (y, names_one_hot[i])] = cat_traits_taxon_one_hot[:, i]
+        if incl_pvr:
+            tree_trimmed_by_lad, _ = trim_tree_by_lad(res_bd, sim_fossil)
+            pvr = self.pvr_decomp(tree_trimmed_by_lad)['eigenvect']
+            traits_pvr = traits.copy()
+            for i in range(2):
+                traits_pvr['pvr_%s' % i] = pvr[:, i]
+
 
         if traits.shape[1] > 1:
             trait_file = "%s/%s/%s_traits.csv" % (self.output_wd, name_file, name_file)
-            traits.to_csv(trait_file, header = True, sep = '\t', index = False)
+            traits.to_csv(trait_file, header=True, sep='\t', index=False)
+            if incl_pvr:
+                trait_pvr_file = "%s/%s/%s_traits_pvr.csv" % (self.output_wd, name_file, name_file)
+                traits_pvr.to_csv(trait_pvr_file, header=True, sep='\t', index=False)
+
 
         self.write_time_vector(res_bd, name_file)
 
@@ -1899,6 +1959,38 @@ def get_interval_exceedings(fossils, ts_te, keep_in_interval):
         intervall_exceeds_df = pd.DataFrame(data = intervall_exceeds, columns = colnames)
 
     return intervall_exceeds_df
+
+
+# Also used within write_FBD_tree. Try to replace this later!
+def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
+    taxon_names = fossils['taxon_names']
+    fossil_occurrences = fossils['fossil_occurrences']
+    tree_trimmed = res_bd['tree'].clone()
+    tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(taxon_names))
+    # dirty hack to update tree_trimmed.taxon_namespace
+    tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
+    ts_te = res_bd['ts_te']
+    keep_taxa = []
+    for leaf in tree_trimmed.leaf_node_iter():
+        leaf_name = str(leaf.taxon)
+        leaf_name = leaf_name.replace("'", "")
+        ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
+        te_leaf = ts_te[ts_te_idx, 1]
+        if te_leaf != 0.0 or trim_edges:
+            occ_idx = taxon_names.index(leaf_name)
+            lad_leaf = np.min(fossil_occurrences[occ_idx])
+            shorten_branch = lad_leaf - te_leaf
+            # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
+            if (leaf.edge_length - shorten_branch) >= 0:
+                leaf.edge_length = leaf.edge_length - shorten_branch
+                keep_taxa.append(leaf_name)
+        else:
+            keep_taxa.append(leaf_name)
+    # Remove taxa with maximum fossil age older than the node from which the taxa descends
+    tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(keep_taxa))
+    tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
+
+    return tree_trimmed, keep_taxa
 
 
 class write_FBD_files():
@@ -3841,7 +3933,8 @@ class write_FBD_tree():
         fossil_occurrences = fossils['fossil_occurrences']
         tree = res_bd['tree']
         tree_trimmed = tree.clone()
-        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels = set(taxon_names))
+        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(taxon_names))
+        tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
         ts_te = res_bd['ts_te']
         keep_taxa = []
         for leaf in tree_trimmed.leaf_node_iter():
@@ -3860,7 +3953,8 @@ class write_FBD_tree():
             else:
                 keep_taxa.append(leaf_name)
         # Remove taxa with maximum fossil age older than the node from which the taxa descends
-        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels = set(keep_taxa))
+        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(keep_taxa))
+        tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
 
         return tree_trimmed, keep_taxa
 
@@ -4223,8 +4317,8 @@ class write_FBD_tree():
         Mu_argument = ""
         if infer_mass_extinctions:
             scrfile.write('# Mass extinction\n')
-            scrfile.write('# ---------------\n')
-            scrfile.write('expected_number_of_mass_extinctions <- 1.0\n')
+            scrfile.write('#----------------\n')
+            scrfile.write('expected_number_of_mass_extinctions <- 0.005\n')
             scrfile.write('mix_p <- Probability(1.0 - expected_number_of_mass_extinctions / timeline_size)\n')
             scrfile.write('for (i in 1:timeline_size) {\n')
             scrfile.write('    mass_extinction_probabilities[i] ~ dnReversibleJumpMixture(0.0, dnBeta(18.0, 2.0), mix_p)\n')

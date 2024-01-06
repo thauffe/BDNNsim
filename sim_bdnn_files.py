@@ -6,9 +6,26 @@ import pandas as pd
 sys.path.insert(0, r'/home/torsten/Work/Software/BDNNsim')
 from bdnn_simulator import *
 
-rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1))
+rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
+rnd_seed = 88917602
 
-
+# Simple state-dependent effect (e.g. BiSSE)
+############################################
+bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
+                        rangeSP = [200, 300],  # min/max size data set
+                        minExtant_SP = 2, # minimum number of extant lineages
+                        root_r = [35., 35.],  # range root ages
+                        rangeL = [0.1, 0.1],  # range of birth rates
+                        rangeM = [0.05, 0.05],  # range of death rates
+                        n_cont_traits = [1, 1],  # number of continuous traits
+                        cont_traits_sigma_clado = [0.2, 0.2],
+                        cont_traits_sigma = [0.02, 0.02], # evolutionary rates for continuous traits
+                        n_cat_traits = [1, 1],
+                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
+                        cat_traits_diag = 0.9,
+                        cat_traits_effect = np.array([[5., 5.],[5., 5.]]),
+                        cat_traits_effect_decr_incr = np.array([[False, False],[False, False]]),
+                        seed = rnd_seed)
 
 
 # State-independent effect of a single continuous traits
@@ -243,9 +260,9 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # ex_env_file = '/home/torsten/Work/BDNN/temp.txt',
                         # ex_env_eff = [1.2, 1.2],
                         # env_effect_cat_trait = [[1, -1],[1, -1]],
-                        #K_lam = 40.0,
-                        #K_mu = 60.0,
-                        fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
+                        # K_lam = 40.0,
+                        # K_mu = 60.0,
+                        # fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
 fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
@@ -254,7 +271,7 @@ fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
                               seed = rnd_seed)
 
 output_wd = '/home/torsten/Work/BDNN'
-name = 'Humans'
+name = 'BiSSE'
 write_PyRate = write_PyRate_files(output_wd = output_wd,
                                   delta_time = 1.0,
                                   name = name)
@@ -281,9 +298,23 @@ print(res_bd['expected_sd_cont_traits'])
 # print(res_bd['cont_traits'])
 # print(res_bd['lineage_rates_through_time'][:,0,:])
 
-# # Write tree to file
+#######################
+# Sampling simulation #
+#######################
+sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
+print(sim_fossil['q'])
+print(sim_fossil['shift_time'])
+print(sim_fossil['alpha'])
+
+# Write tree to file
 tree = res_bd['tree']
-tree.write(path = '/home/torsten/Work/BDNN/Phylogeny/Phylo.tre', schema = 'newick')
+tree.write(path = os.path.join(output_wd, name, 'Phylo.tre'), schema='newick')
+
+
+# tree_trimmed_by_lad,_ = trim_tree_by_lad(res_bd, sim_fossil)
+
+
+
 
 
 lam_lineage_tt_df = pd.DataFrame(res_bd['lineage_rates_through_time'][:, 0, :], columns = res_bd['anc_desc'])
@@ -305,14 +336,16 @@ print(np.unique(res_bd['lineage_rates'][1:,8], return_counts = True)[1])
 # np.nanmax(res_bd['geographic_range'][:,0,:])
 # print(np.unique(res_bd['geographic_range'][:,0,:]))
 
-# Sampling simulation
-sim_fossil = fossil_sim.run_simulation(res_bd['ts_te'])
-print(sim_fossil['q'])
-print(sim_fossil['shift_time'])
-print(sim_fossil['alpha'])
+
+
 
 # Write input files for PyRate analysis
-name_file = write_PyRate.run_writter(sim_fossil, res_bd)
+name_file = write_PyRate.run_writter(sim_fossil, res_bd, incl_pvr=True)
+
+FBDtree = write_FBD_tree(fossils=sim_fossil,
+                         res_bd=res_bd,
+                         output_wd=output_wd)
+FBDtree.run_writter(name='Complete', infer_mass_extinctions=True)
 
 
 RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
