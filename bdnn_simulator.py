@@ -1741,18 +1741,15 @@ class write_PyRate_files():
         binned_env = np.stack((time_vec[:-1], binned_env), axis = 1)
         np.savetxt(env_file_name, binned_env, delimiter = '\t')
 
+
     def get_cophenetic_distance_matrix(self, tree):
         pdm = tree.phylogenetic_distance_matrix().as_data_table()._data
 
         species = [tip.label for tip in tree.taxon_namespace]
-        print('species:\n', species)
         ntips = len(species)
-
         pD = np.zeros((ntips, ntips))
         for i in range(ntips):
             for j in range(i, ntips):
-                print(i, species[i])
-                print(j, species[j])
                 d = pdm[species[i]][species[j]]
                 pD[i][j] = d
                 pD[j][i] = d
@@ -1786,6 +1783,10 @@ class write_PyRate_files():
         species = np.array(species)[sort_idx].tolist()  # Why there is no fancy indexing of lists?
         E = E[sort_idx]
         V = V[sort_idx, :]
+
+        # Center and scale to unitvariance
+        V -= np.mean(V, axis = 0)
+        V /= np.std(V, axis = 0)
 
         return ({'eigenval': E, 'eigenvect': V, 'species': species})
 
@@ -1836,10 +1837,14 @@ class write_PyRate_files():
         if incl_pvr:
             tree_trimmed_by_lad, _ = trim_tree_by_lad(res_bd, sim_fossil)
             pvr = self.pvr_decomp(tree_trimmed_by_lad)['eigenvect']
+            # taxon_names = sim_fossil['taxon_names']
+            # tree_fossil = res_bd['tree'].clone()
+            # tree_fossil = tree_fossil.extract_tree_with_taxa_labels(labels=set(taxon_names))
+            # tree_fossil = dendropy.Tree.get(data=tree_fossil.as_string(schema="newick"), schema="newick")
+            # pvr = self.pvr_decomp(tree_fossil)['eigenvect']
             traits_pvr = traits.copy()
             for i in range(2):
                 traits_pvr['pvr_%s' % i] = pvr[:, i]
-
 
         if traits.shape[1] > 1:
             trait_file = "%s/%s/%s_traits.csv" % (self.output_wd, name_file, name_file)
@@ -1980,9 +1985,13 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
             occ_idx = taxon_names.index(leaf_name)
             lad_leaf = np.min(fossil_occurrences[occ_idx])
             shorten_branch = lad_leaf - te_leaf
-            # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
             if (leaf.edge_length - shorten_branch) >= 0:
+                # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
                 leaf.edge_length = leaf.edge_length - shorten_branch
+                keep_taxa.append(leaf_name)
+            else:
+                # Nevermind, just shorten the branches until the node
+                leaf.edge_length = 0.01
                 keep_taxa.append(leaf_name)
         else:
             keep_taxa.append(leaf_name)
@@ -3928,35 +3937,35 @@ class write_FBD_tree():
         return range_branches_df
 
 
-    def trim_tree_by_lad(self, res_bd, fossils, trim_edges = False):
-        taxon_names = fossils['taxon_names']
-        fossil_occurrences = fossils['fossil_occurrences']
-        tree = res_bd['tree']
-        tree_trimmed = tree.clone()
-        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(taxon_names))
-        tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
-        ts_te = res_bd['ts_te']
-        keep_taxa = []
-        for leaf in tree_trimmed.leaf_node_iter():
-            leaf_name = str(leaf.taxon)
-            leaf_name = leaf_name.replace("'", "")
-            ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
-            te_leaf = ts_te[ts_te_idx, 1]
-            if te_leaf != 0.0 or trim_edges:
-                occ_idx = taxon_names.index(leaf_name)
-                lad_leaf = np.min(fossil_occurrences[occ_idx])
-                shorten_branch = lad_leaf - te_leaf
-                # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
-                if (leaf.edge_length - shorten_branch) >= 0:
-                    leaf.edge_length = leaf.edge_length - shorten_branch
-                    keep_taxa.append(leaf_name)
-            else:
-                keep_taxa.append(leaf_name)
-        # Remove taxa with maximum fossil age older than the node from which the taxa descends
-        tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(keep_taxa))
-        tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
-
-        return tree_trimmed, keep_taxa
+    # def trim_tree_by_lad(self, res_bd, fossils, trim_edges = False):
+    #     taxon_names = fossils['taxon_names']
+    #     fossil_occurrences = fossils['fossil_occurrences']
+    #     tree = res_bd['tree']
+    #     tree_trimmed = tree.clone()
+    #     tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(taxon_names))
+    #     tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
+    #     ts_te = res_bd['ts_te']
+    #     keep_taxa = []
+    #     for leaf in tree_trimmed.leaf_node_iter():
+    #         leaf_name = str(leaf.taxon)
+    #         leaf_name = leaf_name.replace("'", "")
+    #         ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
+    #         te_leaf = ts_te[ts_te_idx, 1]
+    #         if te_leaf != 0.0 or trim_edges:
+    #             occ_idx = taxon_names.index(leaf_name)
+    #             lad_leaf = np.min(fossil_occurrences[occ_idx])
+    #             shorten_branch = lad_leaf - te_leaf
+    #             # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
+    #             if (leaf.edge_length - shorten_branch) >= 0:
+    #                 leaf.edge_length = leaf.edge_length - shorten_branch
+    #                 keep_taxa.append(leaf_name)
+    #         else:
+    #             keep_taxa.append(leaf_name)
+    #     # Remove taxa with maximum fossil age older than the node from which the taxa descends
+    #     tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(keep_taxa))
+    #     tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
+    #
+    #     return tree_trimmed, keep_taxa
 
 
     def write_tree(self, tree, name):
@@ -4046,7 +4055,8 @@ class write_FBD_tree():
                                                      keep_in_interval = edges,
                                                      keep_extant = keep_extant)
         # mrca_age = tree.max_distance_from_root()  # + tree_offset # age of the first speciation
-        tree_pruned_edges, keep_taxa = self.trim_tree_by_lad(res_bd, self.trunc_fossil, trim_edges = True)
+        # tree_pruned_edges, keep_taxa = self.trim_tree_by_lad(res_bd, self.trunc_fossil, trim_edges = True)
+        tree_pruned_edges, keep_taxa = trim_tree_by_lad(res_bd, self.trunc_fossil, trim_edges = True)
         self.new_tree_offset = tree_offset + self.get_new_offset(edges, tree_offset) + edges[0, 1]
 
         return keep_taxa, tree_pruned_edges
@@ -4450,7 +4460,8 @@ class write_FBD_tree():
         fossils_copy = copy.deepcopy(self.fossils)
         res_bd_copy = copy.deepcopy(self.res_bd)
         if edges is None:
-            tree_trimmed, keep_taxa = self.trim_tree_by_lad(res_bd_copy, fossils_copy)
+            # tree_trimmed, keep_taxa = self.trim_tree_by_lad(res_bd_copy, fossils_copy)
+            tree_trimmed, keep_taxa = trim_tree_by_lad(res_bd_copy, fossils_copy)
             # Delete this one below
             # taxon_data = self.get_taxon_data(fossils = fossils_copy, edges = edges, keep_taxa = keep_taxa, tree=None, tree_offset=0.0, translate = translate_to_present, tip_ages=True)
             self.write_tree(tree_trimmed, name = name)

@@ -344,8 +344,8 @@ name_file = write_PyRate.run_writter(sim_fossil, res_bd, incl_pvr=True)
 
 FBDtree = write_FBD_tree(fossils=sim_fossil,
                          res_bd=res_bd,
-                         output_wd=output_wd)
-FBDtree.run_writter(name='Complete', infer_mass_extinctions=True)
+                         output_wd=os.path.join(output_wd, name))
+FBDtree.run_writter(name='BiSSE_FBD', infer_mass_extinctions=False)
 
 
 RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
