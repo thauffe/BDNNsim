@@ -307,6 +307,8 @@ class bdnn_simulator():
             lineage_mu = np.zeros(TE)
             lineage_mu[:] = np.nan
 
+            num_sp_events_at_t = 0
+
             for j in te_extant:  # extant lineages
                 l_j = l + 0.
                 m_j = m + 0.
@@ -380,6 +382,7 @@ class bdnn_simulator():
 
                 # speciation
                 if ran < l_j:
+                    num_sp_events_at_t += 1
                     te.append(-0.0)  # add species
                     ts.append(t)  # sp time
                     anc_desc.append(str(len(ts) - 1) + '_' +  str(j))
@@ -1206,7 +1209,7 @@ class bdnn_simulator():
 
     def format_age_for_newick(self, age):
         frac_age, int_age = np.modf(age)
-        int_age= str(int(int_age))
+        int_age = str(int(int_age))
         frac_age = np.round(frac_age, self.nwk_decimal_digits)
         frac_age = str(frac_age).replace('0.', '')
         age_nwk = int_age.zfill(self.nwk_leading_digits) + '.' + frac_age.ljust(self.nwk_decimal_digits, '0')
@@ -1243,7 +1246,15 @@ class bdnn_simulator():
         nwk_str_root = '[&R] ' + nwk_str
         tree = dendropy.Tree.get_from_string(nwk_str_root, 'newick')
         latest_extinction = np.min(ts_te[:, 1])
-        # At least one extant species
+
+        # Add jitter to avoid problems in RevBayes when events have the same age
+        a = 0.001 / self.scale
+        for edge in tree.postorder_edge_iter():
+            edge.length = edge.length + np.random.uniform(-a, a, 1)[0]
+        for leaf in tree.leaf_node_iter():
+            leaf.edge_length = leaf.edge_length + np.random.uniform(-a, a, 1)[0]
+
+            # At least one extant species
         if latest_extinction == 0.0:
             for leaf in tree.leaf_node_iter():
                 species_name = str(leaf.taxon)
@@ -1991,7 +2002,7 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
                 keep_taxa.append(leaf_name)
             else:
                 # Nevermind, just shorten the branches until the node
-                leaf.edge_length = 0.01
+                leaf.edge_length = 1.0 / res_bd['sim_scale']
                 keep_taxa.append(leaf_name)
         else:
             keep_taxa.append(leaf_name)
