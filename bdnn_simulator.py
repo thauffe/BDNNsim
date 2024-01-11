@@ -109,7 +109,7 @@ class bdnn_simulator():
                  # overwrittes K_lam
                  fixed_K_lam = None,
                  fixed_K_mu = None,
-                 seed = 0):
+                 seed = None):
         self.s_species = s_species
         self.rangeSP = rangeSP
         self.minSP = np.min(rangeSP)
@@ -167,9 +167,15 @@ class bdnn_simulator():
         self.K_mu = K_mu,
         self.fixed_K_lam = fixed_K_lam,
         self.fixed_K_mu = fixed_K_mu,
-        if seed:
-            np.random.seed(seed)
+        self.seed = seed
+        self._init_seed()
 
+
+    def _init_seed(self):
+        if self.seed is None:
+            np.random.seed()
+        else:
+            np.random.seed(self.seed)
 
     def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex):
         ts = list()
@@ -1240,21 +1246,59 @@ class bdnn_simulator():
         return nwk_str_new
 
 
-    def nwk_str_to_tree(self, nwk_str, ts_te, root):
-        root_abs = np.abs(root)
+    def get_number_of_equal_nodeages(self, tree):
+        root_dist_list = []
+        for nd in tree.preorder_node_iter():
+            if nd.is_leaf() is False:
+                root_dist = nd.distance_from_root()
+                if root_dist > 0.0:
+                    root_dist_list.append(root_dist)
+        root_dist_array = np.array(root_dist_list)
+        counts = np.unique(root_dist_array, return_counts=True)[1]
+
+        return np.sum(counts > 1)
+
+
+    def make_equal_nodeages_different(self, tree):
+        number_of_equal_nodeages = self.get_number_of_equal_nodeages(tree)
+        a = 1.0 / self.scale
+        while number_of_equal_nodeages > 0:
+            for nd in tree.preorder_node_iter():
+                if nd.is_leaf() is False:
+                    root_dist = nd.distance_from_root()
+                    jitter = np.random.uniform(-a, a, 1)[0]
+                    for child_nd in nd.child_nodes():
+                        child_nd.edge_length += jitter
+                    if root_dist > 0.0:
+                        nd.edge_length -= jitter
+            number_of_equal_nodeages = self.get_number_of_equal_nodeages(tree)
+
+        return tree
+
+
+    def get_root_age(self, tree):
+        # There must be a generic dendropy function for this
+        n_species = len(tree.taxon_namespace)
+        leaf_dists = np.zeros(n_species)
+        counter = 0
+        for leaf in tree.leaf_node_iter():
+            if leaf.is_leaf():
+                leaf_dists[counter] = leaf.distance_from_root()
+                counter += 1
+        root_age = np.max(leaf_dists)
+
+        return root_age
+
+
+    def nwk_str_to_tree(self, nwk_str, ts_te):
+        #root_abs = np.abs(root)
         # What if all species go extinct before the present?
         nwk_str_root = '[&R] ' + nwk_str
         tree = dendropy.Tree.get_from_string(nwk_str_root, 'newick')
+        #tree = self.make_equal_nodeages_different(tree)
         latest_extinction = np.min(ts_te[:, 1])
-
-        # Add jitter to avoid problems in RevBayes when events have the same age
-        a = 0.001 / self.scale
-        for edge in tree.postorder_edge_iter():
-            edge.length = edge.length + np.random.uniform(-a, a, 1)[0]
-        for leaf in tree.leaf_node_iter():
-            leaf.edge_length = leaf.edge_length + np.random.uniform(-a, a, 1)[0]
-
-            # At least one extant species
+        root_abs = self.get_root_age(tree)
+        # At least one extant species
         if latest_extinction == 0.0:
             for leaf in tree.leaf_node_iter():
                 species_name = str(leaf.taxon)
@@ -1262,10 +1306,15 @@ class bdnn_simulator():
                 root_dist = leaf.distance_from_root()
                 if ts_te[species_idx, 1] == 0.0:
                     delta_tip_height = root_abs - root_dist
-                    leaf.edge_length = leaf.edge_length + delta_tip_height
+                    leaf.edge_length += delta_tip_height
+                # Just check if all extant species are of the same age:
+                tree.write(path="/home/torsten/Work/BDNN/BiSSE/BiSSE_FBD/FBDtree/data/Check_complete_tree.tre", schema='nexus')
         # All species are extinct - this is not possible to specify with a newick string
         else:
             pass
+
+        tree = self.make_equal_nodeages_different(tree)
+        tree.write(path="/home/torsten/Work/BDNN/BiSSE/BiSSE_FBD/FBDtree/data/Check_complete_tree_unequal.tre", schema='nexus')
 
         return tree
 
@@ -1356,7 +1405,7 @@ class bdnn_simulator():
         tree = 'No tree when there is more than one starting species'
         tree_offset = 0.0
         if self.s_species == 1:
-            tree = self.nwk_str_to_tree(nwk_str, ts_te, root)
+            tree = self.nwk_str_to_tree(nwk_str, ts_te)
             tree_offset = np.min(ts_te[:, 1])
 
         if isinstance(cat_traits, np.ndarray):
@@ -1987,30 +2036,37 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
     tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
     ts_te = res_bd['ts_te']
     keep_taxa = []
+    a = 1.0 / res_bd['sim_scale']
     for leaf in tree_trimmed.leaf_node_iter():
-        leaf_name = str(leaf.taxon)
-        leaf_name = leaf_name.replace("'", "")
-        ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
-        te_leaf = ts_te[ts_te_idx, 1]
-        if te_leaf != 0.0 or trim_edges:
-            occ_idx = taxon_names.index(leaf_name)
-            lad_leaf = np.min(fossil_occurrences[occ_idx])
-            shorten_branch = lad_leaf - te_leaf
-            if (leaf.edge_length - shorten_branch) >= 0:
-                # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
-                leaf.edge_length = leaf.edge_length - shorten_branch
-                keep_taxa.append(leaf_name)
+        if leaf.is_leaf():
+            leaf_name = str(leaf.taxon)
+            leaf_name = leaf_name.replace("'", "")
+            ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
+            te_leaf = ts_te[ts_te_idx, 1]
+            if te_leaf != 0.0 or trim_edges:
+                occ_idx = taxon_names.index(leaf_name)
+                lad_leaf = np.min(fossil_occurrences[occ_idx])
+                shorten_branch = lad_leaf - te_leaf
+                if (leaf.edge_length - shorten_branch) >= 0:
+                    # Avoid branches descending from a node to the past (b/c of max fossil age older than the node)
+                    leaf.edge_length = leaf.edge_length - shorten_branch
+                    keep_taxa.append(leaf_name)
+                else:
+                    # Nevermind, just shorten the branches until the node
+                    jitter = np.random.uniform(-a, a, 1)[0]
+                    leaf.edge_length = jitter + 1.0 / res_bd['sim_scale']
+                    keep_taxa.append(leaf_name)
             else:
-                # Nevermind, just shorten the branches until the node
-                leaf.edge_length = 1.0 / res_bd['sim_scale']
                 keep_taxa.append(leaf_name)
-        else:
-            keep_taxa.append(leaf_name)
     # Remove taxa with maximum fossil age older than the node from which the taxa descends
     tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(keep_taxa))
     tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
 
     return tree_trimmed, keep_taxa
+
+
+
+
 
 
 class write_FBD_files():
