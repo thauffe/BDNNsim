@@ -1245,6 +1245,12 @@ class bdnn_simulator():
 
         return nwk_str_new
 
+    # def get_duplicates(self, a):
+    #     uniques = np.unique(a, return_index=True)[1]
+    #     result = a == a
+    #     result[uniques] = False
+    #     return result
+
 
     def get_number_of_equal_nodeages(self, tree):
         root_dist_list = []
@@ -1255,49 +1261,59 @@ class bdnn_simulator():
                     root_dist_list.append(root_dist)
         root_dist_array = np.array(root_dist_list)
         counts = np.unique(root_dist_array, return_counts=True)[1]
+        nodeages_equal = np.sum(counts > 1)
 
-        return np.sum(counts > 1)
+        return nodeages_equal
 
 
     def make_equal_nodeages_different(self, tree):
         number_of_equal_nodeages = self.get_number_of_equal_nodeages(tree)
-        a = 1.0 / self.scale
+        a = 0.01 / self.scale
         while number_of_equal_nodeages > 0:
             for nd in tree.preorder_node_iter():
                 if nd.is_leaf() is False:
                     root_dist = nd.distance_from_root()
-                    jitter = np.random.uniform(-a, a, 1)[0]
-                    for child_nd in nd.child_nodes():
-                        child_nd.edge_length += jitter
                     if root_dist > 0.0:
+                        jitter = np.random.uniform(-a, a, 1)[0]
                         nd.edge_length -= jitter
+                        for child_nd in nd.child_nodes():
+                            child_nd.edge_length += jitter
             number_of_equal_nodeages = self.get_number_of_equal_nodeages(tree)
 
         return tree
 
 
-    def get_root_age(self, tree):
-        # There must be a generic dendropy function for this
-        n_species = len(tree.taxon_namespace)
-        leaf_dists = np.zeros(n_species)
-        counter = 0
-        for leaf in tree.leaf_node_iter():
-            if leaf.is_leaf():
-                leaf_dists[counter] = leaf.distance_from_root()
-                counter += 1
-        root_age = np.max(leaf_dists)
+    # def resolve_polytomies(self, tree):
+    #     # Not in newick sring but the a descendent may arise directly after the node (T0:1.2,T1:0.5):0.0
+    #     # This will not work if the two speciation evens happens at the present (T0:0.0,T1:0.0):0.0
+    #     a = 0.1 / self.scale
+    #     for nd in tree.preorder_node_iter():
+    #         if nd.is_leaf() is False and nd.edge_length == 0.0:
+    #             jitter = np.random.uniform(0.0, a, 1)[0]
+    #             nd.edge_length -= jitter
+    #             for child_nd in nd.child_nodes():
+    #                 print(str(child_nd.taxon))
+    #                 print('is leaf', child_nd.is_leaf())
+    #                 print('edge length before', child_nd.edge_length)
+    #                 child_nd.edge_length += jitter
+    #                 print('edge length after', child_nd.edge_length)
+    #
+    #     return tree
 
-        return root_age
 
 
-    def nwk_str_to_tree(self, nwk_str, ts_te):
+    def nwk_str_to_tree(self, nwk_str, ts_te, root):
         #root_abs = np.abs(root)
         # What if all species go extinct before the present?
-        nwk_str_root = '[&R] ' + nwk_str
+        search_string = '):' + self.format_age_for_newick(0.0)
+        replace_str = '):' + str(0.1 / self.scale)
+        nwk_str_dichotomous = nwk_str.replace(search_string, replace_str)
+        nwk_str_root = '[&R] ' + nwk_str_dichotomous
         tree = dendropy.Tree.get_from_string(nwk_str_root, 'newick')
-        #tree = self.make_equal_nodeages_different(tree)
+        #tree = self.resolve_polytomies(tree)
+        tree = self.make_equal_nodeages_different(tree)
         latest_extinction = np.min(ts_te[:, 1])
-        root_abs = self.get_root_age(tree)
+        root_abs = get_root_age(tree)
         # At least one extant species
         if latest_extinction == 0.0:
             for leaf in tree.leaf_node_iter():
@@ -1307,14 +1323,10 @@ class bdnn_simulator():
                 if ts_te[species_idx, 1] == 0.0:
                     delta_tip_height = root_abs - root_dist
                     leaf.edge_length += delta_tip_height
-                # Just check if all extant species are of the same age:
-                tree.write(path="/home/torsten/Work/BDNN/BiSSE/BiSSE_FBD/FBDtree/data/Check_complete_tree.tre", schema='nexus')
+                    print('root_dist new', leaf.distance_from_root())
         # All species are extinct - this is not possible to specify with a newick string
         else:
             pass
-
-        tree = self.make_equal_nodeages_different(tree)
-        tree.write(path="/home/torsten/Work/BDNN/BiSSE/BiSSE_FBD/FBDtree/data/Check_complete_tree_unequal.tre", schema='nexus')
 
         return tree
 
@@ -1405,7 +1417,7 @@ class bdnn_simulator():
         tree = 'No tree when there is more than one starting species'
         tree_offset = 0.0
         if self.s_species == 1:
-            tree = self.nwk_str_to_tree(nwk_str, ts_te)
+            tree = self.nwk_str_to_tree(nwk_str, ts_te, root)
             tree_offset = np.min(ts_te[:, 1])
 
         if isinstance(cat_traits, np.ndarray):
@@ -2026,12 +2038,23 @@ def get_interval_exceedings(fossils, ts_te, keep_in_interval):
     return intervall_exceeds_df
 
 
+def get_root_age(tree, include_root = True):
+    mrca_age = tree.max_distance_from_root()
+    root_age = mrca_age
+    if include_root:
+        root_length = tree.internal_edges()[0].length
+        root_age += root_length
+
+    return root_age
+
+
 # Also used within write_FBD_tree. Try to replace this later!
 def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
     taxon_names = fossils['taxon_names']
     fossil_occurrences = fossils['fossil_occurrences']
     tree_trimmed = res_bd['tree'].clone()
     tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(taxon_names))
+    # tree_trimmed.update_taxon_namespace()
     # dirty hack to update tree_trimmed.taxon_namespace
     tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
     ts_te = res_bd['ts_te']
@@ -2060,6 +2083,7 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
                 keep_taxa.append(leaf_name)
     # Remove taxa with maximum fossil age older than the node from which the taxa descends
     tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(keep_taxa))
+    # tree_trimmed.update_taxon_namespace()
     tree_trimmed = dendropy.Tree.get(data=tree_trimmed.as_string(schema="newick"), schema="newick")
 
     return tree_trimmed, keep_taxa
@@ -3911,9 +3935,10 @@ def write_occurrence_table(fossils, output_wd, name_file):
 
 
 def prune_extinct(tree, tol = 1e-7):
-    mrca_age = tree.max_distance_from_root()
-    root_length = tree.internal_edges()[0].length
-    root_age = mrca_age + root_length
+    # mrca_age = tree.max_distance_from_root()
+    # root_length = tree.internal_edges()[0].length
+    # root_age = mrca_age + root_length
+    root_age = get_root_age(tree)
     extant = []
     for leaf in tree.leaf_node_iter():
         species_name = str(leaf.taxon)
