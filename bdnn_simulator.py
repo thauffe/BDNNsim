@@ -1863,7 +1863,7 @@ class write_PyRate_files():
         return ({'eigenval': E, 'eigenvect': V, 'species': species})
 
 
-    def run_writter(self, sim_fossil, res_bd, incl_pvr = False):
+    def run_writter(self, sim_fossil, res_bd, num_pvr = 0):
         # Create a directory for the output
         try:
             os.mkdir(self.output_wd)
@@ -1906,22 +1906,17 @@ class write_PyRate_files():
                     cat_traits_taxon_one_hot, names_one_hot = self.make_one_hot_encoding(maj_cat_traits_taxon[:,y])
                     for i in range(cat_traits_taxon_one_hot.shape[1]):
                         traits['cat_trait_%s_%s' % (y, names_one_hot[i])] = cat_traits_taxon_one_hot[:, i]
-        if incl_pvr:
+        if num_pvr > 0:
             tree_trimmed_by_lad, _ = trim_tree_by_lad(res_bd, sim_fossil)
             pvr = self.pvr_decomp(tree_trimmed_by_lad)['eigenvect']
-            # taxon_names = sim_fossil['taxon_names']
-            # tree_fossil = res_bd['tree'].clone()
-            # tree_fossil = tree_fossil.extract_tree_with_taxa_labels(labels=set(taxon_names))
-            # tree_fossil = dendropy.Tree.get(data=tree_fossil.as_string(schema="newick"), schema="newick")
-            # pvr = self.pvr_decomp(tree_fossil)['eigenvect']
             traits_pvr = traits.copy()
-            for i in range(2):
+            for i in range(num_pvr):
                 traits_pvr['pvr_%s' % i] = pvr[:, i]
 
         if traits.shape[1] > 1:
             trait_file = "%s/%s/%s_traits.csv" % (self.output_wd, name_file, name_file)
             traits.to_csv(trait_file, header=True, sep='\t', index=False)
-            if incl_pvr:
+            if num_pvr:
                 trait_pvr_file = "%s/%s/%s_traits_pvr.csv" % (self.output_wd, name_file, name_file)
                 traits_pvr.to_csv(trait_pvr_file, header=True, sep='\t', index=False)
 
