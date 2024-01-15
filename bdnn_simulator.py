@@ -1323,7 +1323,6 @@ class bdnn_simulator():
                 if ts_te[species_idx, 1] == 0.0:
                     delta_tip_height = root_abs - root_dist
                     leaf.edge_length += delta_tip_height
-                    print('root_dist new', leaf.distance_from_root())
         # All species are extinct - this is not possible to specify with a newick string
         else:
             pass
@@ -2044,7 +2043,7 @@ def get_root_age(tree, include_root = True):
 
 
 # Also used within write_FBD_tree. Try to replace this later!
-def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
+def trim_tree_by_lad(res_bd, fossils, trim_edges=False, extant_only=False):
     taxon_names = fossils['taxon_names']
     fossil_occurrences = fossils['fossil_occurrences']
     tree_trimmed = res_bd['tree'].clone()
@@ -2061,7 +2060,7 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
             leaf_name = leaf_name.replace("'", "")
             ts_te_idx = int(leaf_name.replace("T", "").replace("'", ""))
             te_leaf = ts_te[ts_te_idx, 1]
-            if te_leaf != 0.0 or trim_edges:
+            if (te_leaf != 0.0 or trim_edges) and extant_only is False:
                 occ_idx = taxon_names.index(leaf_name)
                 lad_leaf = np.min(fossil_occurrences[occ_idx])
                 shorten_branch = lad_leaf - te_leaf
@@ -2074,7 +2073,7 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges = False):
                     jitter = np.random.uniform(-a, a, 1)[0]
                     leaf.edge_length = jitter + 1.0 / res_bd['sim_scale']
                     keep_taxa.append(leaf_name)
-            else:
+            elif te_leaf == 0.0:
                 keep_taxa.append(leaf_name)
     # Remove taxa with maximum fossil age older than the node from which the taxa descends
     tree_trimmed = tree_trimmed.extract_tree_with_taxa_labels(labels=set(keep_taxa))
@@ -4055,10 +4054,13 @@ class write_FBD_tree():
     #     return tree_trimmed, keep_taxa
 
 
-    def write_tree(self, tree, name):
-        path_tree = os.path.join(self._path_FBD_data, '%s_tree.tre' % name)
-        tree.ladderize(ascending = False)
-        tree.write(path = path_tree, schema = 'newick')
+    def write_tree(self, tree, name, extant_only=False):
+        ext = ''
+        if extant_only:
+            ext = '_extant'
+        path_tree = os.path.join(self._path_FBD_data, '%s_tree%s.tre' % (name, ext))
+        tree.ladderize(ascending=False)
+        tree.write(path=path_tree, schema='newick')
 
 
     def get_taxon_data(self, fossils, edges, keep_taxa = None, tree = None, tree_offset = 0.0, translate = 0.0, tip_ages = True):
@@ -4179,9 +4181,9 @@ class write_FBD_tree():
         return maj_cat_traits
 
 
-    def write_trait_nexus(self, name, res_bd, fossils, keep_taxa, edges, majority = False):
+    def write_trait_nexus(self, name, res_bd, fossils, keep_taxa, edges, majority=False, extant_only=False):
         keep_taxa_array = np.array(keep_taxa)
-        maj_cat_traits = self.get_cat_trait_per_taxon(res_bd, fossils, edges = edges, majority = majority)
+        maj_cat_traits = self.get_cat_trait_per_taxon(res_bd, fossils, edges=edges, majority=majority)
         taxon_names = fossils['taxon_names']
         nex = nexus.NexusWriter()
         for i in range(len(taxon_names)):
@@ -4189,7 +4191,10 @@ class write_FBD_tree():
             if np.isin(taxon, keep_taxa_array):
                 for j in range(maj_cat_traits.shape[1]):
                     nex.add(taxon, 'Trait' + str(j), int(maj_cat_traits[i, j]))
-        path_nexus_traits = os.path.join(self._path_FBD_data, '%s_morphology.nex' % name)
+        ext = ''
+        if extant_only:
+            ext = '_extant'
+        path_nexus_traits = os.path.join(self._path_FBD_data, '%s_morphology%s.nex' % (name, ext))
         nex.write_to_file(path_nexus_traits, interleave = False, charblock = True, preserve_order = True)
 
 
@@ -4539,43 +4544,48 @@ class write_FBD_tree():
 
     def run_writter(self,
                     name,
-                    edges = None,
-                    keep_extant = True,
-                    infer_mass_extinctions = False,
-                    translate_to_present = False):
+                    edges=None,
+                    keep_extant=True,
+                    infer_mass_extinctions=False,
+                    translate_to_present=False,
+                    write_RevBayes_script=True,
+                    extant_only=False):
         self.make_FBD_dir(name)
         fossils_copy = copy.deepcopy(self.fossils)
         res_bd_copy = copy.deepcopy(self.res_bd)
         if edges is None:
             # tree_trimmed, keep_taxa = self.trim_tree_by_lad(res_bd_copy, fossils_copy)
-            tree_trimmed, keep_taxa = trim_tree_by_lad(res_bd_copy, fossils_copy)
+            tree_trimmed, keep_taxa = trim_tree_by_lad(res_bd_copy, fossils_copy, extant_only=extant_only)
             # Delete this one below
             # taxon_data = self.get_taxon_data(fossils = fossils_copy, edges = edges, keep_taxa = keep_taxa, tree=None, tree_offset=0.0, translate = translate_to_present, tip_ages=True)
-            self.write_tree(tree_trimmed, name = name)
+            self.write_tree(tree_trimmed, name=name, extant_only=extant_only)
             self.write_tree_offset(offset = res_bd_copy['tree_offset'], name = name)
             self.write_taxon_data(name = name, fossils = fossils_copy, edges=None, keep_taxa = keep_taxa, tree=None, tree_offset=0.0, translate=0.0)
-            self.write_rb_script(name = name,
-                                 tree = tree_trimmed,
-                                 tree_offset = res_bd_copy['tree_offset'],
-                                 infer_mass_extinctions = infer_mass_extinctions)
-            self.write_rb_script(name = name,
-                                 tree = tree_trimmed,
-                                 tree_offset = res_bd_copy['tree_offset'],
-                                 episodic_sampling = True,
-                                 infer_mass_extinctions = infer_mass_extinctions)
+            if write_RevBayes_script:
+                self.write_rb_script(name = name,
+                                     tree = tree_trimmed,
+                                     tree_offset = res_bd_copy['tree_offset'],
+                                     infer_mass_extinctions = infer_mass_extinctions)
+                self.write_rb_script(name = name,
+                                     tree = tree_trimmed,
+                                     tree_offset = res_bd_copy['tree_offset'],
+                                     episodic_sampling = True,
+                                     infer_mass_extinctions = infer_mass_extinctions)
             if self.res_bd['cat_traits'].size > 0:
                 self.write_trait_nexus(name = name,
                                        res_bd = res_bd_copy,
                                        fossils = fossils_copy,
                                        keep_taxa = keep_taxa,
-                                       edges = edges)
-                self.write_rb_script(name = name,
-                                     tree_offset = res_bd_copy['tree_offset'],
-                                     infer_mass_extinctions = infer_mass_extinctions)
-                self.write_rb_script(name = name,
-                                     tree_offset = res_bd_copy['tree_offset'],
-                                     episodic_sampling = True,
-                                     infer_mass_extinctions = infer_mass_extinctions)
+                                       edges = edges,
+                                       extant_only=extant_only)
+                if write_RevBayes_script:
+                    self.write_rb_script(name = name,
+                                         tree_offset = res_bd_copy['tree_offset'],
+                                         infer_mass_extinctions = infer_mass_extinctions)
+                    self.write_rb_script(name = name,
+                                         tree_offset = res_bd_copy['tree_offset'],
+                                         episodic_sampling = True,
+                                         infer_mass_extinctions = infer_mass_extinctions)
             # Use the simulated tree
             #self.write_tree(self.res_bd['tree'], 'Simulated')
             #self.write_rb_script('Simulated', self.res_bd['tree'], self.res_bd['tree_offset'])
@@ -4592,37 +4602,40 @@ class write_FBD_tree():
                                                                              keep_extant = keep_extant)
             self.write_tree(tree_pruned_edges, name = name)
             self.write_tree_offset(offset = self.new_tree_offset, name = name)
-            self.write_taxon_data(name = name,
-                                  fossils = fossils_copy,
-                                  edges = edges,
-                                  keep_taxa = keep_taxa,
-                                  tree_offset = self.new_tree_offset,
-                                  translate = translate)
-            self.write_rb_script(name = name,
-                                 tree = tree_pruned_edges,
-                                 tree_offset = self.new_tree_offset - translate,
-                                 edges = edges,
-                                 infer_mass_extinctions = infer_mass_extinctions)
-            self.write_rb_script(name = name,
-                                 tree = tree_pruned_edges,
-                                 tree_offset = self.new_tree_offset - translate,
-                                 edges = edges,
-                                 episodic_sampling = True,
-                                 infer_mass_extinctions = infer_mass_extinctions)
-            if self.res_bd['cat_traits'].size > 0:
-                self.write_trait_nexus(name = name,
-                                       res_bd = res_bd_copy,
-                                       fossils = fossils_copy,
-                                       keep_taxa = keep_taxa,
-                                       edges = edges)
+            self.write_taxon_data(name=name,
+                                  fossils=fossils_copy,
+                                  edges=edges,
+                                  keep_taxa=keep_taxa,
+                                  tree_offset=self.new_tree_offset,
+                                  translate=translate)
+            if write_RevBayes_script:
                 self.write_rb_script(name = name,
+                                     tree = tree_pruned_edges,
                                      tree_offset = self.new_tree_offset - translate,
                                      edges = edges,
                                      infer_mass_extinctions = infer_mass_extinctions)
                 self.write_rb_script(name = name,
+                                     tree = tree_pruned_edges,
                                      tree_offset = self.new_tree_offset - translate,
                                      edges = edges,
                                      episodic_sampling = True,
                                      infer_mass_extinctions = infer_mass_extinctions)
+            if self.res_bd['cat_traits'].size > 0:
+                self.write_trait_nexus(name=name,
+                                       res_bd=res_bd_copy,
+                                       fossils=fossils_copy,
+                                       keep_taxa=keep_taxa,
+                                       edges=edges,
+                                       extant_only=extant_only)
+                if write_RevBayes_script:
+                    self.write_rb_script(name = name,
+                                         tree_offset = self.new_tree_offset - translate,
+                                         edges = edges,
+                                         infer_mass_extinctions = infer_mass_extinctions)
+                    self.write_rb_script(name = name,
+                                         tree_offset = self.new_tree_offset - translate,
+                                         edges = edges,
+                                         episodic_sampling = True,
+                                         infer_mass_extinctions = infer_mass_extinctions)
         self.write_occurrence(name = name, edges = edges)
 
