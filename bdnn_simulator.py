@@ -22,7 +22,7 @@ import scipy.linalg
 import random
 import string
 import dendropy
-import nexus
+import nexus # pip3 install python-nexus
 import warnings
 # np.set_printoptions(suppress = True, precision = 3)
 np.set_printoptions(threshold = sys.maxsize)
@@ -1987,7 +1987,7 @@ class write_PyRate_files():
 
         self.write_cont_trait_effects(res_bd, name_file)
 
-        self.write_sampling_parameters(sim_fossil, res_bd, name_file)
+        self.write_sampling_heterogeneity(sim_fossil, name_file)
 
         return name_file
 
