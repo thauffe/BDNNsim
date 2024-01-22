@@ -1477,10 +1477,16 @@ class fossil_simulator():
                  range_q = [0.5, 5.],
                  range_alpha = [1000.0, 1000.0],
                  poi_shifts = 0,
+                 fixed_shift_times = [],
+                 q_loguniform = False,
+                 alpha_loguniform = False,
                  seed = 0):
         self.range_q = range_q
         self.range_alpha = range_alpha
         self.poi_shifts = poi_shifts
+        self.fixed_shift_times = fixed_shift_times
+        self.q_loguniform = q_loguniform
+        self.alpha_loguniform = alpha_loguniform
         if seed:
             np.random.seed(seed)
 
@@ -1500,14 +1506,40 @@ class fossil_simulator():
         return sp_x[:,1] == 0.0
 
 
-    def get_sampling_heterogeneity(self, sp_x):
-        alpha = np.random.uniform(np.min(self.range_alpha), np.max(self.range_alpha), 1)
+    def make_sampling_heterogeneity(self, sp_x):
+        if self.alpha_loguniform:
+            log_range_alpha = np.log(self.range_alpha)
+            log_alpha = np.random.uniform(np.min(log_range_alpha), np.max(log_range_alpha), 1)
+            alpha = np.exp(log_alpha)
+        else:
+            alpha = np.random.uniform(np.min(self.range_alpha), np.max(self.range_alpha), 1)
         h = np.random.gamma(alpha, 1.0 / alpha, len(sp_x))
         return alpha, h
 
 
+    def make_sampling_rate(self, sp_x):
+        root = np.max(sp_x)
+        shift_time_q = self.fixed_shift_times
+        nS = len(self.fixed_shift_times)
+        if nS == 0:
+            # Number of rate shifts expected according to a Poisson distribution
+            nS = np.random.poisson(self.poi_shifts)
+            shift_time_q = np.random.uniform(0, root, nS) # Also works with nS = 0
+        if self.q_loguniform:
+            log_range_q = np.log(self.range_q)
+            log_q = np.random.uniform(np.min(log_range_q), np.max(log_range_q), nS + 1)
+            q = np.exp(log_q)
+        else:
+            q = np.random.uniform(np.min(self.range_q), np.max(self.range_q), nS + 1)
+
+        shift_time_q = np.sort(shift_time_q)[::-1]
+        shift_time_q = np.concatenate((np.array([root]), shift_time_q, np.zeros(1)))
+
+        return q, shift_time_q
+
+
     def get_fossil_occurrences(self, sp_x, q, shift_time_q, is_alive):
-        alpha, sampl_hetero = self.get_sampling_heterogeneity(sp_x)
+        alpha, sampl_hetero = self.make_sampling_heterogeneity(sp_x)
         n_taxa = len(sp_x)
         occ = [np.array([])] * n_taxa
         len_q = len(q)
@@ -1551,14 +1583,19 @@ class fossil_simulator():
 
     def run_simulation(self, sp_x):
         is_alive = self.get_is_alive(sp_x)
+        # root = np.max(sp_x)
 
-        # Number of rate shifts expected according to a Poisson distribution
-        nS = np.random.poisson(self.poi_shifts)
-        q = np.random.uniform(np.min(self.range_q), np.max(self.range_q), nS + 1)
-        root = np.max(sp_x)
-        shift_time_q = np.random.uniform(0, root, nS)
-        shift_time_q = np.sort(shift_time_q)[::-1]
-        shift_time_q = np.concatenate((np.array([root]), shift_time_q, np.zeros(1)))
+        # shift_time_q = self.fixed_shift_times
+        # nS = len(self.fixed_shift_times)
+        # if nS == 0:
+        #     # Number of rate shifts expected according to a Poisson distribution
+        #     nS = np.random.poisson(self.poi_shifts)
+        #     shift_time_q = np.random.uniform(0, root, nS) # Also works with nS = 0
+        # q = np.random.uniform(np.min(self.range_q), np.max(self.range_q), nS + 1)
+        #
+        # shift_time_q = np.sort(shift_time_q)[::-1]
+        # shift_time_q = np.concatenate((np.array([root]), shift_time_q, np.zeros(1)))
+        q, shift_time_q = self.make_sampling_rate(sp_x)
 
         fossil_occ, taxa_sampled, alpha = self.get_fossil_occurrences(sp_x, q, shift_time_q, is_alive)
         taxon_names = self.get_taxon_names(taxa_sampled)
@@ -1620,7 +1657,7 @@ class write_PyRate_files():
 
     def write_q_epochs(self, sim_fossil, name_file):
         file_q_epochs = '%s/%s/%s_q_epochs.txt' % (self.output_wd, name_file, name_file)
-        np.savetxt(file_q_epochs, sim_fossil['shift_time'], delimiter='\t')
+        np.savetxt(file_q_epochs, np.sort(sim_fossil['shift_time']), delimiter='\t', fmt='%f')
 
 
     def write_true_tste(self, res_bd, sim_fossil, name_file):
@@ -1715,7 +1752,7 @@ class write_PyRate_files():
     def write_time_vector(self, res_bd, name_file):
         time_vector = self.make_time_vector(res_bd)
         file_time = '%s/%s/%s_time.txt' % (self.output_wd, name_file, name_file)
-        np.savetxt(file_time, time_vector, delimiter='\t')
+        np.savetxt(file_time, time_vector, delimiter='\t', fmt='%f')
 
 
     def write_true_rates_through_time(self, rates, name_file):
@@ -1802,7 +1839,7 @@ class write_PyRate_files():
             cont_trait_effect_name = "%s/%s/%s_cont_trait_effect.csv" % (self.output_wd, name_file, name_file)
             cte_df.to_csv(cont_trait_effect_name, header = True, sep = '\t', index = False, na_rep = 'NA')
             sd_traits_name = "%s/%s/%s_expected_sd_cont_traits.csv" % (self.output_wd, name_file, name_file)
-            np.savetxt(sd_traits_name, res_bd['expected_sd_cont_traits'], delimiter='\t')
+            np.savetxt(sd_traits_name, res_bd['expected_sd_cont_traits'], delimiter='\t', fmt='%f')
 
 
     def bin_and_write_env(self, env_var, env_file_name):
@@ -1810,7 +1847,7 @@ class write_PyRate_files():
         time_vec = np.arange(0, max_age_env + self.delta_time, self.delta_time)
         binned_env = get_binned_continuous_variable(env_var, time_vec, 1.0)
         binned_env = np.stack((time_vec[:-1], binned_env), axis = 1)
-        np.savetxt(env_file_name, binned_env, delimiter = '\t')
+        np.savetxt(env_file_name, binned_env, delimiter = '\t', fmt='%f')
 
 
     def get_cophenetic_distance_matrix(self, tree):
@@ -1862,7 +1899,12 @@ class write_PyRate_files():
         return ({'eigenval': E, 'eigenvect': V, 'species': species})
 
 
-    def run_writter(self, sim_fossil, res_bd, num_pvr = 0):
+    def write_sampling_heterogeneity(self, sim_fossil, name_file):
+        alpha_name = "%s/%s/%s_true_sampling_alpha.csv" % (self.output_wd, name_file, name_file)
+        np.savetxt(alpha_name, sim_fossil['alpha'], delimiter='\t', fmt='%f')
+
+
+    def run_writter(self, sim_fossil, res_bd, num_pvr=0, write_tree=False):
         # Create a directory for the output
         try:
             os.mkdir(self.output_wd)
@@ -1879,7 +1921,6 @@ class write_PyRate_files():
             os.mkdir(path_make_dir)
         except OSError as error:
             print(error)
-
 
         self.write_occurrences(sim_fossil, name_file)
         self.write_q_epochs(sim_fossil, name_file)
@@ -1905,8 +1946,13 @@ class write_PyRate_files():
                     cat_traits_taxon_one_hot, names_one_hot = self.make_one_hot_encoding(maj_cat_traits_taxon[:,y])
                     for i in range(cat_traits_taxon_one_hot.shape[1]):
                         traits['cat_trait_%s_%s' % (y, names_one_hot[i])] = cat_traits_taxon_one_hot[:, i]
-        if num_pvr > 0:
+        if write_tree or num_pvr > 0:
             tree_trimmed_by_lad, _ = trim_tree_by_lad(res_bd, sim_fossil)
+            if write_tree:
+                tree_file = "%s/%s/%s_phylo.tre" % (self.output_wd, name_file, name_file)
+                tree_trimmed_by_lad.ladderize(ascending=False)
+                tree_trimmed_by_lad.write(path=tree_file, schema='newick')
+        if num_pvr > 0:
             pvr = self.pvr_decomp(tree_trimmed_by_lad)['eigenvect']
             traits_pvr = traits.copy()
             for i in range(num_pvr):
@@ -1940,6 +1986,8 @@ class write_PyRate_files():
             self.bin_and_write_env(res_bd['env_ex'], env_ex_name)
 
         self.write_cont_trait_effects(res_bd, name_file)
+
+        self.write_sampling_parameters(sim_fossil, res_bd, name_file)
 
         return name_file
 
