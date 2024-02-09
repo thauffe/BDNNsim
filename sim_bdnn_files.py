@@ -7,16 +7,36 @@ sys.path.insert(0, r'/home/torsten/Work/Software/BDNNsim')
 from bdnn_simulator import *
 
 rnd_seed = int(np.random.choice(np.arange(1, 1e8), 1)[0])
-rnd_seed = 88917602
+rnd_seed = 96537765
 
-# Simple state-dependent effect (e.g. BiSSE)
-############################################
+
+# MiSSE
+########
+# constant trait matters
 bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         rangeSP = [200, 300],  # min/max size data set
                         minExtant_SP = 2, # minimum number of extant lineages
                         root_r = [35., 35.],  # range root ages
+                        rangeL = [0.2, 0.2],  # range of birth rates
+                        rangeM = [0.1, 0.1],  # range of death rates
+                        scale = 100.,
+                        n_cont_traits = [1, 1],  # number of continuous traits
+                        cont_traits_sigma_clado = [0.2, 0.2],
+                        cont_traits_sigma = [0.02, 0.02], # evolutionary rates for continuous traits
+                        n_cat_traits = [1, 1],
+                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
+                        cat_traits_diag = 0.9,
+                        cat_traits_min_freq = [0.2],
+                        seed = rnd_seed)
+# categorical trait matters
+bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
+                        rangeSP = [200, 300],  # min/max size data set
+                        minExtant_SP = 2, # minimum number of extant lineages
+                        root_r = [40., 40.],  # range root ages
                         rangeL = [0.1, 0.1],  # range of birth rates
                         rangeM = [0.05, 0.05],  # range of death rates
+                        scale = 100.,
+                        fixed_Mtt = np.array([[35., 0.01], [0.0, 0.1]]),
                         n_cont_traits = [1, 1],  # number of continuous traits
                         cont_traits_sigma_clado = [0.2, 0.2],
                         cont_traits_sigma = [0.02, 0.02], # evolutionary rates for continuous traits
@@ -25,8 +45,39 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         cat_traits_diag = 0.9,
                         cat_traits_effect = np.array([[5., 5.],[5., 5.]]),
                         cat_traits_effect_decr_incr = np.array([[False, False],[False, False]]),
+                        cat_traits_min_freq = [0.3],
                         seed = rnd_seed)
-
+# Continuous trait matters
+rangeL = [0.5, 0.5]
+rangeM = [0.4, 0.4]
+n_cont_traits = [1, 1] # Range of number of continuous traits
+cont_traits_effect_sp = np.array([[[ [0.8, 0.8] ]]])
+cont_traits_effect_ex = np.array([[[ [0.8, 0.8] ]]])
+cont_traits_effect_bellu_sp = np.array([[[ [1, 1] ]]])
+cont_traits_effect_bellu_ex = np.array([[[ [1, 1] ]]])
+cont_traits_effect_optimum_sp = np.array([[[ [0.0, 0.0] ]]])
+cont_traits_effect_optimum_ex = np.array([[[ [0.0, 0.0] ]]])
+bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
+                        rangeSP = [200, 300],  # min/max size data set
+                        minEX_SP = 0,  # minimum number of extinct lineages allowed
+                        minExtant_SP = 2, # minimum number of extant lineages
+                        root_r = [35., 35.],  # range root ages
+                        rangeL = rangeL,  # range of birth rates
+                        rangeM = rangeM,  # range of death rates
+                        scale = 100.,
+                        n_cont_traits = n_cont_traits, # number of continuous traits
+                        cont_traits_sigma_clado = [0.2, 0.2],
+                        cont_traits_sigma = [0.02, 0.02], # evolutionary rates for continuous traits
+                        cont_traits_effect_sp = cont_traits_effect_sp, # np.array([[0.1, 0.5]]), np.array([[0.1, 0.5], [0.0, 0.0]])
+                        cont_traits_effect_ex = cont_traits_effect_ex,
+                        cont_traits_effect_optimum_sp = cont_traits_effect_optimum_sp,
+                        cont_traits_effect_optimum_ex = cont_traits_effect_optimum_ex,
+                        cont_traits_effect_bellu_sp = cont_traits_effect_bellu_sp,
+                        cont_traits_effect_bellu_ex = cont_traits_effect_bellu_ex,
+                        n_cat_traits = [1, 1],
+                        n_cat_traits_states = [2, 2], # range number of states for categorical trait
+                        cat_traits_diag = 0.9,
+                        seed = rnd_seed)
 
 # State-independent effect of a single continuous traits
 ########################################################
@@ -265,9 +316,12 @@ bd_sim = bdnn_simulator(s_species = 1,  # number of starting species
                         # fixed_K_lam = np.array([[35., 100.], [15.001, 100.], [15., 50.], [0.0, 50.]]),
                         seed = rnd_seed)  # if > 0 fixes the random seed to make simulations reproducible
 
-fossil_sim = fossil_simulator(range_q = [0.5, 1.5],
-                              range_alpha = [1000.0, 1000.0],
-                              poi_shifts = 0,
+
+fossil_sim = fossil_simulator(range_q = [0.5, 5.0],
+                              range_alpha = [0.5, 5.0],
+                              fixed_shift_times = np.array([23.03, 5.33, 2.58]),
+                              q_loguniform=True,
+                              alpha_loguniform=True,
                               seed = rnd_seed)
 
 output_wd = '/home/torsten/Work/BDNN'
@@ -278,7 +332,7 @@ write_PyRate = write_PyRate_files(output_wd = output_wd,
 
 # Birth-death simulation
 res_bd = bd_sim.run_simulation(verbose = True)
-print(res_bd['anc_desc'])
+#print(res_bd['anc_desc'])
 #print(res_bd['ts_te'])
 #print(res_bd['lambda'])
 #print(res_bd['tshift_lambda'])
@@ -307,12 +361,12 @@ print(sim_fossil['shift_time'])
 print(sim_fossil['alpha'])
 
 # Write tree to file
-tree = res_bd['tree']
-tree.write(path = os.path.join(output_wd, name, 'Phylo.tre'), schema='newick')
+# tree_bd = res_bd['tree']
+# tree = tree_bd.clone()
+# tree.write(path = os.path.join(output_wd, name, 'Check_complete_tree.tre'), schema='newick')
 
-
-# tree_trimmed_by_lad,_ = trim_tree_by_lad(res_bd, sim_fossil)
-
+# tree = dendropy.Tree.get(path="/home/torsten/Work/BDNN/BiSSE/BiSSE_FBD/FBDtree/data/Check_complete_tree.tre", schema="newick")
+# tree.resolve_polytomies()
 
 
 
@@ -340,13 +394,16 @@ print(np.unique(res_bd['lineage_rates'][1:,8], return_counts = True)[1])
 
 
 # Write input files for PyRate analysis
-name_file = write_PyRate.run_writter(sim_fossil, res_bd, incl_pvr=True)
+name_file = write_PyRate.run_writter(sim_fossil, res_bd, num_pvr=2, write_tree=True)
+
+write_occurrence_table(sim_fossil, output_wd=output_wd, name_file=name_file)
+write_ltt(res_bd, output_wd, name_file)
 
 FBDtree = write_FBD_tree(fossils=sim_fossil,
                          res_bd=res_bd,
                          output_wd=os.path.join(output_wd, name))
 FBDtree.run_writter(name='BiSSE_FBD', infer_mass_extinctions=False)
-
+FBDtree.run_writter(name='BiSSE_FBD', infer_mass_extinctions=False, write_RevBayes_script=False, extant_only=True)
 
 RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                              '/home/torsten/Work/BDNN/%s/%s.py' % (name_file, name_file),
@@ -358,8 +415,10 @@ RJMCMC_run = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRa
 RJMCMC_plot = subprocess.run(['python3', '/home/torsten/Work/Software/PyRate/PyRate.py',
                               '-plotRJ', '/home/torsten/Work/BDNN/%s/pyrate_mcmc_logs' % name_file, '-b', '0.1'])
 
-
-
+# Remove rait
+traits = pd.read_csv('/home/torsten/Work/BDNN/BiSSE/BiSSE_traits_pvr.csv', sep='\t')
+traits_omitted = traits.drop(columns=['cont_trait_0'])
+traits_omitted.to_csv(cont_trait_effect_name, header = True, sep = '\t', index = False, na_rep = 'NA')
 
 
 
@@ -376,3 +435,5 @@ np.savetxt('/home/torsten/Work/BDNN/ContTraits.txt', res_bd['cont_traits'][:,0,:
 
 print(np.nanvar(res_bd['cont_traits'][1,0,:]))
 print(res_bd['cont_traits_effect'][0][0,1]**2) # Should be similar to the variance
+
+

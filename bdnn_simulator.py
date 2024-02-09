@@ -1382,7 +1382,8 @@ class bdnn_simulator():
             self.maxSP = np.inf
         exceeded_diversity = True
         while len(LOtrue) < self.minSP or len(LOtrue) > self.maxSP or n_extinct < self.minEX_SP or n_extant < self.minExtant_SP or n_extant > self.maxExtant_SP or prop_cat_traits_ok == False or rangeSP_OK_in_timewindow == False or exceeded_diversity:
-            print('New round')
+            if verbose:
+                print('New round')
             root = -np.random.uniform(np.min(self.root_r), np.max(self.root_r))  # ROOT AGES
             dT, L_tt, M_tt, L, M, timesL, timesM, linL, linM, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex = self.get_random_settings(root, sp_env_ts, ex_env_ts, verbose)
             self.nwk_leading_digits = len(str(int(np.abs(root))))
@@ -3974,6 +3975,13 @@ def write_occurrence_table(fossils, output_wd, name_file):
         print(error)
     occ_file = "%s/%s/%s_fossil_occurrences.csv" % (output_wd, name_file, name_file)
     occ_df.to_csv(occ_file, header = True, sep = '\t', index = False, na_rep = 'NA')
+
+
+def write_ltt(res_bd, output_wd, name_file):
+    ltt = res_bd['LTTtrue']
+    ltt_df = pd.DataFrame(data=ltt, columns=['time', 'taxa'])
+    ltt_file = os.path.join(output_wd, name_file, '%s_simulated_ltt.csv' % name_file)
+    ltt_df.to_csv(ltt_file, header=True, sep='\t', index=False, na_rep='NA')
 
 
 def prune_extinct(tree, tol = 1e-7):
