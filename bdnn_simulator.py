@@ -1475,19 +1475,25 @@ class bdnn_simulator():
 
 class fossil_simulator():
     def __init__(self,
-                 range_q = [0.5, 5.],
-                 range_alpha = [1000.0, 1000.0],
-                 poi_shifts = 0,
-                 fixed_shift_times = [],
-                 q_loguniform = False,
-                 alpha_loguniform = False,
+                 range_q=[0.5, 5.],
+                 range_alpha =[1000.0, 1000.0],
+                 poi_shifts=0,
+                 fixed_shift_times=[],
+                 fixed_q=[],
+                 q_loguniform=False,
+                 alpha_loguniform=False,
+                 age_dependent=False,
+                 cat_trait_effect=None,
                  seed = 0):
         self.range_q = range_q
         self.range_alpha = range_alpha
         self.poi_shifts = poi_shifts
         self.fixed_shift_times = fixed_shift_times
+        self.fixed_q = fixed_q
         self.q_loguniform = q_loguniform
         self.alpha_loguniform = alpha_loguniform
+        self.age_dependent = age_dependent
+        self.cat_trait_effect = cat_trait_effect
         if seed:
             np.random.seed(seed)
 
@@ -1547,7 +1553,7 @@ class fossil_simulator():
         for i in range(len_q):
             dur, ts, te = self.get_duration(sp_x, shift_time_q[i], shift_time_q[i + 1])
             dur = dur.flatten()
-            poi_rate_occ = q[i] * sampl_hetero * dur
+            poi_rate_occ = q[i] *  self.cat_trait_multiplier * sampl_hetero * dur
             exp_occ = np.round(np.random.poisson(poi_rate_occ))
 
             for y in range(n_taxa):
@@ -1573,6 +1579,49 @@ class fossil_simulator():
         return occ2, lineages_sampled, alpha
 
 
+    def get_age_dependent_fossil_occurrences(self, sp_x, is_alive):
+        """
+        Primitiv prototype for age-dependent sampling
+        Sampling rate q shifts at relative species age given by shift_time_q
+        """
+        n_taxa = len(sp_x)
+        occ = [np.array([])] * n_taxa
+        len_q = len(self.fixed_q)
+        shift_time_q = np.sort(self.fixed_shift_times)
+
+        if len(shift_time_q) - 1 != len_q:
+            print("Number of sampling rates should equal number of bins + 1")
+
+        for i in range(n_taxa):
+            ts = sp_x[i, 0]
+            te = sp_x[i, 1]
+            dur = ts - te
+            for y in range(len_q):
+                rel_dur = shift_time_q[y + 1] - shift_time_q[y]
+                poi_rate_occ = self.fixed_q[y] * self.cat_trait_multiplier[i] * dur * rel_dur
+                exp_occ = np.round(np.random.poisson(poi_rate_occ))
+                start = ts - dur * shift_time_q[y]
+                end = ts - dur * shift_time_q[y + 1]
+                occ_i = np.random.uniform(start, end, exp_occ)
+                present = np.array([])
+                if is_alive[i] and y == (len_q - 1):  # Alive and most recent sampling strata
+                    present = np.zeros(1, dtype='float')
+                occ[i] = np.concatenate((occ[i], occ_i, present))
+
+        lineages_sampled = []
+        occ2 = []
+        for i in range(n_taxa):
+            O = occ[i]
+            O = O[O != 0.0] # Do not count single occurrence at the present
+            if len(O) > 0:
+                lineages_sampled.append(i)
+                occ2.append(occ[i])
+        lineages_sampled = np.array(lineages_sampled)
+        lineages_sampled = lineages_sampled.astype(int)
+
+        return occ2, lineages_sampled
+
+
     def get_taxon_names(self, lineages_sampled):
         num_taxa = len(lineages_sampled)
         taxon_names = []
@@ -1582,32 +1631,43 @@ class fossil_simulator():
         return taxon_names
 
 
-    def run_simulation(self, sp_x):
+    def make_cat_trait_multiplier(self, res_bd):
+        # cat traits multiplier only working for the first trait, with -1 we make it random
+        num_states = 1
+        if res_bd['cat_traits'].size > 0:
+            cat_traits = get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None)
+            cat_traits = cat_traits[:, 0].reshape(-1).astype(int)  # Only first trait
+            num_states = len(np.unique(cat_traits))
+        num_taxa = res_bd['ts_te'].shape[0]
+        self.cat_trait_multiplier = np.repeat(1, num_taxa)
+        if not self.cat_trait_effect is None and num_states > 1:
+            self.cat_trait_multiplier = np.array(self.cat_trait_effect)[cat_traits]
+
+
+    def run_simulation(self, res_bd):
+        sp_x = res_bd['ts_te']
         is_alive = self.get_is_alive(sp_x)
-        # root = np.max(sp_x)
+        self.make_cat_trait_multiplier(res_bd)
 
-        # shift_time_q = self.fixed_shift_times
-        # nS = len(self.fixed_shift_times)
-        # if nS == 0:
-        #     # Number of rate shifts expected according to a Poisson distribution
-        #     nS = np.random.poisson(self.poi_shifts)
-        #     shift_time_q = np.random.uniform(0, root, nS) # Also works with nS = 0
-        # q = np.random.uniform(np.min(self.range_q), np.max(self.range_q), nS + 1)
-        #
-        # shift_time_q = np.sort(shift_time_q)[::-1]
-        # shift_time_q = np.concatenate((np.array([root]), shift_time_q, np.zeros(1)))
-        q, shift_time_q = self.make_sampling_rate(sp_x)
+        if not self.age_dependent:
+            q, shift_time_q = self.make_sampling_rate(sp_x)
+            fossil_occ, taxa_sampled, alpha = self.get_fossil_occurrences(sp_x, q, shift_time_q, is_alive)
+            shift_time_q = shift_time_q[1:-1]
+        else:
+            alpha = np.array([1000.0])
+            fossil_occ, taxa_sampled  = self.get_age_dependent_fossil_occurrences(sp_x, is_alive)
+            q = self.fixed_q
+            shift_time_q = self.fixed_shift_times
 
-        fossil_occ, taxa_sampled, alpha = self.get_fossil_occurrences(sp_x, q, shift_time_q, is_alive)
         taxon_names = self.get_taxon_names(taxa_sampled)
-        shift_time_q = shift_time_q[1:-1]
 
         d = {'fossil_occurrences': fossil_occ,
              'taxon_names': taxon_names,
              'taxa_sampled': taxa_sampled,
              'q': q,
              'shift_time': shift_time_q,
-             'alpha': alpha}
+             'alpha': alpha,
+             'age_dependent': self.age_dependent}
 
         return d
 
@@ -1768,11 +1828,12 @@ class write_PyRate_files():
         shift_time = np.concatenate(( np.array([time_sampling[0] + 0.01]), sim_fossil['shift_time'], np.zeros(1)))
         n_shifts = len(sim_fossil['shift_time'])
 
-        q_tt = np.zeros(len(time_sampling), dtype = 'float')
-
-        for i in range(n_shifts + 1):
-            qidx = np.logical_and(time_sampling < shift_time[i], time_sampling >= shift_time[i + 1])
-            q_tt[qidx] = q[i]
+        # Until knowing what to do here, we simply bypass calculating age-dependent sampling rates
+        q_tt = np.zeros(len(time_sampling), dtype='float')
+        if not sim_fossil['age_dependent']:
+            for i in range(n_shifts + 1):
+                qidx = np.logical_and(time_sampling < shift_time[i], time_sampling >= shift_time[i + 1])
+                q_tt[qidx] = q[i]
 
         return q_tt[::-1]
 
@@ -1938,7 +1999,8 @@ class write_PyRate_files():
             backscale_cont_traits.to_csv(backscale_file, header = True, sep = '\t', index = True)
 
         if res_bd['cat_traits'].shape[1] > 0:
-            maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
+            # maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
+            maj_cat_traits_taxon = get_majority_cat_trait_per_taxon(res_bd, sim_fossil)
             for y in range(maj_cat_traits_taxon.shape[1]):
                 is_ordinal = self.is_ordinal_trait(res_bd['cat_traits_Q'][y])
                 if is_ordinal:
@@ -2132,7 +2194,21 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges=False, extant_only=False):
     return tree_trimmed, keep_taxa
 
 
+def get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None):
+    cat_traits = res_bd['cat_traits']
+    n_cat_traits = cat_traits.shape[1]
+    n_taxa_sampled = cat_traits.shape[2]
+    taxa_sampled = np.arange(n_taxa_sampled, dtype=int)
+    if not sim_fossil is None:
+        taxa_sampled = sim_fossil['taxa_sampled']
+        n_taxa_sampled = len(taxa_sampled)
+    maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
+    for i in range(n_cat_traits):
+        cat_traits_i = cat_traits[:, i, taxa_sampled]
+        maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]#[0] # Did this change with newer scipy?
+        maj_cat_traits[:,i] = maj_cat_traits_i.astype(int)
 
+    return maj_cat_traits
 
 
 
