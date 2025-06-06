@@ -43,9 +43,9 @@ class bdnn_simulator():
                  rangeL = [0.2, 0.5], # range speciation rate
                  rangeM = [0.2, 0.5], # range extinction rate
                  scale = 100., # root * scale = steps for the simulation
-                 p_mass_extinction = 0.0,
-                 magnitude_mass_ext = [0.0, 0.0],
-                 fixed_times_mass_ext = -1.0, # List of ages with mass extinction events
+                 mass_extinction_prob = 0.0,
+                 mass_extinction_magnitude = [0.0, 0.0],
+                 mass_extinction_times = np.array([-1.0]), # array of ages with mass extinction events, or random
                  poiL = 0, # Number of rate shifts expected according to a Poisson distribution
                  poiM = 0, # Number of rate shifts expected according to a Poisson distribution
                  range_linL = None, # None or a range (e.g. [-0.2, 0.2])
@@ -124,9 +124,9 @@ class bdnn_simulator():
         self.rangeL = rangeL
         self.rangeM = rangeM
         self.scale = scale
-        self.p_mass_extinction = p_mass_extinction
-        self.magnitude_mass_ext = np.sort(magnitude_mass_ext)
-        self.fixed_times_mass_ext = fixed_times_mass_ext
+        self.mass_extinction_prob = mass_extinction_prob
+        self.mass_extinction_magnitude = np.sort(mass_extinction_magnitude)
+        self.mass_extinction_times = mass_extinction_times
         self.poiL = poiL
         self.poiM = poiM
         self.range_linL = range_linL
@@ -268,6 +268,9 @@ class bdnn_simulator():
         lineage_weighted_lambda_tt = np.zeros(np.abs(root))
         lineage_weighted_mu_tt = np.zeros(np.abs(root))
 
+        me_prob = self.mass_extinction_prob / self.scale
+        me_times = self.mass_extinction_times * self.scale
+
         # evolution (from the past to the present)
         exceeded_diversity = False
         for t in range(root, 0):
@@ -299,11 +302,10 @@ class bdnn_simulator():
 
             no = np.random.uniform(0, 1)  # draw a random number
             no_extant_lineages = len(te_extant)  # the number of currently extant species
-            mass_extinction_prob = self.p_mass_extinction/self.scale
-            if (no < mass_extinction_prob and no_extant_lineages > 10) or np.isin(t_abs, self.fixed_times_mass_ext * self.scale):  # mass extinction condition
+            if (no < me_prob and no_extant_lineages > 10) or np.isin(t_abs, me_times):  # mass extinction condition
                 # print("Mass extinction", t_abs / self.scale)
                 # increased loss of species: increased ext probability for this time bin
-                m = np.random.uniform(self.magnitude_mass_ext[0], self.magnitude_mass_ext[1])
+                m = np.random.uniform(self.mass_extinction_magnitude[0], self.mass_extinction_magnitude[1])
                 mass_ext_time.append(t)
                 mass_ext_mag.append(m)
 
@@ -535,8 +537,6 @@ class bdnn_simulator():
 
         L_shifts, linL = self.add_linear_time_effect(L_shifts, self.range_linL, self.fixed_Ltt)
         M_shifts, linM = self.add_linear_time_effect(M_shifts, self.range_linM, self.fixed_Mtt)
-
-        self.fixed_times_mass_ext = np.array(self.fixed_times_mass_ext)
 
         # categorical traits
         n_cat_traits = np.random.choice(np.arange(min(self.n_cat_traits), max(self.n_cat_traits) + 1), 1)
