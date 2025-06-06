@@ -1483,7 +1483,7 @@ class fossil_simulator():
                  q_loguniform=False,
                  alpha_loguniform=False,
                  age_dependent=False,
-                 cat_trait_effect=None,
+                 cat_trait_effect=None, # List of arrays for each categorical trait. If only one list entry, just for the 1st trait.
                  cont_trait_effect=None,
                  seed = 0):
         self.range_q = range_q
@@ -1641,16 +1641,15 @@ class fossil_simulator():
 
 
     def make_cat_trait_multiplier(self, res_bd, upper=np.inf, lower=-np.inf):
-        # cat traits multiplier only working for the first trait, with -1 we make it random
         n_lineages = res_bd['ts_te'].shape[0]
-        self.cat_trait_multiplier = np.repeat(1, n_lineages)
+        self.cat_trait_multiplier = np.ones(n_lineages)
         if not self.cat_trait_effect is None and res_bd['cat_traits'].size > 0:
-            num_states = 1
             cat_traits = get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=upper, lower=lower)
-            cat_traits = cat_traits[:, 0].reshape(-1).astype(int)  # Only first trait
-            num_states = len(np.unique(cat_traits))
-            if num_states > 1:
-                self.cat_trait_multiplier = np.array(self.cat_trait_effect)[cat_traits]
+            num_cat_traits = cat_traits.shape[1]
+            for i in range(num_cat_traits):
+                num_states = len(np.unique(cat_traits[:, i]))
+                if num_states > 1 and len(self.cat_trait_effect) > 1:
+                    self.cat_trait_multiplier *= np.array(self.cat_trait_effect[i])[cat_traits[:, i]]
 
 
     def get_cont_traits_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
@@ -1811,7 +1810,9 @@ class write_PyRate_files():
         maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
         for i in range(n_cat_traits):
             cat_traits_i = cat_traits[:, i, taxa_sampled]
-            maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]#[0] # Did this change with newer scipy?
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=Warning)
+                maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]#[0] # Did this change with newer scipy?
             maj_cat_traits[:, i] = maj_cat_traits_i.astype(int)
 
         return maj_cat_traits
@@ -2032,7 +2033,6 @@ class write_PyRate_files():
             backscale_cont_traits.to_csv(backscale_file, header = True, sep = '\t', index = True)
 
         if res_bd['cat_traits'].shape[1] > 0:
-            # maj_cat_traits_taxon = self.get_majority_cat_trait_per_taxon(sim_fossil, res_bd)
             maj_cat_traits_taxon = get_majority_cat_trait_per_taxon(res_bd, sim_fossil)
             for y in range(maj_cat_traits_taxon.shape[1]):
                 is_ordinal = self.is_ordinal_trait(res_bd['cat_traits_Q'][y])
@@ -2242,9 +2242,11 @@ def get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=np.inf, lowe
     for i in range(n_cat_traits):
         cat_traits_i = cat_traits[:, i, taxa_sampled]
         cat_traits_i = cat_traits_i[trait_idx, :]
-        maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=Warning)
+            maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]
         maj_cat_traits_i[np.isnan(maj_cat_traits_i)] = 0
-        maj_cat_traits[:,i] = maj_cat_traits_i.astype(int)
+        maj_cat_traits[:, i] = maj_cat_traits_i.astype(int)
 
     return maj_cat_traits
 
