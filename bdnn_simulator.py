@@ -1648,7 +1648,7 @@ class fossil_simulator():
             num_cat_traits = cat_traits.shape[1]
             for i in range(num_cat_traits):
                 num_states = len(np.unique(cat_traits[:, i]))
-                if num_states > 1 and len(self.cat_trait_effect) > 1:
+                if num_states > 1 and len(self.cat_trait_effect[i]) > 1:
                     self.cat_trait_multiplier *= np.array(self.cat_trait_effect[i])[cat_traits[:, i]]
 
 
