@@ -44,8 +44,9 @@ class bdnn_simulator():
                  rangeM = [0.2, 0.5], # range extinction rate
                  scale = 100., # root * scale = steps for the simulation
                  mass_extinction_prob = 0.0,
-                 mass_extinction_magnitude = [0.0, 0.0],
-                 mass_extinction_times = np.array([-1.0]), # array of ages with mass extinction events, or random
+                 mass_extinction_magnitude = [0.0], # single value or range
+                 mass_extinction_times = [-1.0], # array of ages with mass extinction events, or random
+                 mass_extinction_trait_dependent = False, # should mass extinction magnitude be trait/env specific?
                  poiL = 0, # Number of rate shifts expected according to a Poisson distribution
                  poiM = 0, # Number of rate shifts expected according to a Poisson distribution
                  range_linL = None, # None or a range (e.g. [-0.2, 0.2])
@@ -126,7 +127,8 @@ class bdnn_simulator():
         self.scale = scale
         self.mass_extinction_prob = mass_extinction_prob
         self.mass_extinction_magnitude = np.sort(mass_extinction_magnitude)
-        self.mass_extinction_times = mass_extinction_times
+        self.mass_extinction_times = np.array(mass_extinction_times)
+        self.mass_extinction_trait_dependent = mass_extinction_trait_dependent
         self.poiL = poiL
         self.poiM = poiM
         self.range_linL = range_linL
@@ -177,7 +179,12 @@ class bdnn_simulator():
         else:
             np.random.seed(self.seed)
 
-    def simulate(self, L, M, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex):
+    def simulate(self, L, M, root, dT,
+                 n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado,
+                 cont_trait_effect_sp, cont_trait_effect_ex, expected_sd_cont_traits,
+                 cont_traits_effect_shift_sp, cont_traits_effect_shift_ex,
+                 n_cat_traits, cat_states, cat_traits_Q, cat_trait_effect,
+                 n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex):
         ts = list()
         te = list()
         nwk = list()
@@ -191,6 +198,9 @@ class bdnn_simulator():
         # Track time of origin/extinction (already in ts and te) and rates per lineage
         lineage_rates = []
 
+        # Track if lineage is a victim of mass extinction
+        lineage_victim_mass_extinction = []
+
         for i in range(self.s_species):
             ts.append(root)
             te.append(-0.0)
@@ -199,6 +209,7 @@ class bdnn_simulator():
             lineage_rates_tmp[:] = np.nan
             lineage_rates_tmp[:5] = np.array([root, -0.0, L[root], M[root], 0.0])
             lineage_rates.append(lineage_rates_tmp)
+            lineage_victim_mass_extinction.append(0)
 
         # init newick string (not working with > 1 self.s_species)
         nwk_str = 'No newick string with more than one starting species'
@@ -302,12 +313,14 @@ class bdnn_simulator():
 
             no = np.random.uniform(0, 1)  # draw a random number
             no_extant_lineages = len(te_extant)  # the number of currently extant species
+            mass_ext = False
             if (no < me_prob and no_extant_lineages > 10) or np.isin(t_abs, me_times):  # mass extinction condition
-                # print("Mass extinction", t_abs / self.scale)
+                mass_ext = True
+                # print("Mass extinction", t_abs / self.scale, mass_ext)
                 # increased loss of species: increased ext probability for this time bin
-                m = np.random.uniform(self.mass_extinction_magnitude[0], self.mass_extinction_magnitude[1])
-                mass_ext_time.append(t)
-                mass_ext_mag.append(m)
+                m_me = np.random.uniform(self.mass_extinction_magnitude[0], self.mass_extinction_magnitude[-1])
+                mass_ext_time.append(t_abs)
+                mass_ext_mag.append(m_me)
 
             # Trait dependent rates for all extant lineages
             lineage_lambda = np.zeros(TE)
@@ -468,6 +481,7 @@ class bdnn_simulator():
 
                     lineage_rates_tmp[:5] = np.array([t, -0.0, l_new, m_new, l_j])
                     lineage_rates.append(lineage_rates_tmp)
+                    lineage_victim_mass_extinction.append(0)
                     # add new species to lineage-specific rates through time
                     lineage_rates_through_time_new_species = self.empty_traits(root_plus_1, 2)
                     lineage_rates_through_time_new_species[t_abs, 0] = l_new
@@ -481,15 +495,26 @@ class bdnn_simulator():
                         nwk.append('T' + str(len(ts) - 1) + ':' + self.format_age_for_newick(0.0))
                         nwk_str = self.add_speciation_to_nwk_str(nwk_str, nwk_j_before, str(len(ts) - 1))
 
+                # mass extinction
+                elif mass_ext:
+                    if self.mass_extinction_trait_dependent:
+                        # TODO: m_j will be a very small value
+                        m_me = m_me * m_j
+                    if ran < m_me:
+                        te[j] = t
+                        lineage_rates[j][1] = t
+                        lineage_victim_mass_extinction[j] = 1
+
                 # extinction
                 elif (ran > l_j and ran < (l_j + m_j) ) or t == -1:
                     if t != -1:
                         te[j] = t
                         lineage_rates[j][1] = t
-                    lineage_rates[j][3] = m_j # Extinction rate at extinction time (or present for extant species)
-                    # print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
-                    if n_cont_traits > 0:
-                        lineage_rates[j][(5 + 2 * n_cont_traits):(5 + 3 * n_cont_traits)] = cont_trait_j
+                    else:
+                        lineage_rates[j][3] = m_j # Extinction rate at extinction time (or present for extant species)
+                        # print('m_j at extinction or present: ', t_abs / self.scale, j, m_j * self.scale)
+                        if n_cont_traits > 0:
+                            lineage_rates[j][(5 + 2 * n_cont_traits):(5 + 3 * n_cont_traits)] = cont_trait_j
 
                 # no speciation or extinction
                 else:
@@ -517,7 +542,7 @@ class bdnn_simulator():
         lineage_rates[:, 3] = lineage_rates[:, 3] * self.scale
         lineage_rates[:, 4] = lineage_rates[:, 4] * self.scale
 
-        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str, exceeded_diversity
+        return -np.array(ts) / self.scale, -np.array(te) / self.scale, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, np.array(lineage_victim_mass_extinction), lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str, exceeded_diversity
 
 
     def get_random_settings(self, root, sp_env_ts, ex_env_ts, verbose):
@@ -1390,7 +1415,7 @@ class bdnn_simulator():
             self.nwk_decimal_digits = len(str(int(self.scale)))
             self.nwk_digits = self.nwk_leading_digits + self.nwk_decimal_digits + 1
 
-            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str, exceeded_diversity = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
+            FAtrue, LOtrue, anc_desc, cont_traits, cat_traits, mass_ext_time, mass_ext_mag, mass_ext_victim, lineage_weighted_lambda_tt, lineage_weighted_mu_tt, lineage_rates, biogeo, areas_comb, lineage_rates_through_time, nwk_str, exceeded_diversity = self.simulate(L_tt, M_tt, root, dT, n_cont_traits, cont_traits_varcov, cont_traits_Theta1, cont_traits_alpha, cont_traits_varcov_clado, cont_traits_effect_sp, cont_traits_effect_ex, expected_sd_cont_traits, cont_traits_effect_shift_sp, cont_traits_effect_shift_ex, n_cat_traits, cat_states, cat_traits_Q, cat_traits_effect, n_areas, dispersal, extirpation, env_eff_sp, env_eff_ex)
             #print('exceeded_diversity', exceeded_diversity)
             prop_cat_traits_ok = self.check_proportion_cat_traits(n_cat_traits, cat_traits)
 
@@ -1411,8 +1436,8 @@ class bdnn_simulator():
         ts_te = np.array([FAtrue, LOtrue]).T
         LTTtrue = self.get_LTT(FAtrue, LOtrue, root)
         true_rates_through_time = self.get_true_rate_through_time(root, L_tt, M_tt, lineage_weighted_lambda_tt, lineage_weighted_mu_tt)
-        mass_ext_time = np.abs(np.array([mass_ext_time])) / self.scale
-        mass_ext_mag = np.array([mass_ext_mag])
+        mass_ext_time = np.abs(np.array(mass_ext_time)) / self.scale
+        mass_ext_mag = np.array(mass_ext_mag)
 
         tree = 'No tree when there is more than one starting species'
         tree_offset = 0.0
@@ -1432,6 +1457,7 @@ class bdnn_simulator():
                   'true_rates_through_time': true_rates_through_time,
                   'mass_ext_time': mass_ext_time,
                   'mass_ext_magnitude': mass_ext_mag,
+                  'mass_ext_victim': mass_ext_victim,
                   'linear_time_lambda': linL,
                   'linear_time_mu': linM,
                   'N_species': len(LOtrue),
