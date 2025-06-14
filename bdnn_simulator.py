@@ -1509,7 +1509,7 @@ class fossil_simulator():
                  q_loguniform=False,
                  alpha_loguniform=False,
                  age_dependent=False,
-                 cat_trait_effect=None, # List of arrays for each categorical trait. If only one list entry, just for the 1st trait.
+                 cat_trait_effect=None, # dict of lists for each categorical trait e.g. for one trait with three states {'1': [0.5, 1.0, 2.0]}. For two traits {'1': [0.5, 1.0, 2.0], '2': [1.0, 1.0, 3.0]}
                  cont_trait_effect=None,
                  seed = 0):
         self.range_q = range_q
@@ -1674,8 +1674,8 @@ class fossil_simulator():
             num_cat_traits = cat_traits.shape[1]
             for i in range(num_cat_traits):
                 num_states = len(np.unique(cat_traits[:, i]))
-                if num_states > 1 and len(self.cat_trait_effect[i]) > 1:
-                    self.cat_trait_multiplier *= np.array(self.cat_trait_effect[i])[cat_traits[:, i]]
+                if num_states > 1 and str(i + 1) in self.cat_trait_effect.keys():
+                    self.cat_trait_multiplier *= np.array(self.cat_trait_effect[str(i + 1)])[cat_traits[:, i]]
 
 
     def get_cont_traits_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
@@ -1705,7 +1705,6 @@ class fossil_simulator():
     def run_simulation(self, res_bd):
         sp_x = res_bd['ts_te']
         is_alive = self.get_is_alive(sp_x)
-        # self.make_cat_trait_multiplier(res_bd, upper=np.inf, lower=-np.inf)
 
         if not self.age_dependent:
             q, shift_time_q = self.make_sampling_rate(sp_x)
