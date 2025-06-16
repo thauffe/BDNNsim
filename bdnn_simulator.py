@@ -1502,15 +1502,16 @@ class bdnn_simulator():
 class fossil_simulator():
     def __init__(self,
                  range_q=[0.5, 5.],
-                 range_alpha =[1000.0, 1000.0],
+                 range_alpha=None, # list of range e.g. [1.0, 5.0],
                  poi_shifts=0,
                  fixed_shift_times=[],
                  fixed_q=[],
                  q_loguniform=False,
                  alpha_loguniform=False,
                  age_dependent=False,
-                 cat_trait_effect=None, # dict of lists for each categorical trait e.g. for one trait with three states {'1': [0.5, 1.0, 2.0]}. For two traits {'1': [0.5, 1.0, 2.0], '2': [1.0, 1.0, 3.0]}
-                 cont_trait_effect=None,
+                 cat_trait_effect=None, # dict of lists for each categorical trait e.g. for first trait with three states {'1': [0.5, 1.0, 2.0]}. For two traits {'1': [0.5, 1.0, 2.0], '2': [1.0, 1.0, 3.0]}
+                 cont_trait_effect=None, # dict of lists for each continuous trait, growth rate, min, and max e.g. for first trait {'1': [2.0, 0.2, 2.0]}. For two traits {'1': [2.0, 0.2, 2.0], '2': [4.5, 0.5, 1.5]}
+                 qtt_res=1, # time resolution for the sampling rate through time
                  seed = 0):
         self.range_q = range_q
         self.range_alpha = range_alpha
@@ -1522,6 +1523,7 @@ class fossil_simulator():
         self.age_dependent = age_dependent
         self.cat_trait_effect = cat_trait_effect
         self.cont_trait_effect = cont_trait_effect
+        self.qtt_res = qtt_res
         if seed:
             np.random.seed(seed)
 
@@ -1542,33 +1544,56 @@ class fossil_simulator():
 
 
     def make_sampling_heterogeneity(self, sp_x):
-        if self.alpha_loguniform:
-            log_range_alpha = np.log(self.range_alpha)
-            log_alpha = np.random.uniform(np.min(log_range_alpha), np.max(log_range_alpha), 1)
-            alpha = np.exp(log_alpha)
+        if self.range_alpha is None:
+            alpha = np.array([-999])
+            h = np.ones(self.n_taxa)
         else:
-            alpha = np.random.uniform(np.min(self.range_alpha), np.max(self.range_alpha), 1)
-        h = np.random.gamma(alpha, 1.0 / alpha, len(sp_x))
+            if self.alpha_loguniform:
+                log_range_alpha = np.log(self.range_alpha)
+                log_alpha = np.random.uniform(np.min(log_range_alpha), np.max(log_range_alpha), 1)
+                alpha = np.exp(log_alpha)
+            else:
+                alpha = np.random.uniform(np.min(self.range_alpha), np.max(self.range_alpha), 1)
+            h = np.random.gamma(alpha, 1.0 / alpha, self.n_taxa)
         return alpha, h
 
 
     def make_sampling_rate(self, sp_x):
-        root = np.max(sp_x)
+        root_age = np.max(sp_x)
+        death_age = np.min(sp_x)
         shift_time_q = self.fixed_shift_times
         nS = len(self.fixed_shift_times)
         if nS == 0:
             # Number of rate shifts expected according to a Poisson distribution
             nS = np.random.poisson(self.poi_shifts)
-            shift_time_q = np.random.uniform(0, root, nS) # Also works with nS = 0
-        if self.q_loguniform:
+            shift_time_q = np.random.uniform(0, root_age, nS) # Also works with nS = 0
+
+        if len(self.fixed_q) > 0:
+            q = np.array(self.fixed_q)
+            if self.q_loguniform:
+                q = np.exp(q)
+        elif self.q_loguniform:
             log_range_q = np.log(self.range_q)
             log_q = np.random.uniform(np.min(log_range_q), np.max(log_range_q), nS + 1)
             q = np.exp(log_q)
         else:
             q = np.random.uniform(np.min(self.range_q), np.max(self.range_q), nS + 1)
 
-        shift_time_q = np.sort(shift_time_q)[::-1]
-        shift_time_q = np.concatenate((np.array([root]), shift_time_q, np.zeros(1)))
+        #shift_time_q = np.sort(shift_time_q)[::-1]
+        shift_time_q_lowres = np.concatenate((np.array(root_age), shift_time_q, np.zeros(1)), axis=None)
+        shift_time_q_lowres = np.sort(shift_time_q_lowres)[::-1]
+        # shift_time_q = shift_time_q[shift_time_q <= root_age]
+        # shift_time_q = shift_time_q[shift_time_q >= death_age]
+        shift_time_q_highres = np.arange(root_age, death_age, -self.qtt_res)
+        shift_time_q = np.concatenate((shift_time_q_lowres, shift_time_q_highres), axis=None)
+        shift_time_q = np.sort(np.unique(shift_time_q))[::-1]
+        d = np.digitize(shift_time_q[1:], shift_time_q_lowres[1:-1], right=False)
+        # print('shift_time_q\n', shift_time_q)
+        # print('shift_time_q_lowres\n', shift_time_q_lowres)
+        # print('d', d)
+        # print('q', q)
+        # print('q[d]', q[d])
+        q = q[d]
 
         return q, shift_time_q
 
@@ -1578,6 +1603,9 @@ class fossil_simulator():
         alpha, sampl_hetero = self.make_sampling_heterogeneity(sp_x)
         n_taxa = len(sp_x)
         occ = [np.array([])] * n_taxa
+
+        qtt_taxa = np.full((self.n_taxa, len(q)), np.nan)
+
         len_q = len(q)
         for i in range(len_q):
             dur, ts, te = self.get_duration(sp_x, upper=shift_time_q[i], lower=shift_time_q[i + 1])
@@ -1586,6 +1614,8 @@ class fossil_simulator():
             self.make_cont_trait_multiplier(res_bd, upper=shift_time_q[i], lower=shift_time_q[i + 1])
             poi_rate_occ = q[i] * self.cat_trait_multiplier * self.cont_trait_multiplier * sampl_hetero * dur
             exp_occ = np.round(np.random.poisson(poi_rate_occ))
+            non_zero_branch_length = dur > 0.0
+            qtt_taxa[non_zero_branch_length, i] = poi_rate_occ[non_zero_branch_length] / dur[non_zero_branch_length]
 
             for y in range(n_taxa):
                 occ_y = np.random.uniform(ts[y], te[y], exp_occ[y])
@@ -1605,9 +1635,19 @@ class fossil_simulator():
             lineages_sampled = np.array(lineages_sampled)
 
         lineages_sampled = lineages_sampled.astype(int)
-        #occ = occ[lineages_sampled] # Cannot slice list with an array
 
-        return occ2, lineages_sampled, alpha
+        qtt = self.harmonic_mean_q_through_time(qtt_taxa)
+        qtt = np.concatenate((qtt, qtt[-1]), axis=None)
+        qtt = np.c_[shift_time_q, qtt]
+        qtt = pd.DataFrame(qtt, columns=['time', 'q'])
+
+        return occ2, lineages_sampled, alpha, qtt
+
+    def harmonic_mean_q_through_time(self, q_rates):
+        qtt = np.full(q_rates.shape[1], np.nan)
+        not_all_nan = np.sum(np.isnan(q_rates), axis=0) < q_rates.shape[0]
+        qtt[not_all_nan] = 1 / np.nanmean(1 / q_rates[:, not_all_nan], axis=0)
+        return qtt
 
 
     def get_age_dependent_fossil_occurrences(self, res_bd, is_alive):
@@ -1615,6 +1655,7 @@ class fossil_simulator():
         Primitiv prototype for age-dependent sampling
         Sampling rate q shifts at relative species age given by shift_time_q
         """
+        qtt = None
         sp_x = res_bd['ts_te']
         n_taxa = len(sp_x)
         occ = [np.array([])] * n_taxa
@@ -1654,7 +1695,7 @@ class fossil_simulator():
         lineages_sampled = np.array(lineages_sampled)
         lineages_sampled = lineages_sampled.astype(int)
 
-        return occ2, lineages_sampled
+        return occ2, lineages_sampled, qtt
 
 
     def get_taxon_names(self, lineages_sampled):
@@ -1667,8 +1708,8 @@ class fossil_simulator():
 
 
     def make_cat_trait_multiplier(self, res_bd, upper=np.inf, lower=-np.inf):
-        n_lineages = res_bd['ts_te'].shape[0]
-        self.cat_trait_multiplier = np.ones(n_lineages)
+        # n_lineages = res_bd['ts_te'].shape[0]
+        self.cat_trait_multiplier = np.ones(self.n_taxa)
         if not self.cat_trait_effect is None and res_bd['cat_traits'].size > 0:
             cat_traits = get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=upper, lower=lower)
             num_cat_traits = cat_traits.shape[1]
@@ -1692,8 +1733,8 @@ class fossil_simulator():
 
 
     def make_cont_trait_multiplier(self, res_bd, upper=np.inf, lower=-np.inf):
-        n_lineages = res_bd['ts_te'].shape[0]
-        self.cont_trait_multiplier = np.ones(n_lineages)
+        # n_lineages = res_bd['ts_te'].shape[0]
+        self.cont_trait_multiplier = np.ones(self.n_taxa)
         if not self.cont_trait_effect is None and res_bd['cont_traits'].size > 0:
             cont_trait = self.get_cont_traits_time_slice(res_bd, upper, lower)
             # sd = np.diag(res_bd['expected_sd_cont_traits'])
@@ -1714,15 +1755,16 @@ class fossil_simulator():
 
     def run_simulation(self, res_bd):
         sp_x = res_bd['ts_te']
+        self.n_taxa = sp_x.shape[0]
         is_alive = self.get_is_alive(sp_x)
 
         if not self.age_dependent:
             q, shift_time_q = self.make_sampling_rate(sp_x)
-            fossil_occ, taxa_sampled, alpha = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
+            fossil_occ, taxa_sampled, alpha, qtt = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
             shift_time_q = shift_time_q[1:-1]
         else:
             alpha = np.array([1000.0])
-            fossil_occ, taxa_sampled  = self.get_age_dependent_fossil_occurrences(res_bd, is_alive)
+            fossil_occ, taxa_sampled, qtt  = self.get_age_dependent_fossil_occurrences(res_bd, is_alive)
             q = self.fixed_q
             shift_time_q = self.fixed_shift_times
 
@@ -1734,6 +1776,7 @@ class fossil_simulator():
              'q': q,
              'shift_time': shift_time_q,
              'alpha': alpha,
+             'qtt': qtt,
              'age_dependent': self.age_dependent}
 
         return d
@@ -1786,6 +1829,11 @@ class write_PyRate_files():
     def write_q_epochs(self, sim_fossil, name_file):
         file_q_epochs = '%s/%s/%s_q_epochs.txt' % (self.output_wd, name_file, name_file)
         np.savetxt(file_q_epochs, np.sort(sim_fossil['shift_time']), delimiter='\t', fmt='%f')
+
+
+    def write_qtt(self, sim_fossil, name_file):
+        file_qtt = '%s/%s/%s_true_qtt.txt' % (self.output_wd, name_file, name_file)
+        sim_fossil['qtt'].to_csv(file_qtt, na_rep='NA', index=False, sep='\t', float_format="%.3f")
 
 
     def write_true_tste(self, res_bd, sim_fossil, name_file):
@@ -2055,6 +2103,8 @@ class write_PyRate_files():
 
         self.write_occurrences(sim_fossil, name_file)
         self.write_q_epochs(sim_fossil, name_file)
+        self.write_sampling_heterogeneity(sim_fossil, name_file)
+        self.write_qtt(sim_fossil, name_file)
 
         traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
 
@@ -2118,7 +2168,7 @@ class write_PyRate_files():
 
         self.write_cont_trait_effects(res_bd, name_file)
 
-        self.write_sampling_heterogeneity(sim_fossil, name_file)
+
 
         return name_file
 
