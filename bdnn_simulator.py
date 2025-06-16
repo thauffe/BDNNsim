@@ -1693,13 +1693,23 @@ class fossil_simulator():
 
     def make_cont_trait_multiplier(self, res_bd, upper=np.inf, lower=-np.inf):
         n_lineages = res_bd['ts_te'].shape[0]
-        self.cont_trait_multiplier = np.repeat(1, n_lineages)
+        self.cont_trait_multiplier = np.ones(n_lineages)
         if not self.cont_trait_effect is None and res_bd['cont_traits'].size > 0:
-            cont_trait = self.get_cont_traits_time_slice(res_bd,
-                                                         upper=shift_time_q[i],
-                                                         lower=shift_time_q[i + 1])
-            expected_sd_cont_traits = np.diag(res_bd['expected_sd_cont_traits'])
-
+            cont_trait = self.get_cont_traits_time_slice(res_bd, upper, lower)
+            # sd = np.diag(res_bd['expected_sd_cont_traits'])
+            sd = np.std(np.nanmean(res_bd['cont_traits'], axis=0), axis=-1)
+            num_cat_traits = len(sd)
+            for i in range(num_cat_traits):
+                if str(i + 1) in self.cont_trait_effect.keys():
+                    k = self.cont_trait_effect[str(i + 1)][0] # growth rate
+                    m = self.cont_trait_effect[str(i + 1)][1] # min of effect
+                    M = self.cont_trait_effect[str(i + 1)][2] # max of effect
+                    x = cont_trait[i, :]
+                    # scale to [-1, 1]; with '3', 99.7% are within [-1, 1]
+                    # don't perform a min max scaling because this would be done for each qshift
+                    # and the sd will be low in the earliest bin
+                    x /= (3 * sd[i])
+                    self.cont_trait_multiplier *= (M - m) / (1 + np.exp(-k * x)) + m
 
 
     def run_simulation(self, res_bd):
