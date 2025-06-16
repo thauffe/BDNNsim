@@ -1579,23 +1579,15 @@ class fossil_simulator():
         else:
             q = np.random.uniform(np.min(self.range_q), np.max(self.range_q), nS + 1)
 
-        #shift_time_q = np.sort(shift_time_q)[::-1]
         shift_time_q_lowres = np.concatenate((np.array(root_age), shift_time_q, np.zeros(1)), axis=None)
         shift_time_q_lowres = np.sort(shift_time_q_lowres)[::-1]
-        # shift_time_q = shift_time_q[shift_time_q <= root_age]
-        # shift_time_q = shift_time_q[shift_time_q >= death_age]
         shift_time_q_highres = np.arange(root_age, death_age, -self.qtt_res)
         shift_time_q = np.concatenate((shift_time_q_lowres, shift_time_q_highres), axis=None)
         shift_time_q = np.sort(np.unique(shift_time_q))[::-1]
         d = np.digitize(shift_time_q[1:], shift_time_q_lowres[1:-1], right=False)
-        # print('shift_time_q\n', shift_time_q)
-        # print('shift_time_q_lowres\n', shift_time_q_lowres)
-        # print('d', d)
-        # print('q', q)
-        # print('q[d]', q[d])
         q = q[d]
 
-        return q, shift_time_q
+        return q, shift_time_q, shift_time_q_lowres
 
 
     def get_fossil_occurrences(self, res_bd, q, shift_time_q, is_alive):
@@ -1759,14 +1751,14 @@ class fossil_simulator():
         is_alive = self.get_is_alive(sp_x)
 
         if not self.age_dependent:
-            q, shift_time_q = self.make_sampling_rate(sp_x)
+            q, shift_time_q, shift_time_q_write = self.make_sampling_rate(sp_x)
             fossil_occ, taxa_sampled, alpha, qtt = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
-            shift_time_q = shift_time_q[1:-1]
+            shift_time_q_write = shift_time_q_write[1:-1]
         else:
             alpha = np.array([1000.0])
             fossil_occ, taxa_sampled, qtt  = self.get_age_dependent_fossil_occurrences(res_bd, is_alive)
             q = self.fixed_q
-            shift_time_q = self.fixed_shift_times
+            shift_time_q_write = self.fixed_shift_times
 
         taxon_names = self.get_taxon_names(taxa_sampled)
 
@@ -1774,7 +1766,7 @@ class fossil_simulator():
              'taxon_names': taxon_names,
              'taxa_sampled': taxa_sampled,
              'q': q,
-             'shift_time': shift_time_q,
+             'shift_time': shift_time_q_write,
              'alpha': alpha,
              'qtt': qtt,
              'age_dependent': self.age_dependent}
