@@ -4,7 +4,9 @@ import os
 from scipy.stats import mode
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
+from scipy.stats import beta as beta_distr
 from scipy.interpolate import interp1d
+from scipy.optimize import minimize_scalar
 from itertools import combinations
 from functools import reduce
 from operator import iconcat
@@ -1508,7 +1510,8 @@ class fossil_simulator():
                  fixed_q=[],
                  q_loguniform=False,
                  alpha_loguniform=False,
-                 age_dependent=False,
+                 age_effect=None, # list with alpha and beta of the beta distribution
+                 age_mass_extinction=None, # list with alpha and beta of the beta distribution
                  cat_trait_effect=None, # dict of lists for each categorical trait e.g. for first trait with three states {'1': [0.5, 1.0, 2.0]}. For two traits {'1': [0.5, 1.0, 2.0], '2': [1.0, 1.0, 3.0]}
                  cont_trait_effect=None, # dict of lists for each continuous trait, growth rate, min, and max e.g. for first trait {'1': [2.0, 0.2, 2.0]}. For two traits {'1': [2.0, 0.2, 2.0], '2': [4.5, 0.5, 1.5]}
                  qtt_res=1, # time resolution for the sampling rate through time
@@ -1520,7 +1523,8 @@ class fossil_simulator():
         self.fixed_q = fixed_q
         self.q_loguniform = q_loguniform
         self.alpha_loguniform = alpha_loguniform
-        self.age_dependent = age_dependent
+        self.age_effect = age_effect
+        self.age_mass_extinction = age_mass_extinction
         self.cat_trait_effect = cat_trait_effect
         self.cont_trait_effect = cont_trait_effect
         self.qtt_res = qtt_res
@@ -1595,16 +1599,22 @@ class fossil_simulator():
         alpha, sampl_hetero = self.make_sampling_heterogeneity(sp_x)
         n_taxa = len(sp_x)
         occ = [np.array([])] * n_taxa
-
         qtt_taxa = np.full((self.n_taxa, len(q)), np.nan)
-
         len_q = len(q)
+        self.make_cont_trait_multiplier(res_bd)
+        self.make_taxon_age_multipliers(res_bd, len_q, shift_time_q)
+
         for i in range(len_q):
             dur, ts, te = self.get_duration(sp_x, upper=shift_time_q[i], lower=shift_time_q[i + 1])
             dur = dur.flatten()
-            self.make_cat_trait_multiplier(res_bd, upper=shift_time_q[i], lower=shift_time_q[i + 1])
-            self.make_cont_trait_multiplier(res_bd, upper=shift_time_q[i], lower=shift_time_q[i + 1])
-            poi_rate_occ = q[i] * self.cat_trait_multiplier * self.cont_trait_multiplier * sampl_hetero * dur
+            cat_trait_multiplier = self.make_cat_trait_multiplier(res_bd,
+                                                                  upper=shift_time_q[i],
+                                                                  lower=shift_time_q[i + 1])
+            cont_trait_multipliers = self.get_cont_traits_multipliers_time_slice(res_bd,
+                                                                                 upper=shift_time_q[i],
+                                                                                 lower=shift_time_q[i + 1])
+            age_multipliers = self.age_multipliers[:, i].reshape(-1)
+            poi_rate_occ = q[i] * cat_trait_multiplier * cont_trait_multipliers * age_multipliers * sampl_hetero * dur
             exp_occ = np.round(np.random.poisson(poi_rate_occ))
             non_zero_branch_length = dur > 0.0
             qtt_taxa[non_zero_branch_length, i] = poi_rate_occ[non_zero_branch_length] / dur[non_zero_branch_length]
@@ -1642,52 +1652,52 @@ class fossil_simulator():
         return qtt
 
 
-    def get_age_dependent_fossil_occurrences(self, res_bd, is_alive):
-        """
-        Primitiv prototype for age-dependent sampling
-        Sampling rate q shifts at relative species age given by shift_time_q
-        """
-        qtt = None
-        sp_x = res_bd['ts_te']
-        n_taxa = len(sp_x)
-        occ = [np.array([])] * n_taxa
-        len_q = len(self.fixed_q)
-        shift_time_q = np.sort(self.fixed_shift_times)
-
-        if len(shift_time_q) - 1 != len_q:
-            print("Number of sampling rates should equal number of bins + 1")
-
-        self.make_cat_trait_multiplier(res_bd)
-        self.make_cont_trait_multiplier(res_bd)
-
-        for i in range(n_taxa):
-            ts = sp_x[i, 0]
-            te = sp_x[i, 1]
-            dur = ts - te
-            for y in range(len_q):
-                rel_dur = shift_time_q[y + 1] - shift_time_q[y]
-                poi_rate_occ = self.fixed_q[y] * self.cat_trait_multiplier[i] * dur * rel_dur
-                exp_occ = np.round(np.random.poisson(poi_rate_occ))
-                start = ts - dur * shift_time_q[y]
-                end = ts - dur * shift_time_q[y + 1]
-                occ_i = np.random.uniform(start, end, exp_occ)
-                present = np.array([])
-                if is_alive[i] and y == (len_q - 1):  # Alive and most recent sampling strata
-                    present = np.zeros(1, dtype='float')
-                occ[i] = np.concatenate((occ[i], occ_i, present))
-
-        lineages_sampled = []
-        occ2 = []
-        for i in range(n_taxa):
-            O = occ[i]
-            O = O[O != 0.0] # Do not count single occurrence at the present
-            if len(O) > 0:
-                lineages_sampled.append(i)
-                occ2.append(occ[i])
-        lineages_sampled = np.array(lineages_sampled)
-        lineages_sampled = lineages_sampled.astype(int)
-
-        return occ2, lineages_sampled, qtt
+    # def get_age_dependent_fossil_occurrences(self, res_bd, is_alive):
+    #     """
+    #     Primitiv prototype for age-dependent sampling
+    #     Sampling rate q shifts at relative species age given by shift_time_q
+    #     """
+    #     qtt = None
+    #     sp_x = res_bd['ts_te']
+    #     n_taxa = len(sp_x)
+    #     occ = [np.array([])] * n_taxa
+    #     len_q = len(self.fixed_q)
+    #     shift_time_q = np.sort(self.fixed_shift_times)
+    #
+    #     if len(shift_time_q) - 1 != len_q:
+    #         print("Number of sampling rates should equal number of bins + 1")
+    #
+    #     self.make_cat_trait_multiplier(res_bd)
+    #     self.make_cont_trait_multiplier(res_bd)
+    #
+    #     for i in range(n_taxa):
+    #         ts = sp_x[i, 0]
+    #         te = sp_x[i, 1]
+    #         dur = ts - te
+    #         for y in range(len_q):
+    #             rel_dur = shift_time_q[y + 1] - shift_time_q[y]
+    #             poi_rate_occ = self.fixed_q[y] * self.cat_trait_multiplier[i] * dur * rel_dur
+    #             exp_occ = np.round(np.random.poisson(poi_rate_occ))
+    #             start = ts - dur * shift_time_q[y]
+    #             end = ts - dur * shift_time_q[y + 1]
+    #             occ_i = np.random.uniform(start, end, exp_occ)
+    #             present = np.array([])
+    #             if is_alive[i] and y == (len_q - 1):  # Alive and most recent sampling strata
+    #                 present = np.zeros(1, dtype='float')
+    #             occ[i] = np.concatenate((occ[i], occ_i, present))
+    #
+    #     lineages_sampled = []
+    #     occ2 = []
+    #     for i in range(n_taxa):
+    #         O = occ[i]
+    #         O = O[O != 0.0] # Do not count single occurrence at the present
+    #         if len(O) > 0:
+    #             lineages_sampled.append(i)
+    #             occ2.append(occ[i])
+    #     lineages_sampled = np.array(lineages_sampled)
+    #     lineages_sampled = lineages_sampled.astype(int)
+    #
+    #     return occ2, lineages_sampled, qtt
 
 
     def get_taxon_names(self, lineages_sampled):
@@ -1700,49 +1710,127 @@ class fossil_simulator():
 
 
     def make_cat_trait_multiplier(self, res_bd, upper=np.inf, lower=-np.inf):
-        # n_lineages = res_bd['ts_te'].shape[0]
-        self.cat_trait_multiplier = np.ones(self.n_taxa)
+        multipliers = np.ones(self.n_taxa)
         if not self.cat_trait_effect is None and res_bd['cat_traits'].size > 0:
             cat_traits = get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=upper, lower=lower)
             num_cat_traits = cat_traits.shape[1]
             for i in range(num_cat_traits):
                 num_states = len(np.unique(cat_traits[:, i]))
                 if num_states > 1 and str(i + 1) in self.cat_trait_effect.keys():
-                    self.cat_trait_multiplier *= np.array(self.cat_trait_effect[str(i + 1)])[cat_traits[:, i]]
+                    multipliers *= np.array(self.cat_trait_effect[str(i + 1)])[cat_traits[:, i]]
+        return multipliers
 
 
-    def get_cont_traits_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
-        cont_traits = res_bd['cont_traits']
+    # def get_cont_traits_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
+    #     cont_traits = res_bd['cont_traits']
+    #     time = res_bd['true_rates_through_time']['time']
+    #     time = np.concatenate((np.inf, time, -np.inf), axis=None)
+    #     trait_idx = np.logical_and(time > lower, time <= upper)
+    #     with warnings.catch_warnings():
+    #         warnings.simplefilter('ignore', category = RuntimeWarning)
+    #         means_cont_traits = np.nanmean(cont_traits[trait_idx, :, :], axis=0)
+    #     means_cont_traits[np.isnan(means_cont_traits)] = 0.0
+    #
+    #     return means_cont_traits
+
+
+    def get_cont_traits_multipliers_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
         time = res_bd['true_rates_through_time']['time']
         time = np.concatenate((np.inf, time, -np.inf), axis=None)
         trait_idx = np.logical_and(time > lower, time <= upper)
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', category = RuntimeWarning)
-            means_cont_traits = np.nanmean(cont_traits[trait_idx, :, :], axis=0)
-        means_cont_traits[np.isnan(means_cont_traits)] = 0.0
+            mean_multiplier = np.nanmean(self.cont_trait_multipliers[trait_idx, :, :], axis=0).reshape(-1)
+        mean_multiplier[np.isnan(mean_multiplier)] = 1.0
 
-        return means_cont_traits
+        return mean_multiplier
 
 
-    def make_cont_trait_multiplier(self, res_bd, upper=np.inf, lower=-np.inf):
-        # n_lineages = res_bd['ts_te'].shape[0]
-        self.cont_trait_multiplier = np.ones(self.n_taxa)
+    def trans_to_mean_1_and_min_max(self, x, m, M, tol=1e-6):
+
+        def get_deviation(alpha):
+            x_pow = x ** alpha
+            #x_scaled = m + (x_pow - np.min(x_pow)) * (M - m) / (np.max(x_pow) - np.min(x_pow))
+            x_scaled = m + x_pow * (M - m)
+            x_final = x_scaled / np.nanmean(x_scaled)
+            err_min = (np.nanmin(x_final) - m) ** 2
+            err_max = (np.nanmax(x_final) - M) ** 2
+            return err_min + err_max
+
+        result = minimize_scalar(get_deviation, bounds=(0.01, 10), method='bounded', options={'xatol': tol})
+        alpha_opt = result.x
+        # Apply transformation with optimal alpha
+        x **= alpha_opt
+        x_scaled = m + (x - np.nanmin(x)) * (M - m) / (np.nanmax(x) - np.nanmin(x))
+        x_scaled /= np.nanmean(x_scaled)
+        return x_scaled
+
+
+    # def make_cont_trait_multiplier(self, res_bd, upper=np.inf, lower=-np.inf):
+    #     # n_lineages = res_bd['ts_te'].shape[0]
+    #     self.cont_trait_multiplier = np.ones(self.n_taxa)
+    #     if not self.cont_trait_effect is None and res_bd['cont_traits'].size > 0:
+    #         cont_trait = self.get_cont_traits_time_slice(res_bd, upper, lower)
+    #         # sd = np.diag(res_bd['expected_sd_cont_traits'])
+    #         sd = np.std(np.nanmean(res_bd['cont_traits'], axis=0), axis=-1)
+    #         num_cat_traits = len(sd)
+    #         for i in range(num_cat_traits):
+    #             if str(i + 1) in self.cont_trait_effect.keys():
+    #                 k = self.cont_trait_effect[str(i + 1)][0] # growth rate
+    #                 m = self.cont_trait_effect[str(i + 1)][1] # min of effect
+    #                 M = self.cont_trait_effect[str(i + 1)][2] # max of effect
+    #                 x = cont_trait[i, :]
+    #                 # scale to [-1, 1]; with '3', 99.7% are within [-1, 1]
+    #                 # don't perform a min max scaling because this would be done for each qshift
+    #                 # and the sd will be low in the earliest bin
+    #                 x /= (3 * sd[i])
+    #                 self.cont_trait_multiplier *= (M - m) / (1 + np.exp(-k * x)) + m
+    #                 y = 1 / (1 + np.exp(-k * x))
+    #                 print('x:', np.mean(x), np.min(x), np.max(x))
+    #                 print('y:', np.mean(y), np.min(y), np.max(y))
+    #                 bla = self.trans_to_mean_1_and_min_max(y, m, M)
+    #                 print('trans y', np.mean(bla), np.min(bla), np.max(bla))
+
+    def make_cont_trait_multiplier(self, res_bd):
+        cont_traits = res_bd['cont_traits']
+        self.cont_trait_multipliers = np.ones_like(cont_traits)
         if not self.cont_trait_effect is None and res_bd['cont_traits'].size > 0:
-            cont_trait = self.get_cont_traits_time_slice(res_bd, upper, lower)
             # sd = np.diag(res_bd['expected_sd_cont_traits'])
-            sd = np.std(np.nanmean(res_bd['cont_traits'], axis=0), axis=-1)
+            sd = np.std(np.nanmean(cont_traits, axis=0), axis=-1)
             num_cat_traits = len(sd)
             for i in range(num_cat_traits):
                 if str(i + 1) in self.cont_trait_effect.keys():
-                    k = self.cont_trait_effect[str(i + 1)][0] # growth rate
-                    m = self.cont_trait_effect[str(i + 1)][1] # min of effect
-                    M = self.cont_trait_effect[str(i + 1)][2] # max of effect
-                    x = cont_trait[i, :]
-                    # scale to [-1, 1]; with '3', 99.7% are within [-1, 1]
-                    # don't perform a min max scaling because this would be done for each qshift
-                    # and the sd will be low in the earliest bin
-                    x /= (3 * sd[i])
-                    self.cont_trait_multiplier *= (M - m) / (1 + np.exp(-k * x)) + m
+                    k = self.cont_trait_effect[str(i + 1)][0]  # growth rate
+                    m = self.cont_trait_effect[str(i + 1)][1]  # min of effect
+                    M = self.cont_trait_effect[str(i + 1)][2]  # max of effect
+                    x = cont_traits[:, i, :] / (3 * sd[i])
+                    multipliers = 1 / (1 + np.exp(-k * x))
+                    # print('x:', np.nanmean(x), np.nanmin(x), np.nanmax(x))
+                    # print('y:', np.nanmean(multipliers), np.nanmin(multipliers), np.nanmax(multipliers))
+                    self.cont_trait_multipliers[:, i, :] = self.trans_to_mean_1_and_min_max(multipliers, m, M)
+                    # print('trans y', np.nanmean(multipliers), np.nanmin(multipliers), np.nanmax(multipliers))
+
+    def make_taxon_age_multipliers(self, res_bd, len_q, shift_time_q):
+        self.age_multipliers = np.ones((self.n_taxa, len_q))
+
+        if not self.age_effect is None:
+            alpha = self.age_effect[0]
+            beta = self.age_effect[1]
+            ts = res_bd['ts_te'][:, 0]
+            te = res_bd['ts_te'][:, 1]
+
+            for i in range(self.n_taxa):
+                taxon_bins = np.unique(np.concatenate((ts[i], shift_time_q, te[i]), axis=None))[::-1]
+                taxon_bins = taxon_bins[taxon_bins <= ts[i]]
+                taxon_bins = taxon_bins[taxon_bins >= te[i]]
+                m_idx = np.digitize(taxon_bins, shift_time_q)
+                # scale [0, 1] for beta distribution
+                taxon_bins = (taxon_bins - np.min(taxon_bins)) / (np.max(taxon_bins) - np.min(taxon_bins))
+
+                for j in range(len(taxon_bins) - 1):
+                    x = np.linspace(taxon_bins[j], taxon_bins[j + 1], 100)
+                    b = beta_distr.pdf(x, alpha, beta)
+                    self.age_multipliers[i, m_idx[j]] = np.mean(b)
 
 
     def run_simulation(self, res_bd):
@@ -1750,16 +1838,9 @@ class fossil_simulator():
         self.n_taxa = sp_x.shape[0]
         is_alive = self.get_is_alive(sp_x)
 
-        if not self.age_dependent:
-            q, shift_time_q, shift_time_q_write = self.make_sampling_rate(sp_x)
-            fossil_occ, taxa_sampled, alpha, qtt = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
-            shift_time_q_write = shift_time_q_write[1:-1]
-        else:
-            alpha = np.array([1000.0])
-            fossil_occ, taxa_sampled, qtt  = self.get_age_dependent_fossil_occurrences(res_bd, is_alive)
-            q = self.fixed_q
-            shift_time_q_write = self.fixed_shift_times
-
+        q, shift_time_q, shift_time_q_write = self.make_sampling_rate(sp_x)
+        fossil_occ, taxa_sampled, alpha, qtt = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
+        shift_time_q_write = shift_time_q_write[1:-1]
         taxon_names = self.get_taxon_names(taxa_sampled)
 
         d = {'fossil_occurrences': fossil_occ,
@@ -1768,8 +1849,7 @@ class fossil_simulator():
              'q': q,
              'shift_time': shift_time_q_write,
              'alpha': alpha,
-             'qtt': qtt,
-             'age_dependent': self.age_dependent}
+             'qtt': qtt}
 
         return d
 
@@ -1939,10 +2019,9 @@ class write_PyRate_files():
 
         # Until knowing what to do here, we simply bypass calculating age-dependent sampling rates
         q_tt = np.zeros(len(time_sampling), dtype='float')
-        if not sim_fossil['age_dependent']:
-            for i in range(n_shifts + 1):
-                qidx = np.logical_and(time_sampling < shift_time[i], time_sampling >= shift_time[i + 1])
-                q_tt[qidx] = q[i]
+        for i in range(n_shifts + 1):
+            qidx = np.logical_and(time_sampling < shift_time[i], time_sampling >= shift_time[i + 1])
+            q_tt[qidx] = q[i]
 
         return q_tt[::-1]
 
