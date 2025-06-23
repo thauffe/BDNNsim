@@ -1591,6 +1591,8 @@ class fossil_simulator():
         d = np.digitize(shift_time_q[1:], shift_time_q_lowres[1:-1], right=False)
         q = q[d]
 
+        self.write_me_trait = False
+
         return q, shift_time_q, shift_time_q_lowres
 
 
@@ -1761,7 +1763,6 @@ class fossil_simulator():
             ts = res_bd['ts_te'][:, 0]
             te = res_bd['ts_te'][:, 1]
 
-            self.write_me_trait = False
             me_vict = res_bd['mass_ext_victim']
             if not self.age_mass_extinction is None and np.any(me_vict == 1):
                 self.write_me_trait = True
