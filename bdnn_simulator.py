@@ -1637,67 +1637,21 @@ class fossil_simulator():
             lineages_sampled = np.array(lineages_sampled)
 
         lineages_sampled = lineages_sampled.astype(int)
+        qtt_taxa = qtt_taxa[lineages_sampled, :]
 
-        qtt = self.harmonic_mean_q_through_time(qtt_taxa)
+        return occ2, lineages_sampled, alpha, qtt_taxa
+
+
+    def harmonic_mean_q_through_time(self, q_rates, shift_time_q):
+        qtt = np.full(q_rates.shape[1], np.nan)
+        not_all_nan = np.sum(np.isnan(q_rates), axis=0) < q_rates.shape[0]
+        qtt[not_all_nan] = 1 / np.nanmean(1 / q_rates[:, not_all_nan], axis=0)
+
         qtt = np.concatenate((qtt, qtt[-1]), axis=None)
         qtt = np.c_[shift_time_q, qtt]
         qtt = pd.DataFrame(qtt, columns=['time', 'q'])
 
-        return occ2, lineages_sampled, alpha, qtt
-
-    def harmonic_mean_q_through_time(self, q_rates):
-        qtt = np.full(q_rates.shape[1], np.nan)
-        not_all_nan = np.sum(np.isnan(q_rates), axis=0) < q_rates.shape[0]
-        qtt[not_all_nan] = 1 / np.nanmean(1 / q_rates[:, not_all_nan], axis=0)
         return qtt
-
-
-    # def get_age_dependent_fossil_occurrences(self, res_bd, is_alive):
-    #     """
-    #     Primitiv prototype for age-dependent sampling
-    #     Sampling rate q shifts at relative species age given by shift_time_q
-    #     """
-    #     qtt = None
-    #     sp_x = res_bd['ts_te']
-    #     n_taxa = len(sp_x)
-    #     occ = [np.array([])] * n_taxa
-    #     len_q = len(self.fixed_q)
-    #     shift_time_q = np.sort(self.fixed_shift_times)
-    #
-    #     if len(shift_time_q) - 1 != len_q:
-    #         print("Number of sampling rates should equal number of bins + 1")
-    #
-    #     self.make_cat_trait_multiplier(res_bd)
-    #     self.make_cont_trait_multiplier(res_bd)
-    #
-    #     for i in range(n_taxa):
-    #         ts = sp_x[i, 0]
-    #         te = sp_x[i, 1]
-    #         dur = ts - te
-    #         for y in range(len_q):
-    #             rel_dur = shift_time_q[y + 1] - shift_time_q[y]
-    #             poi_rate_occ = self.fixed_q[y] * self.cat_trait_multiplier[i] * dur * rel_dur
-    #             exp_occ = np.round(np.random.poisson(poi_rate_occ))
-    #             start = ts - dur * shift_time_q[y]
-    #             end = ts - dur * shift_time_q[y + 1]
-    #             occ_i = np.random.uniform(start, end, exp_occ)
-    #             present = np.array([])
-    #             if is_alive[i] and y == (len_q - 1):  # Alive and most recent sampling strata
-    #                 present = np.zeros(1, dtype='float')
-    #             occ[i] = np.concatenate((occ[i], occ_i, present))
-    #
-    #     lineages_sampled = []
-    #     occ2 = []
-    #     for i in range(n_taxa):
-    #         O = occ[i]
-    #         O = O[O != 0.0] # Do not count single occurrence at the present
-    #         if len(O) > 0:
-    #             lineages_sampled.append(i)
-    #             occ2.append(occ[i])
-    #     lineages_sampled = np.array(lineages_sampled)
-    #     lineages_sampled = lineages_sampled.astype(int)
-    #
-    #     return occ2, lineages_sampled, qtt
 
 
     def get_taxon_names(self, lineages_sampled):
@@ -1719,19 +1673,6 @@ class fossil_simulator():
                 if num_states > 1 and str(i + 1) in self.cat_trait_effect.keys():
                     multipliers *= np.array(self.cat_trait_effect[str(i + 1)])[cat_traits[:, i]]
         return multipliers
-
-
-    # def get_cont_traits_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
-    #     cont_traits = res_bd['cont_traits']
-    #     time = res_bd['true_rates_through_time']['time']
-    #     time = np.concatenate((np.inf, time, -np.inf), axis=None)
-    #     trait_idx = np.logical_and(time > lower, time <= upper)
-    #     with warnings.catch_warnings():
-    #         warnings.simplefilter('ignore', category = RuntimeWarning)
-    #         means_cont_traits = np.nanmean(cont_traits[trait_idx, :, :], axis=0)
-    #     means_cont_traits[np.isnan(means_cont_traits)] = 0.0
-    #
-    #     return means_cont_traits
 
 
     def get_cont_traits_multipliers_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
@@ -1810,6 +1751,7 @@ class fossil_simulator():
                     self.cont_trait_multipliers[:, i, :] = self.trans_to_mean_1_and_min_max(multipliers, m, M)
                     # print('trans y', np.nanmean(multipliers), np.nanmin(multipliers), np.nanmax(multipliers))
 
+
     def make_taxon_age_multipliers(self, res_bd, len_q, shift_time_q):
         self.age_multipliers = np.ones((self.n_taxa, len_q))
 
@@ -1819,18 +1761,36 @@ class fossil_simulator():
             ts = res_bd['ts_te'][:, 0]
             te = res_bd['ts_te'][:, 1]
 
+            self.write_me_trait = False
+            me_vict = res_bd['mass_ext_victim']
+            if not self.age_mass_extinction is None and np.any(me_vict == 1):
+                self.write_me_trait = True
+
             for i in range(self.n_taxa):
                 taxon_bins = np.unique(np.concatenate((ts[i], shift_time_q, te[i]), axis=None))[::-1]
                 taxon_bins = taxon_bins[taxon_bins <= ts[i]]
                 taxon_bins = taxon_bins[taxon_bins >= te[i]]
-                m_idx = np.digitize(taxon_bins, shift_time_q)
-                # scale [0, 1] for beta distribution
-                taxon_bins = (taxon_bins - np.min(taxon_bins)) / (np.max(taxon_bins) - np.min(taxon_bins))
 
-                for j in range(len(taxon_bins) - 1):
-                    x = np.linspace(taxon_bins[j], taxon_bins[j + 1], 100)
-                    b = beta_distr.pdf(x, alpha, beta)
-                    self.age_multipliers[i, m_idx[j]] = np.mean(b)
+                ts_equals_shift = np.isin(ts[i], shift_time_q) and ts[i] < shift_time_q[0]
+                if ts_equals_shift:
+                    taxon_bins = np.concatenate((taxon_bins[0] + self.qtt_res / 100.0, taxon_bins), axis=None)
+                m_idx = np.digitize(taxon_bins, shift_time_q[1:])
+
+                not_dupl = np.unique(m_idx, return_index=True)[1]
+                m_idx = m_idx[not_dupl]
+
+                # scale [0, 1] for beta distribution
+                if len(m_idx) > 1:
+                    M_bin = np.max(taxon_bins)
+                    m_bin = np.min(taxon_bins)
+                    taxon_bins = (taxon_bins - m_bin) / (M_bin - m_bin)
+
+                    for j in range(len(taxon_bins) - 1):
+                        x = np.linspace(taxon_bins[j], taxon_bins[j + 1], 100)
+                        b = beta_distr.pdf(x, alpha, beta)
+                        if not self.age_mass_extinction is None and me_vict[i] == 1:
+                            b = beta_distr.pdf(x, self.age_mass_extinction[0], self.age_mass_extinction[1])
+                        self.age_multipliers[i, m_idx[j]] = np.mean(b)
 
 
     def run_simulation(self, res_bd):
@@ -1839,9 +1799,12 @@ class fossil_simulator():
         is_alive = self.get_is_alive(sp_x)
 
         q, shift_time_q, shift_time_q_write = self.make_sampling_rate(sp_x)
-        fossil_occ, taxa_sampled, alpha, qtt = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
-        shift_time_q_write = shift_time_q_write[1:-1]
+        fossil_occ, taxa_sampled, alpha, qtt_taxa = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
+
         taxon_names = self.get_taxon_names(taxa_sampled)
+        qtt = self.harmonic_mean_q_through_time(qtt_taxa, shift_time_q)
+        shift_time_q_write = shift_time_q_write[1:-1]
+        qtt_taxa = pd.DataFrame(qtt_taxa, columns=shift_time_q[1:].tolist(), index=taxon_names)
 
         d = {'fossil_occurrences': fossil_occ,
              'taxon_names': taxon_names,
@@ -1849,7 +1812,9 @@ class fossil_simulator():
              'q': q,
              'shift_time': shift_time_q_write,
              'alpha': alpha,
-             'qtt': qtt}
+             'qtt': qtt,
+             'qtt_taxa': qtt_taxa,
+             'write_me_trait': self.write_me_trait}
 
         return d
 
@@ -1906,6 +1871,11 @@ class write_PyRate_files():
     def write_qtt(self, sim_fossil, name_file):
         file_qtt = '%s/%s/%s_true_qtt.txt' % (self.output_wd, name_file, name_file)
         sim_fossil['qtt'].to_csv(file_qtt, na_rep='NA', index=False, sep='\t', float_format="%.3f")
+
+
+    def write_qtt_per_taxon(self, sim_fossil, name_file):
+        file_qtt = '%s/%s/%s_true_qtt_per_taxon.txt' % (self.output_wd, name_file, name_file)
+        sim_fossil['qtt_taxa'].to_csv(file_qtt, na_rep='NA', index=True, sep='\t', float_format="%.3f")
 
 
     def write_true_tste(self, res_bd, sim_fossil, name_file):
@@ -2176,6 +2146,7 @@ class write_PyRate_files():
         self.write_q_epochs(sim_fossil, name_file)
         self.write_sampling_heterogeneity(sim_fossil, name_file)
         self.write_qtt(sim_fossil, name_file)
+        self.write_qtt_per_taxon(sim_fossil, name_file)
 
         traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
 
@@ -2198,6 +2169,10 @@ class write_PyRate_files():
                     cat_traits_taxon_one_hot, names_one_hot = self.make_one_hot_encoding(maj_cat_traits_taxon[:,y])
                     for i in range(cat_traits_taxon_one_hot.shape[1]):
                         traits['cat_trait_%s_%s' % (y, names_one_hot[i])] = cat_traits_taxon_one_hot[:, i]
+
+        if sim_fossil['write_me_trait']:
+            traits['me_victim'] = res_bd['mass_ext_victim'][sim_fossil['taxa_sampled']]
+
         if write_tree or num_pvr > 0:
             tree_trimmed_by_lad, _ = trim_tree_by_lad(res_bd, sim_fossil)
             if write_tree:
