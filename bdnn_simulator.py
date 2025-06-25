@@ -1758,8 +1758,6 @@ class fossil_simulator():
         self.age_multipliers = np.ones((self.n_taxa, len_q))
 
         if not self.age_effect is None:
-            alpha = self.age_effect[0]
-            beta = self.age_effect[1]
             ts = res_bd['ts_te'][:, 0]
             te = res_bd['ts_te'][:, 1]
 
@@ -1788,9 +1786,10 @@ class fossil_simulator():
 
                     for j in range(len(taxon_bins) - 1):
                         x = np.linspace(taxon_bins[j], taxon_bins[j + 1], 100)
-                        b = beta_distr.pdf(x, alpha, beta)
+                        # Why do I need to swap alpha and beta?
+                        b = beta_distr.pdf(x, self.age_effect[1], self.age_effect[0])
                         if not self.age_mass_extinction is None and me_vict[i] == 1:
-                            b = beta_distr.pdf(x, self.age_mass_extinction[0], self.age_mass_extinction[1])
+                            b = beta_distr.pdf(x, self.age_mass_extinction[1], self.age_mass_extinction[0])
                         self.age_multipliers[i, m_idx[j]] = np.mean(b)
 
 
