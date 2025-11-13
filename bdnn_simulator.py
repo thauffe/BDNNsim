@@ -1610,11 +1610,11 @@ class fossil_simulator():
             dur, ts, te = self.get_duration(sp_x, upper=shift_time_q[i], lower=shift_time_q[i + 1])
             dur = dur.flatten()
             cat_trait_multiplier = self.make_cat_trait_multiplier(res_bd,
-                                                                  upper=shift_time_q[i],
-                                                                  lower=shift_time_q[i + 1])
+                                                                  upper=shift_time_q[i + 1],
+                                                                  lower=shift_time_q[i])
             cont_trait_multipliers = self.get_cont_traits_multipliers_time_slice(res_bd,
-                                                                                 upper=shift_time_q[i],
-                                                                                 lower=shift_time_q[i + 1])
+                                                                                 upper=shift_time_q[i + 1],
+                                                                                 lower=shift_time_q[i])
             age_multipliers = self.age_multipliers[:, i].reshape(-1)
             poi_rate_occ = q[i] * cat_trait_multiplier * cont_trait_multipliers * age_multipliers * sampl_hetero * dur
             exp_occ = np.round(np.random.poisson(poi_rate_occ))
@@ -1671,16 +1671,16 @@ class fossil_simulator():
             cat_traits = get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=upper, lower=lower)
             num_cat_traits = cat_traits.shape[1]
             for i in range(num_cat_traits):
-                num_states = len(np.unique(cat_traits[:, i]))
-                if num_states > 1 and str(i + 1) in self.cat_trait_effect.keys():
+                if str(i + 1) in self.cat_trait_effect.keys():
                     multipliers *= np.array(self.cat_trait_effect[str(i + 1)])[cat_traits[:, i]]
         return multipliers
 
 
-    def get_cont_traits_multipliers_time_slice(self, res_bd, upper=np.inf, lower=-np.inf):
+    def get_cont_traits_multipliers_time_slice(self, res_bd, upper=-np.inf, lower=np.inf):
         time = res_bd['true_rates_through_time']['time']
-        time = np.concatenate((np.inf, time, -np.inf), axis=None)
-        trait_idx = np.logical_and(time > lower, time <= upper)
+        # larger time value: more distant past; negative value: future
+        time = np.concatenate((-np.inf, time, np.inf), axis=None)
+        trait_idx = np.logical_and(time < lower, time >= upper)
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', category = RuntimeWarning)
             mean_multiplier = np.nanmean(self.cont_trait_multipliers[trait_idx, :, :], axis=0).reshape(-1)
@@ -1927,20 +1927,20 @@ class write_PyRate_files():
         return cont_traits, mean_sd
 
 
-    def get_majority_cat_trait_per_taxon(self, sim_fossil, res_bd):
-        cat_traits = res_bd['cat_traits']
-        n_cat_traits = cat_traits.shape[1]
-        taxa_sampled = sim_fossil['taxa_sampled']
-        n_taxa_sampled = len(taxa_sampled)
-        maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
-        for i in range(n_cat_traits):
-            cat_traits_i = cat_traits[:, i, taxa_sampled]
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category=Warning)
-                maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]#[0] # Did this change with newer scipy?
-            maj_cat_traits[:, i] = maj_cat_traits_i.astype(int)
-
-        return maj_cat_traits
+    # def get_majority_cat_trait_per_taxon(self, sim_fossil, res_bd):
+    #     cat_traits = res_bd['cat_traits']
+    #     n_cat_traits = cat_traits.shape[1]
+    #     taxa_sampled = sim_fossil['taxa_sampled']
+    #     n_taxa_sampled = len(taxa_sampled)
+    #     maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
+    #     for i in range(n_cat_traits):
+    #         cat_traits_i = cat_traits[:, i, taxa_sampled]
+    #         with warnings.catch_warnings():
+    #             warnings.simplefilter('ignore', category=Warning)
+    #             maj_cat_traits_i = mode(cat_traits_i, nan_policy='omit')[0]#[0] # Did this change with newer scipy?
+    #         maj_cat_traits[:, i] = maj_cat_traits_i.astype(int)
+    #
+    #     return maj_cat_traits
 
 
     def is_ordinal_trait(self, Q):
@@ -2358,7 +2358,7 @@ def trim_tree_by_lad(res_bd, fossils, trim_edges=False, extant_only=False):
     return tree_trimmed, keep_taxa
 
 
-def get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=np.inf, lower=-np.inf):
+def get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=-np.inf, lower=np.inf):
     cat_traits = res_bd['cat_traits']
     n_cat_traits = cat_traits.shape[1]
     n_taxa_sampled = cat_traits.shape[2]
@@ -2367,9 +2367,10 @@ def get_majority_cat_trait_per_taxon(res_bd, sim_fossil=None, upper=np.inf, lowe
         taxa_sampled = sim_fossil['taxa_sampled']
         n_taxa_sampled = len(taxa_sampled)
     maj_cat_traits = np.zeros(n_taxa_sampled * n_cat_traits, dtype = int).reshape((n_taxa_sampled, n_cat_traits))
+    # larger time value: more distant past; negative value: future
     time = res_bd['true_rates_through_time']['time']
-    time = np.concatenate((np.inf, time, -np.inf), axis=None)
-    trait_idx = np.logical_and(time > lower, time <= upper)
+    time = np.concatenate((-np.inf, time, np.inf), axis=None)
+    trait_idx = np.logical_and(time < lower, time >= upper)
     for i in range(n_cat_traits):
         cat_traits_i = cat_traits[:, i, taxa_sampled]
         cat_traits_i = cat_traits_i[trait_idx, :]
