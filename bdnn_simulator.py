@@ -1628,15 +1628,15 @@ class fossil_simulator():
                     present = np.zeros(1, dtype='float')
                 occ[y] = np.concatenate((occ[y], occ_y, present))
 
-            lineages_sampled = []
-            occ2 = []
-            for i in range(n_taxa):
-                O = occ[i]
-                O = O[O != 0.0] # Do not count single occurrence at the present
-                if len(O) > 0:
-                    lineages_sampled.append(i)
-                    occ2.append(occ[i])
-            lineages_sampled = np.array(lineages_sampled)
+        lineages_sampled = []
+        occ2 = []
+        for i in range(n_taxa):
+            O = occ[i]
+            O = O[O != 0.0] # Do not count single occurrence at the present
+            if len(O) > 0:
+                lineages_sampled.append(i)
+                occ2.append(occ[i])
+        lineages_sampled = np.array(lineages_sampled)
 
         lineages_sampled = lineages_sampled.astype(int)
         qtt_taxa = qtt_taxa[lineages_sampled, :]
