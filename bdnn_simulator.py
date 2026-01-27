@@ -1511,10 +1511,12 @@ class fossil_simulator():
                  q_loguniform=False,
                  alpha_loguniform=False,
                  age_effect=None, # list with alpha and beta of the beta distribution
-                 age_mass_extinction=None, # list with alpha and beta of the beta distribution
+                 age_effect_mass_extinction=None, # list with alpha and beta of the beta distribution
                  cat_trait_effect=None, # dict of lists for each categorical trait e.g. for first trait with three states {'1': [0.5, 1.0, 2.0]}. For two traits {'1': [0.5, 1.0, 2.0], '2': [1.0, 1.0, 3.0]}
                  cont_trait_effect=None, # dict of lists for each continuous trait, growth rate, min, and max e.g. for first trait {'1': [2.0, 0.2, 2.0]}. For two traits {'1': [2.0, 0.2, 2.0], '2': [4.5, 0.5, 1.5]}
-                 qtt_res=1, # time resolution for the sampling rate through time
+                 paleoenv=None,
+                 paleoenv_effect=None,
+                 qtt_res=1,  # time resolution for the sampling rate through time
                  seed = 0):
         self.range_q = range_q
         self.range_alpha = range_alpha
@@ -1524,9 +1526,11 @@ class fossil_simulator():
         self.q_loguniform = q_loguniform
         self.alpha_loguniform = alpha_loguniform
         self.age_effect = age_effect
-        self.age_mass_extinction = age_mass_extinction
+        self.age_effect_mass_extinction = age_effect_mass_extinction
         self.cat_trait_effect = cat_trait_effect
         self.cont_trait_effect = cont_trait_effect
+        self.paleoenv = paleoenv
+        self.paleoenv_effect = paleoenv_effect
         self.qtt_res = qtt_res
         if seed:
             np.random.seed(seed)
@@ -1585,7 +1589,9 @@ class fossil_simulator():
 
         shift_time_q_lowres = np.concatenate((np.array(root_age), shift_time_q, np.zeros(1)), axis=None)
         shift_time_q_lowres = np.sort(shift_time_q_lowres)[::-1]
-        shift_time_q_highres = np.arange(root_age, death_age, -self.qtt_res)
+        shift_time_q_highres = np.arange(0.0, np.ceil(root_age), self.qtt_res)[::-1]
+        shift_time_q_highres = shift_time_q_highres[shift_time_q_highres <= root_age]
+        shift_time_q_highres = shift_time_q_highres[shift_time_q_highres >= death_age]
         shift_time_q = np.concatenate((shift_time_q_lowres, shift_time_q_highres), axis=None)
         shift_time_q = np.sort(np.unique(shift_time_q))[::-1]
         d = np.digitize(shift_time_q[1:], shift_time_q_lowres[1:-1], right=False)
@@ -1602,9 +1608,11 @@ class fossil_simulator():
         n_taxa = len(sp_x)
         occ = [np.array([])] * n_taxa
         qtt_taxa = np.full((self.n_taxa, len(q)), np.nan)
+        qmtt_taxa = np.full((self.n_taxa, len(q)), np.nan)
         len_q = len(q)
         self.make_cont_trait_multiplier(res_bd)
         self.make_taxon_age_multipliers(res_bd, len_q, shift_time_q)
+        self.make_paleoenv_multipliers(shift_time_q)
 
         for i in range(len_q):
             dur, ts, te = self.get_duration(sp_x, upper=shift_time_q[i], lower=shift_time_q[i + 1])
@@ -1616,10 +1624,13 @@ class fossil_simulator():
                                                                                  upper=shift_time_q[i + 1],
                                                                                  lower=shift_time_q[i])
             age_multipliers = self.age_multipliers[:, i].reshape(-1)
-            poi_rate_occ = q[i] * cat_trait_multiplier * cont_trait_multipliers * age_multipliers * sampl_hetero * dur
+            paleo_multipliers = self.paleoenv_multipliers[i]
+            q_multipliers = cat_trait_multiplier * cont_trait_multipliers * age_multipliers * paleo_multipliers
+            poi_rate_occ = q[i] * q_multipliers * sampl_hetero * dur
             exp_occ = np.round(np.random.poisson(poi_rate_occ))
             non_zero_branch_length = dur > 0.0
             qtt_taxa[non_zero_branch_length, i] = poi_rate_occ[non_zero_branch_length] / dur[non_zero_branch_length]
+            qmtt_taxa[non_zero_branch_length, i] = q_multipliers[non_zero_branch_length]
 
             for y in range(n_taxa):
                 occ_y = np.random.uniform(ts[y], te[y], exp_occ[y])
@@ -1640,8 +1651,9 @@ class fossil_simulator():
 
         lineages_sampled = lineages_sampled.astype(int)
         qtt_taxa = qtt_taxa[lineages_sampled, :]
+        qmtt_taxa = qmtt_taxa[lineages_sampled, :]
 
-        return occ2, lineages_sampled, alpha, qtt_taxa
+        return occ2, lineages_sampled, alpha, qtt_taxa, qmtt_taxa
 
 
     def harmonic_mean_q_through_time(self, q_rates, shift_time_q):
@@ -1762,7 +1774,7 @@ class fossil_simulator():
             te = res_bd['ts_te'][:, 1]
 
             me_vict = res_bd['mass_ext_victim']
-            if not self.age_mass_extinction is None and np.any(me_vict == 1):
+            if not self.age_effect_mass_extinction is None and np.any(me_vict == 1):
                 self.write_me_trait = True
 
             for i in range(self.n_taxa):
@@ -1788,9 +1800,39 @@ class fossil_simulator():
                         x = np.linspace(taxon_bins[j], taxon_bins[j + 1], 100)
                         # Why do I need to swap alpha and beta?
                         b = beta_distr.pdf(x, self.age_effect[1], self.age_effect[0])
-                        if not self.age_mass_extinction is None and me_vict[i] == 1:
-                            b = beta_distr.pdf(x, self.age_mass_extinction[1], self.age_mass_extinction[0])
+                        if not self.age_effect_mass_extinction is None and me_vict[i] == 1:
+                            b = beta_distr.pdf(x, self.age_effect_mass_extinction[1], self.age_effect_mass_extinction[0])
                         self.age_multipliers[i, m_idx[j]] = np.mean(b)
+
+
+    def bin_env(self, shift_time_q):
+        self.binned_env = np.zeros(len(shift_time_q) - 1)
+        self.paleoenv = self.paleoenv[np.argsort(self.paleoenv[:, 0]), :]
+        temp_res_q = np.min(np.diff(shift_time_q[::-1]))
+        if temp_res_q <= np.min(np.diff(self.paleoenv[:, 0])):
+            # subsample when temporal resolution of qShifts is smaller than of paleoenv
+            highres_time_paleoenv = np.sort(np.unique(np.concatenate((np.arange(0, np.max(self.paleoenv[:, 0]), temp_res_q), self.paleoenv[:, 0]), axis=None)))[
+                ::-1]
+            rep_ind = np.searchsorted(self.paleoenv[:, 0], highres_time_paleoenv, side='right') - 1
+            rep_ind = rep_ind[::-1]
+            self.paleoenv = self.paleoenv[rep_ind, :]
+            self.paleoenv[:, 0] = highres_time_paleoenv[::-1]
+        for i in range(len(shift_time_q) - 1):
+            idx = np.logical_and(self.paleoenv[:, 0] < shift_time_q[i], self.paleoenv[:, 0] >= shift_time_q[i + 1])
+            self.binned_env[i] = np.mean(self.paleoenv[idx, 1])
+
+
+    def make_paleoenv_multipliers(self, shift_time_q):
+        self.paleoenv_multipliers = np.ones(len(shift_time_q) - 1)
+        if not self.paleoenv_effect is None:
+            self.bin_env(shift_time_q)
+            sd = np.std(self.binned_env)
+            k = self.paleoenv_effect[0]  # growth rate
+            m = self.paleoenv_effect[1]  # min of effect
+            M = self.paleoenv_effect[2]  # max of effect
+            x = self.binned_env / (3 * sd)
+            multipliers = 1 / (1 + np.exp(-k * x))
+            self.paleoenv_multipliers = self.trans_to_mean_1_and_min_max(multipliers, m, M)
 
 
     def run_simulation(self, res_bd):
@@ -1799,12 +1841,13 @@ class fossil_simulator():
         is_alive = self.get_is_alive(sp_x)
 
         q, shift_time_q, shift_time_q_write = self.make_sampling_rate(sp_x)
-        fossil_occ, taxa_sampled, alpha, qtt_taxa = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
+        fossil_occ, taxa_sampled, alpha, qtt_taxa, qmtt_taxa = self.get_fossil_occurrences(res_bd, q, shift_time_q, is_alive)
 
         taxon_names = self.get_taxon_names(taxa_sampled)
         qtt = self.harmonic_mean_q_through_time(qtt_taxa, shift_time_q)
         shift_time_q_write = shift_time_q_write[1:-1]
         qtt_taxa = pd.DataFrame(qtt_taxa, columns=shift_time_q[1:].tolist(), index=taxon_names)
+        qmtt_taxa = pd.DataFrame(qmtt_taxa, columns=shift_time_q[1:].tolist(), index=taxon_names)
 
         d = {'fossil_occurrences': fossil_occ,
              'taxon_names': taxon_names,
@@ -1814,6 +1857,7 @@ class fossil_simulator():
              'alpha': alpha,
              'qtt': qtt,
              'qtt_taxa': qtt_taxa,
+             'qmultitt_taxa': qmtt_taxa,
              'write_me_trait': self.write_me_trait}
 
         return d
@@ -1876,6 +1920,11 @@ class write_PyRate_files():
     def write_qtt_per_taxon(self, sim_fossil, name_file):
         file_qtt = '%s/%s/%s_true_qtt_per_taxon.txt' % (self.output_wd, name_file, name_file)
         sim_fossil['qtt_taxa'].to_csv(file_qtt, na_rep='NA', index=True, sep='\t', float_format="%.3f")
+
+
+    def write_qmtt_per_taxon(self, sim_fossil, name_file):
+        file_qmtt = '%s/%s/%s_true_qmutlitt_per_taxon.txt' % (self.output_wd, name_file, name_file)
+        sim_fossil['qmultitt_taxa'].to_csv(file_qmtt, na_rep='NA', index=True, sep='\t', float_format="%.3f")
 
 
     def write_true_tste(self, res_bd, sim_fossil, name_file):
@@ -2124,7 +2173,7 @@ class write_PyRate_files():
         np.savetxt(alpha_name, sim_fossil['alpha'], delimiter='\t', fmt='%f')
 
 
-    def run_writter(self, sim_fossil, res_bd, num_pvr=0, write_tree=False):
+    def run_writter(self, sim_fossil, res_bd, num_pvr=0, write_tree=False, write_taxon_q=False):
         # Create a directory for the output
         try:
             os.mkdir(self.output_wd)
@@ -2146,7 +2195,9 @@ class write_PyRate_files():
         self.write_q_epochs(sim_fossil, name_file)
         self.write_sampling_heterogeneity(sim_fossil, name_file)
         self.write_qtt(sim_fossil, name_file)
-        self.write_qtt_per_taxon(sim_fossil, name_file)
+        if write_taxon_q:
+            self.write_qtt_per_taxon(sim_fossil, name_file)
+            self.write_qmtt_per_taxon(sim_fossil, name_file)
 
         traits = pd.DataFrame(data = sim_fossil['taxon_names'], columns = ['scientificName'])
 
