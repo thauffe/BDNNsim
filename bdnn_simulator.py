@@ -1633,7 +1633,10 @@ class fossil_simulator():
             qmtt_taxa[non_zero_branch_length, i] = q_multipliers[non_zero_branch_length]
 
             for y in range(n_taxa):
-                occ_y = np.random.uniform(ts[y], te[y], exp_occ[y])
+                if exp_occ[y] != 0:
+                    occ_y = np.random.uniform(te[y], ts[y], exp_occ[y])
+                else:
+                    occ_y = np.array([])
                 present = np.array([])
                 if is_alive[y] and i == (len_q - 1): # Alive and most recent sampling strata
                     present = np.zeros(1, dtype='float')
