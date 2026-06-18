@@ -1671,6 +1671,14 @@ class fossil_simulator():
         return qtt
 
 
+    def baseline_q_through_time(self, q, shift_time_q):
+        q = np.concatenate((q, q[-1]), axis=None)
+        baseline_qtt = np.c_[shift_time_q, q]
+        baseline_qtt = pd.DataFrame(baseline_qtt, columns=['time', 'q'])
+
+        return baseline_qtt
+
+
     def get_taxon_names(self, lineages_sampled):
         num_taxa = len(lineages_sampled)
         taxon_names = []
@@ -1848,6 +1856,7 @@ class fossil_simulator():
 
         taxon_names = self.get_taxon_names(taxa_sampled)
         qtt = self.harmonic_mean_q_through_time(qtt_taxa, shift_time_q)
+        q_baseline = self.baseline_q_through_time(q, shift_time_q)
         shift_time_q_write = shift_time_q_write[1:-1]
         qtt_taxa = pd.DataFrame(qtt_taxa, columns=shift_time_q[1:].tolist(), index=taxon_names)
         qmtt_taxa = pd.DataFrame(qmtt_taxa, columns=shift_time_q[1:].tolist(), index=taxon_names)
@@ -1858,6 +1867,7 @@ class fossil_simulator():
              'q': q,
              'shift_time': shift_time_q_write,
              'alpha': alpha,
+             'q_baseline': q_baseline,
              'qtt': qtt,
              'qtt_taxa': qtt_taxa,
              'qmultitt_taxa': qmtt_taxa,
@@ -1913,6 +1923,11 @@ class write_PyRate_files():
     def write_q_epochs(self, sim_fossil, name_file):
         file_q_epochs = '%s/%s/%s_q_epochs.txt' % (self.output_wd, name_file, name_file)
         np.savetxt(file_q_epochs, np.sort(sim_fossil['shift_time']), delimiter='\t', fmt='%f')
+
+
+    def write_baseline_qtt(self, sim_fossil, name_file):
+        file_baseline_qtt = '%s/%s/%s_true_baseline_qtt.txt' % (self.output_wd, name_file, name_file)
+        sim_fossil['q_baseline'].to_csv(file_baseline_qtt, na_rep='NA', index=False, sep='\t', float_format="%.3f")
 
 
     def write_qtt(self, sim_fossil, name_file):
@@ -2197,6 +2212,7 @@ class write_PyRate_files():
         self.write_occurrences(sim_fossil, name_file)
         self.write_q_epochs(sim_fossil, name_file)
         self.write_sampling_heterogeneity(sim_fossil, name_file)
+        self.write_baseline_qtt(sim_fossil, name_file)
         self.write_qtt(sim_fossil, name_file)
         if write_taxon_q:
             self.write_qtt_per_taxon(sim_fossil, name_file)
