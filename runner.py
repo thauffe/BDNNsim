@@ -19,11 +19,15 @@ p.add_argument("-extinct", type=int, help="minimum targeted extinct taxa", defau
 
 # Birth-death
 p.add_argument("-root", type=float, help="root age", default=[30.0, 30.0], metavar=[30.0, 30.0], nargs=2)
-p.add_argument("-lam", type=float, help="range of birth rate", default=[0.1, 0.2], metavar=[0.1, 0.2], nargs=2)
-p.add_argument("-mu", type=float, help="range of death rate", default=[0.05, 0.1], metavar=[0.05, 0.1], nargs=2)
+p.add_argument("-lam", type=float, help="random range of birth rate", default=[0.1, 0.2], metavar=[0.1, 0.2], nargs=2)
+p.add_argument("-mu", type=float, help="random range of death rate", default=[0.05, 0.1], metavar=[0.05, 0.1], nargs=2)
+# Trait evolution
+p.add_argument("-cont_traits", type=int, help="random range of continuous traits", default=[1, 1], metavar=[1, 1], nargs=2)
+p.add_argument("-cat_traits", type=int, help="random range of categorical traits", default=[1, 1], metavar=[1, 1], nargs=2)
+p.add_argument("-cat_states", type=int, help="random range of states for categorical traits", default=[2, 2], metavar=[2, 2], nargs=2)
 # Fossil sampling
-p.add_argument("-q", type=float, help="range of sampling rate", default=[0.5, 5.0], metavar=[0.5, 5.0], nargs=2)
-p.add_argument("-alpha", type=float, help="range of alpha parameter heterogeneity in sampling across taxa", default=[0.5, 5.0], metavar=[0.5, 5.0], nargs=2)
+p.add_argument("-q", type=float, help="random range of sampling rate", default=[0.5, 5.0], metavar=[0.5, 5.0], nargs=2)
+p.add_argument("-alpha", type=float, help="random range of alpha parameter heterogeneity in sampling across taxa", default=[0.5, 5.0], metavar=[0.5, 5.0], nargs=2)
 p.add_argument("-q_loguniform", help="draw q from loguniform range", action='store_true', default=False)
 p.add_argument("-alpha_loguniform", help="draw random alpha from loguniform range", action='store_true', default=False)
 p.add_argument("-q_fixed", type=float, help="fixed sampling rate from past to present.", default=[], metavar=[], nargs="+")
@@ -47,13 +51,13 @@ def main():
                               minEX_SP=args.extinct,
                               rangeL=args.lam,
                               rangeM=args.mu,
-                              n_cont_traits=[1, 1],
+                              n_cont_traits=args.cont_traits,
                               cont_traits_sigma_clado=[0.2, 0.2],
                               cont_traits_sigma=[0.02, 0.02],
-                              n_cat_traits=[1, 1],
-                              n_cat_traits_states=[3, 3],
+                              n_cat_traits=args.cat_traits,
+                              n_cat_traits_states=args.cat_states,
                               cat_traits_diag=0.9,
-                              cat_traits_min_freq=[0.25],
+                              cat_traits_min_freq=[0.0],
                               seed=args.seed)
 
     res_bd = bd_sim.run_simulation(verbose=args.verbose)
