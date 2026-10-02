@@ -247,7 +247,7 @@ class FossilSimulator():
         trait_idx = np.logical_and(time < lower, time >= upper)
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', category = RuntimeWarning)
-            mean_multiplier = np.nanmean(self.cont_trait_multipliers[trait_idx, :, :], axis=0).reshape(-1)
+            mean_multiplier = np.nanmean(self.cont_trait_multipliers[trait_idx, :, :], axis=(0,1)).reshape(-1)
         mean_multiplier[np.isnan(mean_multiplier)] = 1.0
 
         return mean_multiplier
