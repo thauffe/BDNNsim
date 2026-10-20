@@ -21,6 +21,8 @@ p.add_argument("-extinct", type=int, help="minimum targeted extinct taxa", defau
 p.add_argument("-root", type=float, help="root age", default=[30.0, 30.0], metavar=[30.0, 30.0], nargs=2)
 p.add_argument("-lam", type=float, help="random range of birth rate", default=[0.1, 0.2], metavar=[0.1, 0.2], nargs=2)
 p.add_argument("-mu", type=float, help="random range of death rate", default=[0.05, 0.1], metavar=[0.05, 0.1], nargs=2)
+p.add_argument("-K_lam", type=int, help="Carrying capacity parameter for birth rate", default=None, metavar="INT")
+p.add_argument("-K_mu", type=int, help="Carrying capacity parameter for death rate", default=None, metavar="INT")
 # Trait evolution
 p.add_argument("-cont_traits", type=int, help="random range of continuous traits", default=[1, 1], metavar=[1, 1], nargs=2)
 p.add_argument("-cat_traits", type=int, help="random range of categorical traits", default=[1, 1], metavar=[1, 1], nargs=2)
@@ -58,6 +60,8 @@ def main():
                               n_cat_traits_states=args.cat_states,
                               cat_traits_diag=0.9,
                               cat_traits_min_freq=[0.0],
+                              K_lam=args.K_lam,
+                              K_mu=args.K_mu,
                               seed=args.seed)
 
     res_bd = bd_sim.run_simulation(verbose=args.verbose)
