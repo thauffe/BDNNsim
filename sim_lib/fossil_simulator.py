@@ -241,16 +241,17 @@ class FossilSimulator():
 
 
     def get_cont_traits_multipliers_time_slice(self, res_bd, upper=-np.inf, lower=np.inf):
-        time = res_bd['true_rates_through_time']['time']
-        # larger time value: more distant past; negative value: future
-        time = np.concatenate((-np.inf, time, np.inf), axis=None)
-        trait_idx = np.logical_and(time < lower, time >= upper)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category = RuntimeWarning)
-            mean_multiplier = np.nanmean(self.cont_trait_multipliers[trait_idx, :, :], axis=(0,1)).reshape(-1)
-        mean_multiplier[np.isnan(mean_multiplier)] = 1.0
-
-        return mean_multiplier
+        multipliers = np.ones(self.n_taxa)
+        if not self.cont_trait_multipliers is None and res_bd['cont_traits'].size > 0:
+            time = res_bd['true_rates_through_time']['time']
+            # larger time value: more distant past; negative value: future
+            time = np.concatenate((-np.inf, time, np.inf), axis=None)
+            trait_idx = np.logical_and(time < lower, time >= upper)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category = RuntimeWarning)
+                multipliers = np.nanmean(self.cont_trait_multipliers[trait_idx, :, :], axis=(0,1)).reshape(-1)
+            multipliers[np.isnan(multipliers)] = 1.0
+        return multipliers
 
 
     def trans_to_mean_1_and_min_max(self, x, m, M, tol=1e-6):
