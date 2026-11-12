@@ -21,8 +21,11 @@ p.add_argument("-extinct", type=int, help="minimum targeted extinct taxa", defau
 p.add_argument("-root", type=float, help="root age", default=[30.0, 30.0], metavar=[30.0, 30.0], nargs=2)
 p.add_argument("-lam", type=float, help="random range of birth rate", default=[0.1, 0.2], metavar=[0.1, 0.2], nargs=2)
 p.add_argument("-mu", type=float, help="random range of death rate", default=[0.05, 0.1], metavar=[0.05, 0.1], nargs=2)
-p.add_argument("-K_lam", type=int, help="Carrying capacity parameter for birth rate", default=None, metavar="INT")
-p.add_argument("-K_mu", type=int, help="Carrying capacity parameter for death rate", default=None, metavar="INT")
+p.add_argument("-K_lam", type=int, help="carrying capacity parameter for birth rate", default=None, metavar="INT")
+p.add_argument("-K_mu", type=int, help="carrying capacity parameter for death rate", default=None, metavar="INT")
+p.add_argument("-me_prob", type=float, help="probability for a mass extinction", default=0.0, metavar=0.0)
+p.add_argument("-me_mag", type=float, help="range of mass extinction magnitude", default=[0.0, 0.0], metavar=[0.0, 0.0], nargs=2)
+p.add_argument("-me_times", type=float, help="times mass extinction magnitude", default=[-1.0], metavar=[-1.0], nargs="+")
 # Trait evolution
 p.add_argument("-cont_traits", type=int, help="random range of continuous traits", default=[1, 1], metavar=[1, 1], nargs=2)
 p.add_argument("-cat_traits", type=int, help="random range of categorical traits", default=[1, 1], metavar=[1, 1], nargs=2)
@@ -53,6 +56,9 @@ def main():
                               minEX_SP=args.extinct,
                               rangeL=args.lam,
                               rangeM=args.mu,
+                              mass_extinction_prob=args.me_prob,
+                              mass_extinction_magnitude=args.me_mag,
+                              mass_extinction_times=args.me_times,
                               n_cont_traits=args.cont_traits,
                               cont_traits_sigma_clado=[0.2, 0.2],
                               cont_traits_sigma=[0.02, 0.02],
